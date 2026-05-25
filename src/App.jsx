@@ -165,9 +165,9 @@ export default function App() {
           </p>
           <div className="grid grid-cols-3 gap-3 text-xs text-stone-700">
             {[
-              { emoji: '✅', label: 'What works well', sub: 'Flows that feel natural and complete' },
-              { emoji: '⚠️', label: 'What's confusing', sub: 'Steps that feel unclear or missing' },
-              { emoji: '➕', label: 'What's missing', sub: 'Features or information you'd need' },
+          { emoji: '✅', label: 'What works well', sub: 'Flows that feel natural and complete' },
+{ emoji: '⚠️', label: "What's confusing", sub: 'Steps that feel unclear or missing' },
+{ emoji: '➕', label: "What's missing", sub: "Features or information you'd need" },
             ].map(f => (
               <div key={f.label} className="bg-stone-50 border border-stone-200 rounded-lg p-3">
                 <div className="text-base mb-1">{f.emoji}</div>
