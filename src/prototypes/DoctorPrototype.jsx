@@ -2,8 +2,8 @@ import React, { useState, useMemo } from 'react';
 import {
   ChevronLeft, Calendar, Clock, Phone, Shield, AlertCircle, AlertTriangle,
   Plus, X, Camera, FileText, Pill, Activity, CheckCircle2, ArrowRight, ArrowLeft,
-  Edit3, Save, ClipboardList, Image as ImageIcon, ChevronDown, ChevronRight, Stethoscope,
-  Droplet, Sparkles, Users, UserCheck
+  Edit3, Save, ClipboardList, Image as ImageIcon, ChevronDown, ChevronRight, Stethoscope, Bell,
+  Droplet, Sparkles, Users, UserCheck, Receipt, Tag, ExternalLink
 } from 'lucide-react';
 
 // =====================================================================
@@ -43,11 +43,26 @@ const PATIENT = {
 };
 
 const ENCOUNTER_HISTORY = [
-  { id: 'e1', date: '2026-04-18', doctor: 'Dr. Priya Menon',     specialty: 'Endodontics',     procedure: 'Root canal — #16', notes: 'Asymptomatic at 6 weeks. Final restoration recommended.', kind: 'dental',    icon: 'tooth' },
-  { id: 'e2', date: '2026-02-14', doctor: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry', procedure: 'Cleaning + composite filling #36', notes: 'Mild gingivitis lower right. Advised improved flossing.', kind: 'dental', icon: 'tooth' },
-  { id: 'e3', date: '2025-11-22', doctor: 'Dr. Reem Al-Thani',    specialty: 'Aesthetic Medicine', procedure: 'Botox — glabellar + forehead', notes: '20U total. Patient pleased at 14-day follow-up.', kind: 'aesthetic', icon: 'sparkle' },
-  { id: 'e4', date: '2025-08-03', doctor: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry', procedure: 'Consultation + bitewing X-rays', notes: 'Recurrent decay #16 — referred to endodontics.', kind: 'dental', icon: 'tooth' },
-  { id: 'e5', date: '2025-05-10', doctor: 'Dr. Reem Al-Thani',    specialty: 'Aesthetic Medicine', procedure: 'Initial consultation', notes: 'Patient interested in preventive Botox.', kind: 'aesthetic', icon: 'sparkle' },
+  { id: 'e1', date: '2026-04-18', doctor: 'Dr. Priya Menon',     specialty: 'Endodontics',       procedure: 'Root canal — #16', notes: 'Asymptomatic at 6 weeks. Final restoration recommended.', kind: 'dental',    icon: 'tooth',
+    rxDone: [{ item: 'Root canal treatment #16', price: 2500 }],
+    rxMeds: ['Ibuprofen 400mg TDS × 3d', 'Amoxicillin 500mg TDS × 5d'],
+    plan: ['Final composite restoration in 2 weeks', 'Follow-up X-ray at 3 months'] },
+  { id: 'e2', date: '2026-02-14', doctor: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry', procedure: 'Cleaning + composite filling #36', notes: 'Mild gingivitis lower right. Advised improved flossing.', kind: 'dental', icon: 'tooth',
+    rxDone: [{ item: 'Cleaning & polish', price: 400 }, { item: 'Composite filling #36', price: 600 }],
+    rxMeds: ['Chlorhexidine 0.2% mouthwash BD × 7d'],
+    plan: ['Review gingival health at next cleaning', 'Routine check in 6 months'] },
+  { id: 'e3', date: '2025-11-22', doctor: 'Dr. Reem Al-Thani',    specialty: 'Aesthetic Medicine', procedure: 'Botox — glabellar + forehead', notes: '20U total. Patient pleased at 14-day follow-up.', kind: 'aesthetic', icon: 'sparkle',
+    rxDone: [{ item: 'Botox 20U — glabellar + frontalis', price: 1800 }],
+    rxMeds: [],
+    plan: ['Touch-up in 3-4 months if needed', 'Consider tear-trough filler at next visit'] },
+  { id: 'e4', date: '2025-08-03', doctor: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry', procedure: 'Consultation + bitewing X-rays', notes: 'Recurrent decay #16 — referred to endodontics.', kind: 'dental', icon: 'tooth',
+    rxDone: [{ item: 'Consultation', price: 250 }, { item: 'Bitewing X-rays (4 films)', price: 220 }],
+    rxMeds: [],
+    plan: ['Endodontic referral for #16', 'Patient advised on symptom monitoring'] },
+  { id: 'e5', date: '2025-05-10', doctor: 'Dr. Reem Al-Thani',    specialty: 'Aesthetic Medicine', procedure: 'Initial consultation', notes: 'Patient interested in preventive Botox.', kind: 'aesthetic', icon: 'sparkle',
+    rxDone: [{ item: 'Aesthetic consultation', price: 0 }],
+    rxMeds: [],
+    plan: ['Schedule Botox session within 2 months'] },
 ];
 
 const TODAYS_APT = {
@@ -65,8 +80,9 @@ const DRUG_FAVOURITES = [
 ];
 
 // ---- Main App -------------------------------------------------------
-export default function DoctorPrototype() {
-  const [mode, setMode] = useState('dental'); // 'dental' | 'aesthetic'
+export default function DoctorPortalPrototype() {
+  const [mode, setMode] = useState('dental');
+  const [viewingEnc, setViewingEnc] = useState(null); // past encounter being viewed
   const isDental = mode === 'dental';
 
   return (
@@ -119,11 +135,14 @@ export default function DoctorPrototype() {
       {/* Patient banner — always visible, the doctor's anchor */}
       <PatientBanner patient={PATIENT} appointment={TODAYS_APT[mode]} mode={mode} />
 
-      {/* Three-column layout: history | encounter | actions */}
+      {/* Three-column layout — or past encounter view */}
+      {viewingEnc ? (
+        <PastEncounterView enc={viewingEnc} patient={PATIENT} onBack={() => setViewingEnc(null)} />
+      ) : (
       <div className="grid grid-cols-12 gap-4 px-4 py-4">
         {/* Left: History */}
         <aside className="col-span-3">
-          <HistoryColumn patient={PATIENT} history={ENCOUNTER_HISTORY} mode={mode} />
+          <HistoryColumn patient={PATIENT} history={ENCOUNTER_HISTORY} mode={mode} onViewEncounter={setViewingEnc} />
         </aside>
 
         {/* Center: Active encounter */}
@@ -136,20 +155,124 @@ export default function DoctorPrototype() {
           <ActionsColumn mode={mode} appointment={TODAYS_APT[mode]} />
         </aside>
       </div>
+      )} {/* end viewingEnc conditional */}
+    </div>
+  );
+} 
+
+// =====================================================================
+// PAST ENCOUNTER VIEW — full read-only view of a historical encounter
+// =====================================================================
+function PastEncounterView({ enc, patient, onBack }) {
+  const soapMap = {
+    e1: { s: 'Patient had completed root canal on #16. No spontaneous pain. Mild sensitivity when biting.', o: 'Tooth #16 — no periapical pathology on X-ray. Percussion negative. Canal obturation adequate.', a: 'Successful endodontic treatment. Tooth ready for final restoration.', p: 'Composite restoration recommended within 4 weeks. Follow-up X-ray at 3 months.' },
+    e2: { s: 'Routine visit. Patient reports no pain. Noticed bleeding gums when flossing lower right.', o: 'Mild generalised gingivitis, pronounced at lower right molar. Existing filling #36 intact.', a: 'Gingivitis secondary to plaque accumulation. Existing composite restoration serviceable.', p: 'Oral hygiene reinforced. Chlorhexidine rinse prescribed. Review at next cleaning.' },
+    e3: { s: 'Patient pleased with November Botox. Requesting top-up. Interested in tear-trough filler.', o: 'Glabellar lines reduced ~70% at 14-day follow-up. Frontalis movement preserved. No adverse events.', a: 'Good response to Botox 20U. Appropriate candidate for tear-trough filler at next visit.', p: 'Schedule filler consult within 2-4 weeks. Photograph taken for baseline comparison.' },
+    e4: { s: 'Patient reports intermittent cold sensitivity upper right for 3 weeks. No spontaneous pain.', o: 'Bitewing X-ray shows recurrent decay under existing restoration on #16. ~3mm depth estimated.', a: 'Recurrent caries #16. Risk of pulpal involvement if untreated. Endodontic referral indicated.', p: 'Referred to Dr. Priya Menon (Endodontics). Patient advised to avoid cold foods on affected side.' },
+    e5: { s: 'New patient consultation. Interested in Botox for preventive anti-ageing. No prior aesthetic treatments.', o: 'Skin assessment: mild dynamic lines glabella and frontalis. Good skin turgor. No contraindications.', a: 'Appropriate candidate for preventive Botox. Realistic expectations established.', p: 'Botox session scheduled for 3 weeks. Pre-treatment photography taken.' },
+  };
+  const soap = soapMap[enc.id] || { s: enc.notes, o: '—', a: '—', p: enc.plan?.join('. ') || '—' };
+
+  return (
+    <div className="px-4 py-4">
+      {/* Back bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={onBack}
+          className="flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 px-3 py-1.5 border border-stone-300 rounded-md hover:bg-white bg-stone-50">
+          <ChevronLeft className="w-4 h-4" /> Back to today
+        </button>
+        <div className="text-sm font-semibold">{enc.date} — {enc.procedure}</div>
+        <div className="text-xs text-stone-500">{enc.doctor} · {enc.specialty}</div>
+        <span className={`ml-auto text-[10px] px-2 py-0.5 rounded border ${enc.kind === 'dental' ? 'bg-sky-50 text-sky-800 border-sky-300' : 'bg-rose-50 text-rose-800 border-rose-300'}`}>
+          {enc.kind}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-12 gap-4">
+        {/* Left: SOAP */}
+        <div className="col-span-7 space-y-3">
+          <div className="bg-white border border-stone-200 rounded-lg p-4">
+            <div className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-3">SOAP Note</div>
+            {[
+              { key: 'S', label: 'Subjective', value: soap.s },
+              { key: 'O', label: 'Objective',  value: soap.o },
+              { key: 'A', label: 'Assessment', value: soap.a },
+              { key: 'P', label: 'Plan',        value: soap.p },
+            ].map(({ key, label, value }) => (
+              <div key={key} className="mb-3 last:mb-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-5 h-5 rounded bg-stone-900 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">{key}</span>
+                  <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">{label}</span>
+                </div>
+                <div className="text-xs text-stone-700 pl-7 leading-relaxed">{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: Rx Done, Rx Med, Plan */}
+        <div className="col-span-5 space-y-3">
+          <div className="bg-white border border-stone-200 rounded-lg p-4">
+            <div className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">Rx Done</div>
+            {enc.rxDone && enc.rxDone.length > 0 ? (
+              <div className="space-y-1">
+                {enc.rxDone.map((r, i) => (
+                  <div key={i} className="text-xs text-stone-700 flex items-center gap-1.5">
+                    <div className="w-1 h-1 rounded-full bg-stone-400 flex-shrink-0" />
+                    {r.item}
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-xs text-stone-400 italic">No procedures recorded</div>}
+          </div>
+
+          <div className="bg-white border border-stone-200 rounded-lg p-4">
+            <div className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">Rx Medicines</div>
+            {enc.rxMeds && enc.rxMeds.length > 0 ? (
+              <div className="space-y-1">
+                {enc.rxMeds.map((m, i) => (
+                  <div key={i} className="text-xs text-stone-700 flex items-center gap-1.5">
+                    <Pill className="w-3 h-3 text-stone-400 flex-shrink-0" />
+                    {m}
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-xs text-stone-400 italic">No medications prescribed</div>}
+          </div>
+
+          <div className="bg-white border border-stone-200 rounded-lg p-4">
+            <div className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">Plan</div>
+            {enc.plan && enc.plan.length > 0 ? (
+              <div className="space-y-1">
+                {enc.plan.map((p, i) => (
+                  <div key={i} className="text-xs text-stone-700 flex items-start gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-stone-100 text-stone-600 text-[9px] font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+                    {p}
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-xs text-stone-400 italic">No plan recorded</div>}
+          </div>
+
+          <div className="text-[10px] text-stone-400 px-1 flex items-center gap-1.5">
+            <FileText className="w-3 h-3" />
+            Past encounter — read only. Audit entry created on access.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-// =====================================================================
-// PATIENT BANNER — sticky context that never leaves the screen
-// =====================================================================
 function PatientBanner({ patient, appointment, mode }) {
   const team = patient.careTeam[mode];
+  const [showId, setShowId] = useState(false);
+
   return (
     <div className="bg-white border-b border-stone-200">
-      <div className="px-6 py-3 flex items-start gap-5">
+      <div className="px-6 py-3 flex items-start gap-5 flex-wrap">
         {/* Identity */}
-        <div className="flex items-start gap-3 min-w-0 flex-1">
+        <div className="flex items-start gap-3 min-w-0" style={{ flex: '1 1 280px' }}>
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-stone-200 to-stone-300 flex items-center justify-center flex-shrink-0">
             <span className="text-lg font-medium text-stone-700">{patient.nameEn.split(' ').map(n => n[0]).slice(0, 2).join('')}</span>
           </div>
@@ -158,8 +281,12 @@ function PatientBanner({ patient, appointment, mode }) {
               <div className="text-base font-semibold">{patient.nameEn}</div>
               <div className="text-sm text-stone-500" dir="rtl">{patient.nameAr}</div>
             </div>
-            <div className="text-xs text-stone-500 mono mt-0.5">
+            <div className="text-xs text-stone-500 mono mt-0.5 flex items-center gap-2">
               QID {patient.qid} · {patient.age}y · {patient.sex} · {patient.bloodType}
+              <button onClick={() => setShowId(!showId)}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 flex items-center gap-1">
+                <FileText className="w-2.5 h-2.5" /> {showId ? 'Hide ID' : 'View ID'}
+              </button>
             </div>
             <div className="text-xs text-stone-500 mt-0.5 flex items-center gap-3">
               <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {patient.phone}</span>
@@ -169,7 +296,7 @@ function PatientBanner({ patient, appointment, mode }) {
         </div>
 
         {/* Care team */}
-        <div className="border-l border-stone-200 pl-5 min-w-[190px]">
+        <div className="border-l border-stone-200 pl-5 min-w-[160px]">
           <div className="text-xs font-semibold text-stone-700 flex items-center gap-1.5 mb-1.5">
             <Users className="w-3.5 h-3.5" /> Care team
           </div>
@@ -180,7 +307,7 @@ function PatientBanner({ patient, appointment, mode }) {
         </div>
 
         {/* Allergies — always highlighted */}
-        <div className="border-l border-stone-200 pl-5 min-w-[170px]">
+        <div className="border-l border-stone-200 pl-5 min-w-[140px]">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700">
             <AlertTriangle className="w-3.5 h-3.5" />
             Allergies
@@ -195,7 +322,7 @@ function PatientBanner({ patient, appointment, mode }) {
         </div>
 
         {/* Conditions */}
-        <div className="border-l border-stone-200 pl-5 min-w-[170px]">
+        <div className="border-l border-stone-200 pl-5 min-w-[130px]">
           <div className="text-xs font-semibold text-stone-700">Conditions</div>
           <div className="mt-1 space-y-0.5">
             {patient.conditions.map(c => (
@@ -205,7 +332,7 @@ function PatientBanner({ patient, appointment, mode }) {
         </div>
 
         {/* Today's appointment */}
-        <div className="border-l border-stone-200 pl-5 min-w-[180px]">
+        <div className="border-l border-stone-200 pl-5 min-w-[150px]">
           <div className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5" /> Today
           </div>
@@ -215,6 +342,37 @@ function PatientBanner({ patient, appointment, mode }) {
           </div>
         </div>
       </div>
+
+      {/* ID document viewer — collapsible */}
+      {showId && (
+        <div className="px-6 py-3 bg-sky-50/60 border-t border-sky-200">
+          <div className="flex items-start gap-4">
+            {/* QID front mock */}
+            <div className="w-48 h-28 rounded border border-sky-300 bg-white flex flex-col items-center justify-center text-stone-400 flex-shrink-0">
+              <FileText className="w-6 h-6 mb-1" />
+              <div className="text-[10px] font-medium">QID — Front</div>
+              <div className="text-[9px] text-stone-400 mono mt-0.5">Uploaded 2024-06-15</div>
+            </div>
+            {/* QID back mock */}
+            <div className="w-48 h-28 rounded border border-sky-300 bg-white flex flex-col items-center justify-center text-stone-400 flex-shrink-0">
+              <FileText className="w-6 h-6 mb-1" />
+              <div className="text-[10px] font-medium">QID — Back</div>
+              <div className="text-[9px] text-stone-400 mono mt-0.5">Uploaded 2024-06-15</div>
+            </div>
+            {/* ID details */}
+            <div className="flex-1 text-xs space-y-1">
+              <div className="text-[10px] font-semibold text-sky-900 uppercase tracking-wide mb-1.5">ID on file</div>
+              <div className="flex justify-between"><span className="text-stone-500">Document type</span><span className="font-medium">Qatar ID (QID)</span></div>
+              <div className="flex justify-between"><span className="text-stone-500">QID number</span><span className="mono font-medium">{patient.qid}</span></div>
+              <div className="flex justify-between"><span className="text-stone-500">Full name</span><span className="font-medium">{patient.nameEn}</span></div>
+              <div className="flex justify-between"><span className="text-stone-500">Date of birth</span><span className="mono">1992-03-14</span></div>
+              <div className="flex justify-between"><span className="text-stone-500">Nationality</span><span>Qatari</span></div>
+              <div className="flex justify-between"><span className="text-stone-500">Expiry</span><span className="mono">2029-06-30</span></div>
+              <div className="mt-2 text-[10px] text-sky-700 italic">Uploaded by reception during registration. Click images to enlarge.</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chief complaint strip */}
       <div className="px-6 py-2 bg-amber-50 border-t border-amber-200 flex items-start gap-2">
@@ -247,8 +405,9 @@ function CareTeamMember({ member, color }) {
 // =====================================================================
 // LEFT COLUMN — History timeline
 // =====================================================================
-function HistoryColumn({ patient, history, mode }) {
-  const [filter, setFilter] = useState('all'); // 'all' | 'dental' | 'aesthetic'
+function HistoryColumn({ patient, history, mode, onViewEncounter }) {
+  const [filter, setFilter] = useState('all');
+  const [expandedId, setExpandedId] = useState(null);
   const filtered = filter === 'all' ? history : history.filter(e => e.kind === filter);
 
   return (
@@ -281,21 +440,78 @@ function HistoryColumn({ patient, history, mode }) {
         </div>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline — expandable */}
       <div className="px-3 py-2 max-h-[480px] overflow-y-auto">
         <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Encounters</div>
         <div className="relative">
-          {/* Timeline line */}
           <div className="absolute left-1.5 top-1 bottom-1 w-px bg-stone-200" />
-          {filtered.map(e => (
-            <button key={e.id} className="block w-full text-left mb-3 last:mb-0 relative pl-5 hover:bg-stone-50 -mx-1 px-1 py-0.5 rounded">
-              <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white ${e.kind === 'dental' ? 'bg-sky-500' : 'bg-rose-400'}`} />
-              <div className="text-[10px] mono text-stone-500">{e.date}</div>
-              <div className="text-xs font-medium mt-0.5">{e.procedure}</div>
-              <div className="text-[11px] text-stone-500 mt-0.5">{e.doctor}</div>
-              <div className="text-[11px] text-stone-600 mt-1 italic line-clamp-2">{e.notes}</div>
-            </button>
-          ))}
+          {filtered.map(e => {
+            const isExpanded = expandedId === e.id;
+            return (
+              <div key={e.id} className="mb-3 last:mb-0 relative pl-5">
+                <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white ${e.kind === 'dental' ? 'bg-sky-500' : 'bg-rose-400'}`} />
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : e.id)}
+                  className="block w-full text-left hover:bg-stone-50 -mx-1 px-1 py-0.5 rounded"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="text-[10px] mono text-stone-500">{e.date}</div>
+                    <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  </div>
+                  <div className="text-xs font-medium mt-0.5">{e.procedure}</div>
+                  <div className="text-[11px] text-stone-500 mt-0.5">{e.doctor}</div>
+                  {!isExpanded && <div className="text-[11px] text-stone-600 mt-1 italic line-clamp-1">{e.notes}</div>}
+                </button>
+
+                {isExpanded && (
+                  <div className="mt-1.5 ml-0 p-2.5 bg-stone-50 border border-stone-200 rounded-md text-xs space-y-2">
+                    {/* Doctor */}
+                    <div className="text-[10px] text-stone-500">{e.doctor} · {e.specialty}</div>
+
+                    {/* Rx Done — items only, no prices */}
+                    {e.rxDone && e.rxDone.length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Rx Done</div>
+                        {e.rxDone.map((r, i) => (
+                          <div key={i} className="text-stone-700 mt-0.5">· {r.item}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    <div>
+                      <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Notes</div>
+                      <div className="text-stone-700 italic mt-0.5">{e.notes}</div>
+                    </div>
+
+                    {/* Rx Meds — if any */}
+                    {e.rxMeds && e.rxMeds.length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Medications</div>
+                        <div className="text-stone-600 mt-0.5">{e.rxMeds.join(' · ')}</div>
+                      </div>
+                    )}
+
+                    {/* Plan — brief */}
+                    {e.plan && e.plan.length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Plan</div>
+                        <div className="text-stone-600 mt-0.5">{e.plan.join(' · ')}</div>
+                      </div>
+                    )}
+
+                    {/* Link to full encounter */}
+                    <button
+                      onClick={() => onViewEncounter(e)}
+                      className="mt-1 w-full px-2 py-1.5 text-[11px] border border-stone-300 rounded hover:bg-white flex items-center justify-center gap-1.5 text-stone-700 font-medium">
+                      <ExternalLink className="w-3 h-3" />
+                      Open full encounter — SOAP, Rx, images
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -899,7 +1115,11 @@ function LegsSvg() {
 // RIGHT COLUMN — Actions
 // =====================================================================
 function ActionsColumn({ mode, appointment }) {
-  const [tab, setTab] = useState('prescribe'); // prescribe | plan | images | finish
+  const [tab, setTab] = useState('prescribe');
+  const [receptionNote, setReceptionNote] = useState('');
+  const [noteSaved, setNoteSaved] = useState(false);
+
+  const saveNote = () => { setNoteSaved(true); setTimeout(() => setNoteSaved(false), 2000); };
 
   return (
     <div className="space-y-3">
@@ -925,9 +1145,10 @@ function ActionsColumn({ mode, appointment }) {
 
       {/* Action tabs */}
       <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-        <div className="grid grid-cols-4 border-b border-stone-200">
+        <div className="grid grid-cols-5 border-b border-stone-200">
           {[
-            { k: 'prescribe', icon: Pill, label: 'Rx' },
+            { k: 'prescribe', icon: Pill, label: 'Rx Med' },
+            { k: 'rxdone', icon: Receipt, label: 'Rx Done' },
             { k: 'plan', icon: ClipboardList, label: 'Plan' },
             { k: 'images', icon: ImageIcon, label: 'Images' },
             { k: 'finish', icon: CheckCircle2, label: 'Finish' },
@@ -945,9 +1166,39 @@ function ActionsColumn({ mode, appointment }) {
 
         <div className="p-3">
           {tab === 'prescribe' && <PrescribePanel mode={mode} />}
+          {tab === 'rxdone' && <RxDonePanel mode={mode} appointment={appointment} />}
           {tab === 'plan' && <TreatmentPlanPanel mode={mode} />}
           {tab === 'images' && <ImagesPanel mode={mode} />}
           {tab === 'finish' && <FinishPanel mode={mode} />}
+        </div>
+      </div>
+
+      {/* Note for reception — always visible, not tab-specific */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="text-[10px] font-semibold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
+            <Bell className="w-3 h-3" /> Note for reception
+          </div>
+          <span className="text-[9px] text-amber-700">Visible to reception at checkout</span>
+        </div>
+        <textarea
+          value={receptionNote}
+          onChange={e => { setReceptionNote(e.target.value); setNoteSaved(false); }}
+          rows={3}
+          placeholder="e.g. Waive co-pay today — patient paid double last visit. Schedule follow-up before leaving. Remind about insurance pre-auth for next procedure..."
+          className="w-full px-2 py-1.5 text-xs border border-amber-300 bg-white rounded focus:outline-none focus:border-amber-500 resize-none"
+        />
+        <div className="flex items-center justify-between mt-1.5">
+          <div className="text-[10px] text-amber-700 italic">
+            {receptionNote.length > 0 ? `${receptionNote.length} characters` : 'No note yet'}
+          </div>
+          <button
+            onClick={saveNote}
+            disabled={!receptionNote.trim()}
+            className={`px-2.5 py-1 text-[11px] rounded flex items-center gap-1 ${noteSaved ? 'bg-emerald-600 text-white' : 'bg-amber-700 text-white hover:bg-amber-800'} disabled:opacity-40`}
+          >
+            {noteSaved ? <><CheckCircle2 className="w-3 h-3" /> Saved</> : <><Save className="w-3 h-3" /> Save note</>}
+          </button>
         </div>
       </div>
     </div>
@@ -956,12 +1207,21 @@ function ActionsColumn({ mode, appointment }) {
 
 function PrescribePanel({ mode }) {
   const [rxList, setRxList] = useState([]);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customDrug, setCustomDrug] = useState({ name: '', sig: '', class: 'Other' });
+
   const addRx = (drug) => {
-    // Check for allergy: Penicillin → Amoxicillin
     if (drug.name.startsWith('Amoxicillin') || drug.name.startsWith('Penicillin')) {
       if (!confirm('⚠ Patient is ALLERGIC to Penicillin. Are you sure you want to prescribe Amoxicillin?')) return;
     }
     setRxList([...rxList, { ...drug, id: Date.now() }]);
+  };
+
+  const addCustom = () => {
+    if (!customDrug.name) return;
+    addRx(customDrug);
+    setCustomDrug({ name: '', sig: '', class: 'Other' });
+    setShowCustom(false);
   };
 
   return (
@@ -986,6 +1246,32 @@ function PrescribePanel({ mode }) {
         })}
       </div>
 
+      {/* Custom medicine */}
+      {!showCustom ? (
+        <button onClick={() => setShowCustom(true)}
+          className="mt-2 w-full px-2 py-1.5 text-[11px] border border-dashed border-stone-300 rounded text-stone-500 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
+          <Plus className="w-3 h-3" /> Add other medicine
+        </button>
+      ) : (
+        <div className="mt-2 p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1.5">
+          <div className="text-[10px] font-semibold text-stone-600">Custom medicine</div>
+          <input value={customDrug.name} onChange={e => setCustomDrug({ ...customDrug, name: e.target.value })}
+            placeholder="Medicine name + strength (e.g. Azithromycin 500mg)"
+            className="w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
+          <input value={customDrug.sig} onChange={e => setCustomDrug({ ...customDrug, sig: e.target.value })}
+            placeholder="Instructions (e.g. 1 tab OD × 3 days)"
+            className="w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
+          <div className="flex gap-1.5 justify-end">
+            <button onClick={() => { setShowCustom(false); setCustomDrug({ name: '', sig: '', class: 'Other' }); }}
+              className="px-2 py-1 text-[11px] border border-stone-300 rounded hover:bg-white">Cancel</button>
+            <button onClick={addCustom} disabled={!customDrug.name}
+              className="px-2 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 disabled:opacity-40 flex items-center gap-1">
+              <Plus className="w-2.5 h-2.5" /> Add
+            </button>
+          </div>
+        </div>
+      )}
+
       {rxList.length > 0 && (
         <div className="mt-3 pt-3 border-t border-stone-200">
           <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">On prescription</div>
@@ -1006,6 +1292,156 @@ function PrescribePanel({ mode }) {
   );
 }
 
+// ---- Rx Done panel: treatments done with editable prices + discount --
+function RxDonePanel({ mode, appointment }) {
+  const dentalItems = [
+    { id: 'rd1', label: 'Composite filling — tooth #16', code: 'D2391', price: 600 },
+    { id: 'rd2', label: 'Bitewing X-rays (4 films)', code: 'D0274', price: 220 },
+  ];
+  const aestheticItems = [
+    { id: 'rd3', label: 'Botox 20U — glabellar + frontalis', code: 'M0023', price: 1800 },
+  ];
+
+  const [items, setItems] = useState(
+    (mode === 'dental' ? dentalItems : aestheticItems).map(i => ({ ...i, editPrice: i.price }))
+  );
+  const [discountPct, setDiscountPct] = useState(0);
+  const [discountReason, setDiscountReason] = useState('');
+  const [showDiscount, setShowDiscount] = useState(false);
+
+  const [showAddTreatment, setShowAddTreatment] = useState(false);
+  const [newTreatment, setNewTreatment] = useState({ label: '', code: '', price: '' });
+
+  const addTreatment = () => {
+    if (!newTreatment.label) return;
+    const id = `rd${Date.now()}`;
+    const price = parseInt(newTreatment.price) || 0;
+    setItems(prev => [...prev, { id, label: newTreatment.label, code: newTreatment.code, price, editPrice: price }]);
+    setNewTreatment({ label: '', code: '', price: '' });
+    setShowAddTreatment(false);
+  };
+
+  const removeItem = (id) => setItems(prev => prev.filter(i => i.id !== id));
+  const subtotal = items.reduce((s, i) => s + i.editPrice, 0);
+  const discountAmt = Math.round(subtotal * discountPct / 100);
+  const total = subtotal - discountAmt;
+
+  return (
+    <div>
+      <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Treatments done today</div>
+      <div className="space-y-2">
+        {items.map(item => (
+          <div key={item.id} className="px-2.5 py-2 border border-stone-200 rounded-md">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium">{item.label}</div>
+                <div className="text-[10px] text-stone-400 mono mt-0.5">{item.code} · {appointment.doctor}</div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-stone-500">QAR</span>
+                <input type="number" value={item.editPrice}
+                  onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, editPrice: parseInt(e.target.value) || 0 } : i))}
+                  className="w-20 px-1.5 py-1 text-xs border border-stone-300 rounded mono text-right focus:outline-none focus:border-stone-500" />
+                <button onClick={() => removeItem(item.id)} className="text-stone-300 hover:text-red-500">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            {item.editPrice !== item.price && (
+              <div className="mt-1 text-[10px] text-amber-700 flex items-center gap-1">
+                <Edit3 className="w-2.5 h-2.5" />
+                Modified from QAR {item.price.toLocaleString()}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Add treatment */}
+      {!showAddTreatment ? (
+        <button onClick={() => setShowAddTreatment(true)}
+          className="mt-2 w-full px-2 py-1.5 text-[11px] border border-dashed border-stone-300 rounded text-stone-500 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
+          <Plus className="w-3 h-3" /> Add treatment
+        </button>
+      ) : (
+        <div className="mt-2 p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1.5">
+          <div className="text-[10px] font-semibold text-stone-600">New treatment</div>
+          <input value={newTreatment.label} onChange={e => setNewTreatment({ ...newTreatment, label: e.target.value })}
+            placeholder="Treatment name (e.g. Chemical peel)"
+            className="w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
+          <div className="flex gap-2">
+            <input value={newTreatment.code} onChange={e => setNewTreatment({ ...newTreatment, code: e.target.value })}
+              placeholder="Code (optional)"
+              className="flex-1 px-2 py-1.5 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
+            <input type="number" value={newTreatment.price} onChange={e => setNewTreatment({ ...newTreatment, price: e.target.value })}
+              placeholder="Price (QAR)"
+              className="w-28 px-2 py-1.5 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
+          </div>
+          <div className="flex gap-1.5 justify-end">
+            <button onClick={() => { setShowAddTreatment(false); setNewTreatment({ label: '', code: '', price: '' }); }}
+              className="px-2 py-1 text-[11px] border border-stone-300 rounded hover:bg-white">Cancel</button>
+            <button onClick={addTreatment} disabled={!newTreatment.label}
+              className="px-2 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 disabled:opacity-40 flex items-center gap-1">
+              <Plus className="w-2.5 h-2.5" /> Add
+            </button>
+          </div>
+        </div>
+      )}
+      {!showDiscount ? (
+        <button onClick={() => setShowDiscount(true)}
+          className="mt-2 w-full px-2 py-1.5 text-[11px] border border-dashed border-stone-300 rounded text-stone-500 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
+          <Tag className="w-3 h-3" /> Add discount
+        </button>
+      ) : (
+        <div className="mt-2 p-2 bg-stone-50 border border-stone-200 rounded space-y-1.5">
+          <div className="flex gap-2">
+            <div className="w-16">
+              <label className="text-[9px] text-stone-500">Discount %</label>
+              <input type="number" min={0} max={100} value={discountPct}
+                onChange={e => setDiscountPct(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                className="mt-0.5 w-full px-1.5 py-1 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
+            </div>
+            <div className="flex-1">
+              <label className="text-[9px] text-stone-500">Reason</label>
+              <input value={discountReason} onChange={e => setDiscountReason(e.target.value)}
+                placeholder="e.g. Staff family"
+                className="mt-0.5 w-full px-1.5 py-1 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
+            </div>
+            <button onClick={() => { setShowDiscount(false); setDiscountPct(0); setDiscountReason(''); }}
+              className="self-end px-1.5 py-1 text-[10px] text-stone-400 hover:text-stone-700">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          {discountPct > 0 && (
+            <div className="text-[10px] text-emerald-700 mono">Saves patient QAR {discountAmt.toLocaleString()}</div>
+          )}
+        </div>
+      )}
+
+      {/* Totals */}
+      <div className="mt-2 pt-2 border-t border-stone-200 space-y-1 text-xs">
+        <div className="flex justify-between">
+          <span className="text-stone-500">Subtotal</span>
+          <span className="mono">{`QAR ${subtotal.toLocaleString()}`}</span>
+        </div>
+        {discountPct > 0 && (
+          <div className="flex justify-between text-emerald-700">
+            <span>Discount ({discountPct}%)</span>
+            <span className="mono">-QAR {discountAmt.toLocaleString()}</span>
+          </div>
+        )}
+        <div className="flex justify-between font-semibold pt-1 border-t border-stone-100">
+          <span>Total</span>
+          <span className="mono">QAR {total.toLocaleString()}</span>
+        </div>
+      </div>
+      <div className="mt-2 text-[10px] text-stone-400 italic">
+        Prices here flow to the checkout screen. Edits are audit-logged.
+      </div>
+    </div>
+  );
+}
+
 function TreatmentPlanPanel({ mode }) {
   const dentalPlan = [
     { step: 1, item: 'Composite filling #16', when: 'Today', cost: 600, status: 'in-progress' },
@@ -1019,7 +1455,6 @@ function TreatmentPlanPanel({ mode }) {
     { step: 4, item: 'Filler placement (if cleared)', when: '4 weeks', cost: 2400, status: 'planned' },
   ];
   const plan = mode === 'dental' ? dentalPlan : aestheticPlan;
-  const total = plan.reduce((s, x) => s + x.cost, 0);
 
   return (
     <div>
@@ -1033,19 +1468,18 @@ function TreatmentPlanPanel({ mode }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium leading-tight">{p.item}</div>
-                <div className="text-[10px] text-stone-500 mt-0.5 mono">{p.when} · QAR {p.cost.toLocaleString()}</div>
+                <div className="text-[10px] text-stone-500 mt-0.5 mono">{p.when}</div>
               </div>
             </div>
           </div>
         ))}
       </div>
-      <div className="mt-2 pt-2 border-t border-stone-200 flex items-center justify-between text-xs">
-        <span className="text-stone-600">Total estimate</span>
-        <span className="mono font-semibold">QAR {total.toLocaleString()}</span>
-      </div>
       <button className="mt-2 w-full px-2 py-1.5 text-xs border border-dashed border-stone-300 rounded text-stone-600 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
         <Plus className="w-3 h-3" /> Add step
       </button>
+      <div className="mt-2 text-[10px] text-stone-400 italic">
+        Treatment plan is clinical only. Pricing is managed in the Rx Done tab.
+      </div>
     </div>
   );
 }
