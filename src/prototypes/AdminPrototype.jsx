@@ -282,26 +282,26 @@ function KPITile({ label, value, prev, currency, unit, sub, inverted, last }) {
   const up   = pct > 0;
   const good = inverted ? !up : up;
   return (
-    <div style={{ padding: '20px 24px', borderRight: last ? 'none' : '1px solid #E8EDEA' }}>
-      <div style={{ fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#2E4840', marginBottom: 8 }}>{label}</div>
-      <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-1.5px', color: '#111814', lineHeight: 1 }}>
-        {Number(value).toLocaleString()}
-        <span style={{ fontSize: 14, fontWeight: 500, color: '#607870', marginLeft: 4 }}>{currency ? 'QAR' : unit}</span>
-      </div>
-      {pct !== null && (
-        <div style={{ marginTop: 8 }}>
+    <div style={{ padding: '14px 22px', borderRight: last ? 'none' : '1px solid #E8EDEA' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#2E4840', marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-1px', color: '#111814', lineHeight: 1 }}>
+          {Number(value).toLocaleString()}
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#607870', marginLeft: 3 }}>{currency ? 'QAR' : unit}</span>
+        </div>
+        {pct !== null && (
           <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            fontSize:12, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
             background: good ? '#D4F1E4' : '#FDDDD9',
             color: good ? '#0A6040' : '#B02A1E',
           }}>
-            {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
+            {up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
             {Math.abs(pct)}%
           </span>
-        </div>
-      )}
-      {sub && <div style={{ fontSize:12, color: '#3D5850', marginTop: 5, fontWeight: 600 }}>{sub}</div>}
+        )}
+      </div>
+      {sub && <div style={{ fontSize: 12, color: '#607870', marginTop: 4, fontWeight: 600 }}>{sub}</div>}
     </div>
   );
 }
