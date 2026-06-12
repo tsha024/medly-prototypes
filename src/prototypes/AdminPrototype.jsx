@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   AlertTriangle, Calendar, Package, Users, FileText, ChevronRight,
   ArrowUpRight, ArrowDownRight, Banknote, Shield, Bell, ChevronDown,
-  ChevronUp, AlertCircle, CheckCircle2, Printer, Plus, Edit3, Save,
-  X, UserPlus, LayoutGrid, BarChart3, RefreshCw
+  ChevronUp, AlertCircle, CheckCircle2, Plus, Edit3, Save,
+  X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Download
 } from 'lucide-react';
 
 // ─── Clinic branding ──────────────────────────────────────────────────────────
@@ -29,14 +29,138 @@ function MedlyLogo({ size = 34 }) {
 }
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
-const REVENUE_DATA = [
-  { month: 'Dec', booked: 178400, collected: 162100, dental: 124800, aesthetic: 53600 },
-  { month: 'Jan', booked: 192700, collected: 184200, dental: 138900, aesthetic: 53800 },
-  { month: 'Feb', booked: 210500, collected: 198400, dental: 142300, aesthetic: 68200 },
-  { month: 'Mar', booked: 225800, collected: 211900, dental: 156100, aesthetic: 69700 },
-  { month: 'Apr', booked: 248300, collected: 224500, dental: 168800, aesthetic: 79500 },
-  { month: 'May', booked: 242100, collected: 198700, dental: 161200, aesthetic: 80900 },
+const REVENUE_DATA_MONTH = [
+  { label: 'Dec', booked: 178400, collected: 162100, dental: 124800, aesthetic: 53600 },
+  { label: 'Jan', booked: 192700, collected: 184200, dental: 138900, aesthetic: 53800 },
+  { label: 'Feb', booked: 210500, collected: 198400, dental: 142300, aesthetic: 68200 },
+  { label: 'Mar', booked: 225800, collected: 211900, dental: 156100, aesthetic: 69700 },
+  { label: 'Apr', booked: 248300, collected: 224500, dental: 168800, aesthetic: 79500 },
+  { label: 'May', booked: 242100, collected: 198700, dental: 161200, aesthetic: 80900 },
 ];
+
+// Last 7 days of May 2026 (current week, ending today)
+const REVENUE_DATA_WEEK = [
+  { label: 'Mon', booked: 8200,  collected: 7100,  dental: 5400, aesthetic: 1700 },
+  { label: 'Tue', booked: 11800, collected: 9400,  dental: 6800, aesthetic: 2600 },
+  { label: 'Wed', booked: 9600,  collected: 8200,  dental: 5900, aesthetic: 2300 },
+  { label: 'Thu', booked: 13200, collected: 11500, dental: 7400, aesthetic: 4100 },
+  { label: 'Fri', booked: 4800,  collected: 3900,  dental: 2200, aesthetic: 1700 },
+  { label: 'Sat', booked: 12400, collected: 10100, dental: 6300, aesthetic: 3800 },
+  { label: 'Sun', booked: 14100, collected: 12300, dental: 8200, aesthetic: 4100 },
+];
+
+// Last 4 quarters
+const REVENUE_DATA_QUARTER = [
+  { label: 'Q3 25', booked: 482400, collected: 438200, dental: 318600, aesthetic: 119600 },
+  { label: 'Q4 25', booked: 528700, collected: 491400, dental: 358200, aesthetic: 133200 },
+  { label: 'Q1 26', booked: 628900, collected: 594500, dental: 437300, aesthetic: 157200 },
+  { label: 'Q2 26', booked: 490400, collected: 423200, dental: 330000, aesthetic: 160400 },
+];
+
+const REVENUE_BY_PERIOD = {
+  week:    REVENUE_DATA_WEEK,
+  month:   REVENUE_DATA_MONTH,
+  quarter: REVENUE_DATA_QUARTER,
+};
+
+// Period multipliers for cost/obligation amounts
+// month is the baseline (1.0); week ≈ 7/30 days; quarter ≈ 3 months
+const PERIOD_SCALE = { week: 0.24, month: 1.0, quarter: 3.0 };
+const PERIOD_LABEL = { week: 'this week', month: 'May', quarter: 'Q2 2026' };
+const PERIOD_LABEL_SHORT = { week: 'wk', month: 'mo', quarter: 'qtr' };
+
+// ─── Download helpers (shared by Reports + Daily tabs) ──────────────────────
+const csvEscape = v => {
+  const str = String(v ?? '');
+  return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+};
+
+const triggerDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+};
+
+const downloadCSV = (filename, headers, rows) => {
+  const lines = [headers.join(','), ...rows.map(r => r.map(csvEscape).join(','))];
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  triggerDownload(blob, filename);
+};
+
+// Lazy-load SheetJS from CDN only when user clicks Excel
+let XLSX_PROMISE = null;
+const loadXLSX = () => {
+  if (XLSX_PROMISE) return XLSX_PROMISE;
+  XLSX_PROMISE = new Promise((resolve, reject) => {
+    if (typeof window !== 'undefined' && window.XLSX) return resolve(window.XLSX);
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    script.onload  = () => resolve(window.XLSX);
+    script.onerror = () => { XLSX_PROMISE = null; reject(new Error('Failed to load XLSX library')); };
+    document.head.appendChild(script);
+  });
+  return XLSX_PROMISE;
+};
+
+const downloadXLSX = async (filename, sheetName, headers, rows) => {
+  try {
+    const XLSX = await loadXLSX();
+    const data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const colWidths = headers.map((h, i) => {
+      const maxLen = Math.max(String(h).length, ...rows.map(r => String(r[i] ?? '').length));
+      return { wch: Math.min(40, Math.max(8, maxLen + 2)) };
+    });
+    ws['!cols'] = colWidths;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+    XLSX.writeFile(wb, filename);
+  } catch (err) {
+    alert('Excel export failed — try CSV instead, or check your connection.');
+  }
+};
+
+function DownloadMenu({ onCSV, onXLSX, disabled }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [open]);
+  return (
+    <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+      <button onClick={() => setOpen(o => !o)} disabled={disabled} title="Download report"
+        style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #DCE4E0', borderRadius: 9, background: '#fff', color: '#2A4840', cursor: 'pointer', opacity: disabled ? .4 : 1 }}>
+        <Download size={13} /> Download <ChevronDown size={11} style={{ marginLeft: 2 }} />
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: '#fff', borderRadius: 10, border: '1px solid #DCE4E0', boxShadow: '0 8px 20px rgba(15,31,26,.14)', overflow: 'hidden', zIndex: 100, minWidth: 200 }}>
+          <button onClick={() => { setOpen(false); onCSV(); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid #EEF2F0', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <div style={{ width: 28, height: 28, borderRadius: 6, background: '#F0FAF6', color: '#0A6040', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>CSV</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#111814' }}>Download CSV</div>
+              <div style={{ fontSize: 11.5, color: '#5A7870', fontWeight: 500 }}>Universal, works everywhere</div>
+            </div>
+          </button>
+          <button onClick={() => { setOpen(false); onXLSX(); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <div style={{ width: 28, height: 28, borderRadius: 6, background: '#E8F3F0', color: '#0A6040', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>XLS</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#111814' }}>Download Excel</div>
+              <div style={{ fontSize: 11.5, color: '#5A7870', fontWeight: 500 }}>Formatted spreadsheet</div>
+            </div>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// Backwards compat shim — some places still read REVENUE_DATA
+const REVENUE_DATA = REVENUE_DATA_MONTH.map(r => ({ ...r, month: r.label }));
 const COST_BREAKDOWN = [
   { category: 'Salaries',             amount: 92400,  pct: 38, trend: +4,  color: '#0C6B5A' },
   { category: 'Supplies',             amount: 38700,  pct: 16, trend: +12, color: '#DC4F38', alert: true },
@@ -140,12 +264,24 @@ export default function AdminPrototype() {
   const [treatments, setTreatments] = useState(INIT_TREATMENTS);
   const [transactions, setTransactions] = useState(DAILY_TRANSACTIONS);
 
-  const cur  = REVENUE_DATA[REVENUE_DATA.length - 1];
-  const prev = REVENUE_DATA[REVENUE_DATA.length - 2];
-  const totalCosts    = COST_BREAKDOWN.reduce((s, c) => s + c.amount, 0);
-  const grossMargin   = ((cur.collected - totalCosts) / cur.collected * 100).toFixed(1);
-  const monthlyProfit = cur.collected - totalCosts;
-  const taxAccrual    = Math.max(0, monthlyProfit * 0.10);
+  // Period-aware data — recomputes whenever Week/Month/Quarter changes
+  const periodData    = REVENUE_BY_PERIOD[period];
+  const scale         = PERIOD_SCALE[period];
+  const cur           = periodData[periodData.length - 1];
+  const prev          = periodData[periodData.length - 2];
+  // For week view: current = last day vs prior day. For month: last month vs prior. Quarter: last vs prior.
+  // KPI strip totals should reflect the WHOLE period (sum across all buckets except week which we still show daily totals)
+  const periodBooked    = period === 'week' ? periodData.reduce((s, d) => s + d.booked, 0)    : cur.booked;
+  const periodCollected = period === 'week' ? periodData.reduce((s, d) => s + d.collected, 0) : cur.collected;
+  // For week we compare to prior week (one approximation: prev period × 7/6 since data is daily not weekly)
+  const prevBooked    = period === 'week' ? Math.round(periodBooked    * 0.92) : prev.booked;
+  const prevCollected = period === 'week' ? Math.round(periodCollected * 0.94) : prev.collected;
+  // Scale costs and obligations to match the period
+  const scaledCosts   = COST_BREAKDOWN.map(c => ({ ...c, amount: Math.round(c.amount * scale) }));
+  const totalCosts    = scaledCosts.reduce((s, c) => s + c.amount, 0);
+  const grossMargin   = ((periodCollected - totalCosts) / Math.max(1, periodCollected) * 100).toFixed(1);
+  const periodProfit  = periodCollected - totalCosts;
+  const taxAccrual    = Math.max(0, periodProfit * 0.10);
 
   return (
     <div style={{ ...S, minHeight: '100vh', color: '#111814' }}>
@@ -236,10 +372,10 @@ export default function AdminPrototype() {
       {tab === 'dashboard' && (
         <div style={{ background: '#fff', borderBottom: '1px solid #DCE4E0' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
-            <KPITile label="Booked revenue" value={cur.booked}                  prev={prev.booked}                  currency sub={`${Math.round(cur.collected/cur.booked*100)}% collected`} />
-            <KPITile label="Collected"      value={cur.collected}               prev={prev.collected}               currency sub="Cleared to bank" />
-            <KPITile label="Receivables"    value={cur.booked - cur.collected}  prev={prev.booked - prev.collected} currency sub="QLM · AXA pending" inverted />
-            <KPITile label="Gross margin"   value={parseFloat(grossMargin)}     prev={32.8}                         unit="%" sub="Benchmark 35–45%" last />
+            <KPITile label={`Booked revenue · ${PERIOD_LABEL[period]}`} value={periodBooked}    prev={prevBooked}    currency sub={`${Math.round(periodCollected/Math.max(1,periodBooked)*100)}% collected`} />
+            <KPITile label={`Collected · ${PERIOD_LABEL[period]}`}      value={periodCollected} prev={prevCollected} currency sub="Cleared to bank" />
+            <KPITile label="Receivables"                                value={periodBooked - periodCollected} prev={prevBooked - prevCollected} currency sub="QLM · AXA pending" inverted />
+            <KPITile label="Gross margin"                               value={parseFloat(grossMargin)}        prev={32.8}                       unit="%" sub="Benchmark 35–45%" last />
           </div>
         </div>
       )}
@@ -248,11 +384,11 @@ export default function AdminPrototype() {
       {tab === 'dashboard' && (
         <main style={{ display: 'grid', gridTemplateColumns: '1fr 336px', gap: 16, padding: '14px 24px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <Card title="Revenue trend" sub="6 months · Booked vs Collected · Dental & Aesthetic">
-              <RevenueChartSVG data={REVENUE_DATA} />
+            <Card title="Revenue trend" sub={period==='week' ? 'Last 7 days · Booked vs Collected · Dental & Aesthetic' : period==='quarter' ? 'Last 4 quarters · Booked vs Collected · Dental & Aesthetic' : '6 months · Booked vs Collected · Dental & Aesthetic'}>
+              <RevenueChartSVG data={periodData} />
             </Card>
-            <Card title="Cost breakdown" sub={`May · ${qar(totalCosts)} total outgoings`}>
-              <CostBreakdown items={COST_BREAKDOWN} />
+            <Card title="Cost breakdown" sub={`${PERIOD_LABEL[period]} · ${qar(totalCosts)} total outgoings`}>
+              <CostBreakdown items={scaledCosts} />
             </Card>
             <Card title="Doctor productivity" sub="May · Revenue, utilisation, avg ticket">
               <DoctorTable doctors={doctors} />
@@ -352,7 +488,7 @@ function RevenueChartSVG({ data }) {
           const aesthetH = (d.aesthetic / d.collected) * collH;
           const yBase = cy(0);
           return (
-            <g key={d.month}>
+            <g key={d.label}>
               <rect x={cx(i) - bw/2} y={cy(d.booked)} width={bw} height={totalH} rx="3" fill="#E8EDEA" />
               <rect x={cx(i) - bw/2} y={yBase - aesthetH} width={bw} height={aesthetH} rx="0" fill="#FB7185" opacity=".85" />
               <rect x={cx(i) - bw/2} y={yBase - aesthetH - dentH} width={bw} height={dentH} rx="0" fill="#3B82F6" opacity=".85" />
@@ -365,7 +501,7 @@ function RevenueChartSVG({ data }) {
           <circle key={i} cx={cx(i)} cy={cy(d.collected)} r="4" fill="#fff" stroke={CLINIC_CONFIG.primaryColor} strokeWidth="2.5" />
         ))}
         {data.map((d, i) => (
-          <text key={i} x={cx(i)} y={H - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill="#2E4840" fontFamily="Manrope,sans-serif">{d.month}</text>
+          <text key={i} x={cx(i)} y={H - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill="#2E4840" fontFamily="Manrope,sans-serif">{d.label}</text>
         ))}
       </svg>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 2, paddingTop: 10, borderTop: '1px solid #EEF2F0', fontSize: 11.5, color: '#4E6860' }}>
@@ -380,7 +516,7 @@ function RevenueChartSVG({ data }) {
           Collected trend
         </span>
         <span style={{ marginLeft: 'auto', color: '#5A7870' }}>
-          YTD <span style={{ fontWeight: 700, color: '#111814' }}>QAR {REVENUE_DATA.reduce((s, m) => s + m.collected, 0).toLocaleString()}</span>
+          Period total <span style={{ fontWeight: 700, color: '#111814' }}>QAR {data.reduce((s, m) => s + m.collected, 0).toLocaleString()}</span>
         </span>
       </div>
     </div>
@@ -405,7 +541,7 @@ function CostBreakdown({ items }) {
         </div>
       ))}
       <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 2, borderTop: '1.5px solid #DCE4E0', fontSize: 12.5, fontWeight: 700 }}>
-        <span style={{ color: '#6A8880' }}>Total outgoings · May</span>
+        <span style={{ color: '#6A8880' }}>Total outgoings</span>
         <span>{qar(total)}</span>
       </div>
     </div>
@@ -586,6 +722,23 @@ function ReportsTab({ doctors }) {
   const totR = scaled.reduce((s,t)=>s+t.revenue,0), totC = scaled.reduce((s,t)=>s+t.count,0), totI = scaled.reduce((s,t)=>s+t.insured,0), totS = scaled.reduce((s,t)=>s+t.selfPay,0);
   const docR = useMemo(() => doctors.map(d => ({ ...d, treatments: Math.round(d.revenue / d.ticket * scale), revenue: Math.round(d.revenue * scale), insured: Math.round(d.revenue * .35 * scale), selfPay: Math.round(d.revenue * .65 * scale) })), [doctors, scale]);
   const PRESETS = [['Today','2026-05-24','2026-05-24'],['This week','2026-05-18','2026-05-24'],['This month','2026-05-01','2026-05-24'],['Last month','2026-04-01','2026-04-30']];
+  // ── Download (CSV or XLSX) ─────────────────────────────────────────────────
+  const buildReport = () => {
+    const dateRange = `${from}_to_${to}`;
+    if (view === 'treatment') {
+      const headers = ['Treatment','Specialty','Count','Revenue (QAR)','Avg ticket (QAR)','Insured (QAR)','Self-pay (QAR)'];
+      const rows = sorted.map(t => [t.name, t.specialty, t.count, t.revenue, t.avgTicket, t.insured, t.selfPay]);
+      rows.push(['Total','', totC, totR, totC>0?Math.round(totR/totC):0, totI, totS]);
+      return { headers, rows, base: `treatment-report_${dateRange}`, sheet: 'Treatments' };
+    }
+    const headers = ['Doctor','Specialty','Procedures','Revenue (QAR)','Avg ticket (QAR)','Insured (QAR)','Self-pay (QAR)','Utilisation (%)','No-shows'];
+    const rows = docR.map(d => [d.name, d.specialty, d.treatments, d.revenue, d.ticket, d.insured, d.selfPay, d.utilization, d.noshow]);
+    rows.push(['Total','', docR.reduce((s,d)=>s+d.treatments,0), docR.reduce((s,d)=>s+d.revenue,0), '', docR.reduce((s,d)=>s+d.insured,0), docR.reduce((s,d)=>s+d.selfPay,0), '', '']);
+    return { headers, rows, base: `doctor-report_${dateRange}`, sheet: 'Doctors' };
+  };
+  const handleCSV  = () => { const r = buildReport(); downloadCSV(`${r.base}.csv`, r.headers, r.rows); };
+  const handleXLSX = () => { const r = buildReport(); downloadXLSX(`${r.base}.xlsx`, r.sheet, r.headers, r.rows); };
+
   const cell = { fontSize: 12.5, padding: '10px 8px 10px 0' };
   const hcell = { fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', padding: '0 8px 10px 0', cursor: 'pointer' };
   return (
@@ -603,10 +756,13 @@ function ReportsTab({ doctors }) {
           return <button key={lbl} onClick={() => { setFrom(f); setTo(t); }} style={{ fontSize: 12, fontWeight: on ? 700 : 500, padding: '5px 12px', borderRadius: 8, border: `1px solid ${on ? CLINIC_CONFIG.primaryColor : 'transparent'}`, background: on ? '#EAF5F0' : 'transparent', color: on ? CLINIC_CONFIG.primaryColor : '#6A8880' }}>{lbl}</button>;
         })}
         <span style={{ fontSize:12, color: '#5A7870', fontWeight: 600 }}>{days}d</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', borderRadius: 9, overflow: 'hidden', border: '1px solid #DCE4E0' }}>
-          {[['treatment', <BarChart3 size={13} />, 'By treatment'],['doctor', <Users size={13} />, 'By doctor']].map(([id, icon, lbl]) => (
-            <button key={id} onClick={() => setView(id)} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: view === id ? CLINIC_CONFIG.primaryColor : '#fff', color: view === id ? '#fff' : '#6A8880' }}>{icon}{lbl}</button>
-          ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', borderRadius: 9, overflow: 'hidden', border: '1px solid #DCE4E0' }}>
+            {[['treatment', <BarChart3 size={13} />, 'By treatment'],['doctor', <Users size={13} />, 'By doctor']].map(([id, icon, lbl]) => (
+              <button key={id} onClick={() => setView(id)} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: view === id ? CLINIC_CONFIG.primaryColor : '#fff', color: view === id ? '#fff' : '#6A8880', cursor: 'pointer' }}>{icon}{lbl}</button>
+            ))}
+          </div>
+          <DownloadMenu onCSV={handleCSV} onXLSX={handleXLSX} />
         </div>
       </div>
       <Card title={view === 'treatment' ? 'Treatment report' : 'Doctor report'} sub={`${from} → ${to} · ${view === 'treatment' ? totC + ' procedures' : doctors.length + ' doctors'}`}>
@@ -693,6 +849,22 @@ function DailyTab({ transactions, setTransactions, doctors }) {
   const totC = paid.reduce((s,t)=>s+t.amount,0), totP = pend.reduce((s,t)=>s+t.amount,0);
   const byDoc = doctors.map(d => { const tx = transactions.filter(t=>t.doctor===d.name); return {...d,txCount:tx.length,total:tx.reduce((s,t)=>s+t.amount,0)}; }).filter(d=>d.txCount>0);
   const applyCorr = id => { if (!corrAmt||!corrNote) return; setTransactions(prev=>prev.map(t=>t.id===id?{...t,amount:parseFloat(corrAmt),corrected:true,correctionNote:corrNote}:t)); setCorr(null); setCorrAmt(''); setCorrNote(''); };
+  const buildDaily = () => {
+    const headers = ['Time','Patient','File #','Doctor','Treatment','Amount (QAR)','Method','Insurance','Status','Corrected','Correction note'];
+    const rows = transactions.map(t => [t.time, t.patient, t.fileNo, t.doctor, t.treatment, t.amount, t.method, t.insurer || '', t.status, t.corrected ? 'Yes' : 'No', t.correctionNote || '']);
+    rows.push([]);
+    rows.push(['Summary']);
+    rows.push(['Procedures', transactions.length]);
+    rows.push(['Collected (QAR)', totC]);
+    rows.push(['Pending / insurance (QAR)', totP]);
+    rows.push(['Total billed (QAR)', totC + totP]);
+    rows.push([]);
+    rows.push(['Per doctor', 'Procedures', 'Total (QAR)']);
+    byDoc.forEach(d => rows.push([d.name, d.txCount, d.total]));
+    return { headers, rows, base: `daily-report_${date}`, sheet: 'Daily ' + date };
+  };
+  const handleDailyCSV  = () => { const r = buildDaily(); downloadCSV(`${r.base}.csv`, r.headers, r.rows); };
+  const handleDailyXLSX = () => { const r = buildDaily(); downloadXLSX(`${r.base}.xlsx`, r.sheet, r.headers, r.rows); };
   const cell = { fontSize: 12.5, padding: '10px 8px 10px 0', verticalAlign: 'middle' };
   return (
     <main style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -702,9 +874,7 @@ function DailyTab({ transactions, setTransactions, doctors }) {
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{ width: 160 }} />
           <span style={{ fontSize: 13.5, fontWeight: 500, color: '#6A8880' }}>Daily report</span>
         </div>
-        <button onClick={()=>window.print()} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 9, border: '1px solid #DCE4E0', background: '#F5F8F7', fontSize: 13, fontWeight: 600, color: '#2A4840' }}>
-          <Printer size={14} /> Print / Export PDF
-        </button>
+        <DownloadMenu onCSV={handleDailyCSV} onXLSX={handleDailyXLSX} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         {[{l:'Procedures',v:transactions.length,c:'#111814'},{l:'Collected',v:qar(totC),c:'#0A6040'},{l:'Pending / insurance',v:qar(totP),c:'#92600A'},{l:'Total billed',v:qar(totC+totP),c:'#111814'}].map(k=>(
