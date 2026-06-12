@@ -1,1203 +1,482 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-  ChevronLeft, Calendar, Clock, Phone, Shield, AlertCircle, AlertTriangle,
-  Plus, X, Camera, FileText, Pill, Activity, CheckCircle2, ArrowRight, ArrowLeft,
-  Edit3, Save, ClipboardList, Image as ImageIcon, ChevronDown, ChevronRight, Stethoscope, Bell,
-  Droplet, Sparkles, Users, UserCheck, Receipt, Tag, ExternalLink
+  ChevronLeft, ChevronDown, ChevronRight, Shield, AlertTriangle,
+  CheckCircle2, FileText, Plus, Edit3, Save, X, Bell, Pill,
+  Stethoscope, Sparkles, Tag, ExternalLink, AlertCircle, Receipt
 } from 'lucide-react';
 
-// =====================================================================
-// MEDLY — Doctor Portal Prototype
-// Qatar dental + aesthetic clinic. Switchable between dental and aesthetic
-// encounter views to demonstrate both clinical workflows.
-// =====================================================================
+const CLINIC_CONFIG = {
+  name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
+  logoUrl:null, primaryColor:'#0C6B5A', headerBg:'#0f1f1a',
+};
+function MedlyLogo({ size=34 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 34 34" fill="none">
+      <rect width="34" height="34" rx="9" fill={CLINIC_CONFIG.primaryColor}/>
+      <path d="M7 24V12L13 20L19 12V18" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M19 18C19 22 21.5 24 24.5 24" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="27" cy="24" r="2.2" stroke="#fff" strokeWidth="2"/>
+      <circle cx="27" cy="24" r="0.7" fill="#fff"/>
+    </svg>
+  );
+}
 
-// ---- Mock data ------------------------------------------------------
 const PATIENT = {
-  id: 'p1',
-  qid: '28934567812',
-  nameEn: 'Aisha Al-Kuwari',
-  nameAr: 'عائشة الكواري',
-  dob: '1989-03-14',
-  age: 37,
-  sex: 'F',
-  phone: '+974 5512 4488',
-  insurer: 'QLM',
-  policy: 'QLM-447821',
-  allergies: ['Penicillin (rash)', 'Latex'],
-  conditions: ['Type 2 diabetes (controlled)', 'Hypertension'],
-  medications: ['Metformin 500mg BD', 'Amlodipine 5mg OD'],
-  bloodType: 'O+',
-  smoker: false,
-  pregnant: false,
-  careTeam: {
-    dental: {
-      assistantDoctor: { name: 'Dr. Yusuf Hassan', role: 'Asst. Doctor', specialty: 'Cosmetic Dentistry', initials: 'YH' },
-      nurse: { name: 'Nurse Sara Al-Amin', role: 'Dental Nurse', initials: 'SA' },
-    },
-    aesthetic: {
-      assistantDoctor: { name: 'Dr. Marcus Chen', role: 'Asst. Doctor', specialty: 'Aesthetic Medicine', initials: 'MC' },
-      nurse: { name: 'Nurse Dina Khalil', role: 'Aesthetic Nurse', initials: 'DK' },
-    },
+  id:'p1', qid:'28934567812', nameEn:'Aisha Al-Kuwari', nameAr:'عائشة الكواري',
+  dob:'1989-03-14', age:37, sex:'F', phone:'+974 5512 4488',
+  insurer:'QLM', policy:'QLM-447821', bloodType:'O+', smoker:false, pregnant:false,
+  allergies:['Penicillin (rash)','Latex'],
+  conditions:['Type 2 diabetes (controlled)','Hypertension'],
+  medications:['Metformin 500mg BD','Amlodipine 5mg OD'],
+  careTeam:{
+    dental:{ assistantDoctor:{name:'Dr. Yusuf Hassan',role:'Asst. Doctor',specialty:'Cosmetic Dentistry',initials:'YH'}, nurse:{name:'Nurse Sara Al-Amin',role:'Dental Nurse',initials:'SA'} },
+    aesthetic:{ assistantDoctor:{name:'Dr. Marcus Chen',role:'Asst. Doctor',specialty:'Aesthetic Medicine',initials:'MC'}, nurse:{name:'Nurse Dina Khalil',role:'Aesthetic Nurse',initials:'DK'} },
   },
 };
 
 const ENCOUNTER_HISTORY = [
-  { id: 'e1', date: '2026-04-18', doctor: 'Dr. Priya Menon',     specialty: 'Endodontics',       procedure: 'Root canal — #16', notes: 'Asymptomatic at 6 weeks. Final restoration recommended.', kind: 'dental',    icon: 'tooth',
-    rxDone: [{ item: 'Root canal treatment #16', price: 2500 }],
-    rxMeds: ['Ibuprofen 400mg TDS × 3d', 'Amoxicillin 500mg TDS × 5d'],
-    plan: ['Final composite restoration in 2 weeks', 'Follow-up X-ray at 3 months'] },
-  { id: 'e2', date: '2026-02-14', doctor: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry', procedure: 'Cleaning + composite filling #36', notes: 'Mild gingivitis lower right. Advised improved flossing.', kind: 'dental', icon: 'tooth',
-    rxDone: [{ item: 'Cleaning & polish', price: 400 }, { item: 'Composite filling #36', price: 600 }],
-    rxMeds: ['Chlorhexidine 0.2% mouthwash BD × 7d'],
-    plan: ['Review gingival health at next cleaning', 'Routine check in 6 months'] },
-  { id: 'e3', date: '2025-11-22', doctor: 'Dr. Reem Al-Thani',    specialty: 'Aesthetic Medicine', procedure: 'Botox — glabellar + forehead', notes: '20U total. Patient pleased at 14-day follow-up.', kind: 'aesthetic', icon: 'sparkle',
-    rxDone: [{ item: 'Botox 20U — glabellar + frontalis', price: 1800 }],
-    rxMeds: [],
-    plan: ['Touch-up in 3-4 months if needed', 'Consider tear-trough filler at next visit'] },
-  { id: 'e4', date: '2025-08-03', doctor: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry', procedure: 'Consultation + bitewing X-rays', notes: 'Recurrent decay #16 — referred to endodontics.', kind: 'dental', icon: 'tooth',
-    rxDone: [{ item: 'Consultation', price: 250 }, { item: 'Bitewing X-rays (4 films)', price: 220 }],
-    rxMeds: [],
-    plan: ['Endodontic referral for #16', 'Patient advised on symptom monitoring'] },
-  { id: 'e5', date: '2025-05-10', doctor: 'Dr. Reem Al-Thani',    specialty: 'Aesthetic Medicine', procedure: 'Initial consultation', notes: 'Patient interested in preventive Botox.', kind: 'aesthetic', icon: 'sparkle',
-    rxDone: [{ item: 'Aesthetic consultation', price: 0 }],
-    rxMeds: [],
-    plan: ['Schedule Botox session within 2 months'] },
+  { id:'e1', date:'2026-04-18', doctor:'Dr. Priya Menon', specialty:'Endodontics', procedure:'Root canal — #16', notes:'Asymptomatic at 6 weeks. Final restoration recommended.', kind:'dental',
+    rxDone:[{item:'Root canal treatment #16'}], rxMeds:['Ibuprofen 400mg TDS × 3d','Amoxicillin 500mg TDS × 5d'], plan:['Final composite restoration in 2 weeks','Follow-up X-ray at 3 months'] },
+  { id:'e2', date:'2026-02-14', doctor:'Dr. Layla Al-Mahmoud', specialty:'General Dentistry', procedure:'Cleaning + composite filling #36', notes:'Mild gingivitis lower right. Advised improved flossing.', kind:'dental',
+    rxDone:[{item:'Cleaning & polish'},{item:'Composite filling #36'}], rxMeds:['Chlorhexidine 0.2% mouthwash BD × 7d'], plan:['Review gingival health at next cleaning','Routine check in 6 months'] },
+  { id:'e3', date:'2025-11-22', doctor:'Dr. Reem Al-Thani', specialty:'Aesthetic Medicine', procedure:'Botox — glabellar + forehead', notes:'20U total. Patient pleased at 14-day follow-up.', kind:'aesthetic',
+    rxDone:[{item:'Botox 20U — glabellar + frontalis'}], rxMeds:[], plan:['Touch-up in 3-4 months if needed','Consider tear-trough filler at next visit'] },
+  { id:'e4', date:'2025-08-03', doctor:'Dr. Layla Al-Mahmoud', specialty:'General Dentistry', procedure:'Consultation + bitewing X-rays', notes:'Recurrent decay #16 — referred to endodontics.', kind:'dental',
+    rxDone:[{item:'Consultation'},{item:'Bitewing X-rays (4 films)'}], rxMeds:[], plan:['Endodontic referral for #16','Patient advised on symptom monitoring'] },
+  { id:'e5', date:'2025-05-10', doctor:'Dr. Reem Al-Thani', specialty:'Aesthetic Medicine', procedure:'Initial consultation', notes:'Patient interested in preventive Botox.', kind:'aesthetic',
+    rxDone:[{item:'Aesthetic consultation'}], rxMeds:[], plan:['Schedule Botox session within 2 months'] },
 ];
 
 const TODAYS_APT = {
-  dental: { doctor: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry', procedure: 'Filling — tooth #16', time: '10:30', dur: 60, chiefComplaint: 'Sensitivity to cold on upper-right back tooth, started 4 days ago.' },
-  aesthetic: { doctor: 'Dr. Reem Al-Thani', specialty: 'Aesthetic Medicine', procedure: 'Botox + dermal filler review', time: '15:30', dur: 60, chiefComplaint: 'Wants to refresh Botox from November and discuss tear-trough filler.' },
+  dental:    { doctor:'Dr. Layla Al-Mahmoud', specialty:'General Dentistry', procedure:'Filling — tooth #16', time:'10:30', dur:60, chiefComplaint:'Sensitivity to cold on upper-right back tooth, started 4 days ago.' },
+  aesthetic: { doctor:'Dr. Reem Al-Thani', specialty:'Aesthetic Medicine', procedure:'Botox + dermal filler review', time:'15:30', dur:60, chiefComplaint:'Wants to refresh Botox from November and discuss tear-trough filler.' },
 };
 
-// Dental drug favourites (real, common in dental practice)
 const DRUG_FAVOURITES = [
-  { name: 'Amoxicillin 500mg', sig: '1 cap TDS × 5 days', class: 'Antibiotic' },
-  { name: 'Ibuprofen 400mg',   sig: '1 tab TDS PRN pain × 3 days', class: 'NSAID' },
-  { name: 'Paracetamol 1g',    sig: '1 tab QDS PRN pain', class: 'Analgesic' },
-  { name: 'Chlorhexidine 0.2% mouthwash', sig: '10ml rinse BD × 7 days', class: 'Antiseptic' },
-  { name: 'Metronidazole 400mg', sig: '1 tab TDS × 5 days', class: 'Antibiotic' },
+  { name:'Amoxicillin 500mg',             sig:'1 cap TDS × 5 days',         class:'Antibiotic' },
+  { name:'Ibuprofen 400mg',               sig:'1 tab TDS PRN pain × 3 days', class:'NSAID' },
+  { name:'Paracetamol 1g',                sig:'1 tab QDS PRN pain',          class:'Analgesic' },
+  { name:'Chlorhexidine 0.2% mouthwash',  sig:'10ml rinse BD × 7 days',     class:'Antiseptic' },
+  { name:'Metronidazole 400mg',           sig:'1 tab TDS × 5 days',          class:'Antibiotic' },
 ];
 
-// ---- Main App -------------------------------------------------------
+const SOAP_MAP = {
+  e1:{ s:'Patient had completed root canal on #16. No spontaneous pain. Mild sensitivity when biting.', o:'Tooth #16 — no periapical pathology on X-ray. Percussion negative. Canal obturation adequate.', a:'Successful endodontic treatment. Tooth ready for final restoration.', p:'Composite restoration recommended within 4 weeks. Follow-up X-ray at 3 months.' },
+  e2:{ s:'Routine visit. Patient reports no pain. Noticed bleeding gums when flossing lower right.', o:'Mild generalised gingivitis, pronounced at lower right molar. Existing filling #36 intact.', a:'Gingivitis secondary to plaque accumulation. Existing composite restoration serviceable.', p:'Oral hygiene reinforced. Chlorhexidine rinse prescribed. Review at next cleaning.' },
+  e3:{ s:'Patient pleased with November Botox. Requesting top-up. Interested in tear-trough filler.', o:'Glabellar lines reduced ~70% at 14-day follow-up. Frontalis movement preserved. No adverse events.', a:'Good response to Botox 20U. Appropriate candidate for tear-trough filler at next visit.', p:'Schedule filler consult within 2-4 weeks. Photograph taken for baseline comparison.' },
+  e4:{ s:'Patient reports intermittent cold sensitivity upper right for 3 weeks. No spontaneous pain.', o:'Bitewing X-ray shows recurrent decay under existing restoration on #16. ~3mm depth estimated.', a:'Recurrent caries #16. Risk of pulpal involvement if untreated. Endodontic referral indicated.', p:'Referred to Dr. Priya Menon (Endodontics). Patient advised to avoid cold foods on affected side.' },
+  e5:{ s:'New patient consultation. Interested in Botox for preventive anti-ageing. No prior aesthetic treatments.', o:'Skin assessment: mild dynamic lines glabella and frontalis. Good skin turgor. No contraindications.', a:'Appropriate candidate for preventive Botox. Realistic expectations established.', p:'Botox session scheduled for 3 weeks. Pre-treatment photography taken.' },
+};
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const T = { fontFamily:"'Manrope','Noto Sans Arabic',system-ui,sans-serif" };
+const CANVAS = '#EAEDEB';
+const card  = { background:'#fff', borderRadius:14, border:'1px solid #DCE4E0', boxShadow:'0 1px 3px rgba(15,31,26,.08)' };
+const cardHd = { padding:'13px 18px 11px', borderBottom:'1px solid #EEF2F0', display:'flex', alignItems:'flex-start', justifyContent:'space-between' };
+const cardBd = { padding:'14px 18px' };
+const SEC  = { fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'#2E4840', marginBottom:8 };
+const PrimaryBtn = ({onClick,disabled,children,style={}}) => <button onClick={onClick} disabled={disabled} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:9,border:'none',background:CLINIC_CONFIG.primaryColor,color:'#fff',fontSize:12.5,fontWeight:700,cursor:'pointer',opacity:disabled?.4:1,transition:'filter .13s',...style}}>{children}</button>;
+const GhostBtn   = ({onClick,children,style={}}) => <button onClick={onClick} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:9,border:'1px solid #DCE4E0',background:'#F5F8F7',fontSize:12.5,fontWeight:600,color:'#2A4840',cursor:'pointer',...style}}>{children}</button>;
+
 export default function DoctorPortalPrototype() {
-  const [mode, setMode] = useState('dental');
-  const [viewingEnc, setViewingEnc] = useState(null); // past encounter being viewed
+  const [mode, setMode]           = useState('dental');
+  const [viewingEnc, setViewingEnc] = useState(null);
   const isDental = mode === 'dental';
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900" style={{ fontFamily: '"IBM Plex Sans", "Noto Sans Arabic", system-ui, sans-serif' }}>
+    <div style={{...T, minHeight:'100vh', background:CANVAS, color:'#111814'}}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-        .mono { font-family: "IBM Plex Mono", monospace; }
-        .tooth-svg:hover { filter: brightness(0.95); cursor: pointer; }
-        .injection-site:hover { r: 9; cursor: pointer; }
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        *{box-sizing:border-box;}
+        .mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:'tnum';}
+        *:focus-visible{outline:2px solid #0C6B5A;outline-offset:2px;border-radius:5px;}
+        button{cursor:pointer;font-family:inherit;transition:filter .13s;}
+        button:not(:disabled):hover{filter:brightness(.93);}
+        input,select,textarea{font-family:inherit;background:#F2F5F3;border:1.5px solid #C8D4CF;border-radius:8px;color:#111814;padding:8px 12px;font-size:13px;transition:all .13s;width:100%;}
+        input:hover,select:hover,textarea:hover{border-color:#7A9A90;background:#fff;}
+        input:focus,select:focus,textarea:focus{outline:none;background:#fff;border-color:#0C6B5A;box-shadow:0 0 0 3px rgba(12,107,90,.12);}
+        input::placeholder,textarea::placeholder{color:#8AA8A0;}
+        .enc-row:hover{background:#F5F8F7;}
+        @media(prefers-reduced-motion:reduce){*{transition:none!important;}}
+        .tooth-svg:hover{filter:brightness(.95);cursor:pointer;}
+        .injection-site:hover{r:9;cursor:pointer;}
       `}</style>
 
-      {/* Top bar */}
-      <header className="border-b border-stone-200 bg-white">
-        <div className="px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button className="p-1.5 hover:bg-stone-100 rounded text-stone-500">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="w-8 h-8 rounded-md bg-stone-900 flex items-center justify-center">
-              <span className="text-white text-sm font-semibold">M</span>
-            </div>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-tight">Medly Clinical</div>
-              <div className="text-xs text-stone-500">Yasmeen Clinic, Doha</div>
+      {/* Header */}
+      <header style={{background:CLINIC_CONFIG.headerBg,borderBottom:'1px solid rgba(255,255,255,.07)'}}>
+        <div style={{padding:'0 24px',height:54,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <button style={{width:44,height: 44,borderRadius:8,background:'rgba(255,255,255,.08)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',color:'#7AADA0'}}><ChevronLeft size={16}/></button>
+            {CLINIC_CONFIG.logoUrl?<img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{height:34}}/>:<MedlyLogo/>}
+            <div>
+              <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>· clinical</span></div>
+              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex border border-stone-300 rounded-md overflow-hidden text-xs">
-              <button
-                onClick={() => setMode('dental')}
-                className={`px-3 py-1.5 flex items-center gap-1.5 ${isDental ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-50'}`}
-              >
-                <Stethoscope className="w-3 h-3" /> Dental
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            {/* Mode toggle */}
+            <div style={{display:'flex',borderRadius:9,overflow:'hidden',border:'1px solid rgba(255,255,255,.12)'}}>
+              <button onClick={()=>setMode('dental')} style={{padding:'6px 14px',fontSize:12.5,fontWeight:600,border:'none',display:'flex',alignItems:'center',gap:6,background:isDental?CLINIC_CONFIG.primaryColor:'transparent',color:isDental?'#fff':'#6A9080'}}>
+                <Stethoscope size={13}/> Dental
               </button>
-              <button
-                onClick={() => setMode('aesthetic')}
-                className={`px-3 py-1.5 flex items-center gap-1.5 ${!isDental ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-50'}`}
-              >
-                <Sparkles className="w-3 h-3" /> Aesthetic
+              <button onClick={()=>setMode('aesthetic')} style={{padding:'6px 14px',fontSize:12.5,fontWeight:600,border:'none',display:'flex',alignItems:'center',gap:6,background:!isDental?CLINIC_CONFIG.primaryColor:'transparent',color:!isDental?'#fff':'#6A9080'}}>
+                <Sparkles size={13}/> Aesthetic
               </button>
             </div>
-            <div className="px-3 py-1.5 text-xs bg-stone-100 rounded-md text-stone-700">
-              {isDental ? 'Dr. Layla Al-Mahmoud' : 'Dr. Reem Al-Thani'}
+            <div style={{display:'flex',alignItems:'center',gap:8,background:'rgba(255,255,255,.07)',border:'1px solid rgba(255,255,255,.1)',padding:'5px 12px 5px 6px',borderRadius:20}}>
+              <div style={{width:44,height: 44,borderRadius:'50%',background:CLINIC_CONFIG.primaryColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#fff'}}>{isDental?'LA':'RT'}</div>
+              <span style={{fontSize:12,color:'#C0D8D0',fontWeight:500}}>{isDental?'Dr. Layla Al-Mahmoud':'Dr. Reem Al-Thani'}</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Patient banner — always visible, the doctor's anchor */}
-      <PatientBanner patient={PATIENT} appointment={TODAYS_APT[mode]} mode={mode} />
+      {/* Patient banner */}
+      <PatientBanner patient={PATIENT} appointment={TODAYS_APT[mode]} mode={mode}/>
 
-      {/* Three-column layout — or past encounter view */}
-      {viewingEnc ? (
-        <PastEncounterView enc={viewingEnc} patient={PATIENT} onBack={() => setViewingEnc(null)} />
-      ) : (
-      <div className="grid grid-cols-12 gap-4 px-4 py-4">
-        {/* Left: History */}
-        <aside className="col-span-3">
-          <HistoryColumn patient={PATIENT} history={ENCOUNTER_HISTORY} mode={mode} onViewEncounter={setViewingEnc} />
-        </aside>
-
-        {/* Center: Active encounter */}
-        <main className="col-span-6">
-          {isDental ? <DentalEncounter appointment={TODAYS_APT.dental} /> : <AestheticEncounter appointment={TODAYS_APT.aesthetic} />}
-        </main>
-
-        {/* Right: Actions */}
-        <aside className="col-span-3">
-          <ActionsColumn mode={mode} appointment={TODAYS_APT[mode]} />
-        </aside>
-      </div>
-      )} {/* end viewingEnc conditional */}
-    </div>
-  );
-} 
-
-// =====================================================================
-// PAST ENCOUNTER VIEW — full read-only view of a historical encounter
-// =====================================================================
-function PastEncounterView({ enc, patient, onBack }) {
-  const soapMap = {
-    e1: { s: 'Patient had completed root canal on #16. No spontaneous pain. Mild sensitivity when biting.', o: 'Tooth #16 — no periapical pathology on X-ray. Percussion negative. Canal obturation adequate.', a: 'Successful endodontic treatment. Tooth ready for final restoration.', p: 'Composite restoration recommended within 4 weeks. Follow-up X-ray at 3 months.' },
-    e2: { s: 'Routine visit. Patient reports no pain. Noticed bleeding gums when flossing lower right.', o: 'Mild generalised gingivitis, pronounced at lower right molar. Existing filling #36 intact.', a: 'Gingivitis secondary to plaque accumulation. Existing composite restoration serviceable.', p: 'Oral hygiene reinforced. Chlorhexidine rinse prescribed. Review at next cleaning.' },
-    e3: { s: 'Patient pleased with November Botox. Requesting top-up. Interested in tear-trough filler.', o: 'Glabellar lines reduced ~70% at 14-day follow-up. Frontalis movement preserved. No adverse events.', a: 'Good response to Botox 20U. Appropriate candidate for tear-trough filler at next visit.', p: 'Schedule filler consult within 2-4 weeks. Photograph taken for baseline comparison.' },
-    e4: { s: 'Patient reports intermittent cold sensitivity upper right for 3 weeks. No spontaneous pain.', o: 'Bitewing X-ray shows recurrent decay under existing restoration on #16. ~3mm depth estimated.', a: 'Recurrent caries #16. Risk of pulpal involvement if untreated. Endodontic referral indicated.', p: 'Referred to Dr. Priya Menon (Endodontics). Patient advised to avoid cold foods on affected side.' },
-    e5: { s: 'New patient consultation. Interested in Botox for preventive anti-ageing. No prior aesthetic treatments.', o: 'Skin assessment: mild dynamic lines glabella and frontalis. Good skin turgor. No contraindications.', a: 'Appropriate candidate for preventive Botox. Realistic expectations established.', p: 'Botox session scheduled for 3 weeks. Pre-treatment photography taken.' },
-  };
-  const soap = soapMap[enc.id] || { s: enc.notes, o: '—', a: '—', p: enc.plan?.join('. ') || '—' };
-
-  return (
-    <div className="px-4 py-4">
-      {/* Back bar */}
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 px-3 py-1.5 border border-stone-300 rounded-md hover:bg-white bg-stone-50">
-          <ChevronLeft className="w-4 h-4" /> Back to today
-        </button>
-        <div className="text-sm font-semibold">{enc.date} — {enc.procedure}</div>
-        <div className="text-xs text-stone-500">{enc.doctor} · {enc.specialty}</div>
-        <span className={`ml-auto text-[10px] px-2 py-0.5 rounded border ${enc.kind === 'dental' ? 'bg-sky-50 text-sky-800 border-sky-300' : 'bg-rose-50 text-rose-800 border-rose-300'}`}>
-          {enc.kind}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-12 gap-4">
-        {/* Left: SOAP */}
-        <div className="col-span-7 space-y-3">
-          <div className="bg-white border border-stone-200 rounded-lg p-4">
-            <div className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-3">SOAP Note</div>
-            {[
-              { key: 'S', label: 'Subjective', value: soap.s },
-              { key: 'O', label: 'Objective',  value: soap.o },
-              { key: 'A', label: 'Assessment', value: soap.a },
-              { key: 'P', label: 'Plan',        value: soap.p },
-            ].map(({ key, label, value }) => (
-              <div key={key} className="mb-3 last:mb-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-5 h-5 rounded bg-stone-900 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">{key}</span>
-                  <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">{label}</span>
-                </div>
-                <div className="text-xs text-stone-700 pl-7 leading-relaxed">{value}</div>
-              </div>
-            ))}
-          </div>
+      {viewingEnc?(
+        <PastEncounterView enc={viewingEnc} onBack={()=>setViewingEnc(null)}/>
+      ):(
+        <div style={{display:'grid',gridTemplateColumns:'240px 1fr 260px',gap:14,padding:'14px 20px'}}>
+          <HistoryColumn history={ENCOUNTER_HISTORY} mode={mode} onView={setViewingEnc}/>
+          <main>{isDental?<DentalEncounter apt={TODAYS_APT.dental}/>:<AestheticEncounter apt={TODAYS_APT.aesthetic}/>}</main>
+          <ActionsColumn mode={mode} apt={TODAYS_APT[mode]}/>
         </div>
-
-        {/* Right: Rx Done, Rx Med, Plan */}
-        <div className="col-span-5 space-y-3">
-          <div className="bg-white border border-stone-200 rounded-lg p-4">
-            <div className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">Rx Done</div>
-            {enc.rxDone && enc.rxDone.length > 0 ? (
-              <div className="space-y-1">
-                {enc.rxDone.map((r, i) => (
-                  <div key={i} className="text-xs text-stone-700 flex items-center gap-1.5">
-                    <div className="w-1 h-1 rounded-full bg-stone-400 flex-shrink-0" />
-                    {r.item}
-                  </div>
-                ))}
-              </div>
-            ) : <div className="text-xs text-stone-400 italic">No procedures recorded</div>}
-          </div>
-
-          <div className="bg-white border border-stone-200 rounded-lg p-4">
-            <div className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">Rx Medicines</div>
-            {enc.rxMeds && enc.rxMeds.length > 0 ? (
-              <div className="space-y-1">
-                {enc.rxMeds.map((m, i) => (
-                  <div key={i} className="text-xs text-stone-700 flex items-center gap-1.5">
-                    <Pill className="w-3 h-3 text-stone-400 flex-shrink-0" />
-                    {m}
-                  </div>
-                ))}
-              </div>
-            ) : <div className="text-xs text-stone-400 italic">No medications prescribed</div>}
-          </div>
-
-          <div className="bg-white border border-stone-200 rounded-lg p-4">
-            <div className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">Plan</div>
-            {enc.plan && enc.plan.length > 0 ? (
-              <div className="space-y-1">
-                {enc.plan.map((p, i) => (
-                  <div key={i} className="text-xs text-stone-700 flex items-start gap-1.5">
-                    <span className="w-4 h-4 rounded-full bg-stone-100 text-stone-600 text-[9px] font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
-                    {p}
-                  </div>
-                ))}
-              </div>
-            ) : <div className="text-xs text-stone-400 italic">No plan recorded</div>}
-          </div>
-
-          <div className="text-[10px] text-stone-400 px-1 flex items-center gap-1.5">
-            <FileText className="w-3 h-3" />
-            Past encounter — read only. Audit entry created on access.
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
+// ─── Patient Banner ───────────────────────────────────────────────────────────
 function PatientBanner({ patient, appointment, mode }) {
-  const team = patient.careTeam[mode];
   const [showId, setShowId] = useState(false);
-
+  const team = patient.careTeam[mode];
   return (
-    <div className="bg-white border-b border-stone-200">
-      <div className="px-6 py-3 flex items-start gap-5 flex-wrap">
+    <div style={{background:'#fff',borderBottom:'1px solid #DCE4E0'}}>
+      <div style={{padding:'12px 20px',display:'flex',alignItems:'flex-start',gap:20,flexWrap:'wrap'}}>
         {/* Identity */}
-        <div className="flex items-start gap-3 min-w-0" style={{ flex: '1 1 280px' }}>
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-stone-200 to-stone-300 flex items-center justify-center flex-shrink-0">
-            <span className="text-lg font-medium text-stone-700">{patient.nameEn.split(' ').map(n => n[0]).slice(0, 2).join('')}</span>
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="text-base font-semibold">{patient.nameEn}</div>
-              <div className="text-sm text-stone-500" dir="rtl">{patient.nameAr}</div>
+        <div style={{display:'flex',alignItems:'flex-start',gap:12,minWidth:280}}>
+          <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>AK</div>
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <span style={{fontSize:15,fontWeight:800,color:'#111814'}}>{patient.nameEn}</span>
+              <span style={{fontSize:13,color:'#3D5850',fontWeight:600,direction:'rtl'}}>{patient.nameAr}</span>
             </div>
-            <div className="text-xs text-stone-500 mono mt-0.5 flex items-center gap-2">
-              QID {patient.qid} · {patient.age}y · {patient.sex} · {patient.bloodType}
-              <button onClick={() => setShowId(!showId)}
-                className="text-[10px] px-1.5 py-0.5 rounded border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 flex items-center gap-1">
-                <FileText className="w-2.5 h-2.5" /> {showId ? 'Hide ID' : 'View ID'}
+            <div style={{fontSize:12,color:'#5A7870',marginTop:2,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',fontWeight:600}}>
+              <span className="mono">{patient.qid}</span>
+              <span>·</span><span>{patient.age}y {patient.sex}</span>
+              <span>·</span><span>{patient.bloodType}</span>
+              <button onClick={()=>setShowId(!showId)} style={{fontSize:12,fontWeight:700,padding:'1px 8px',borderRadius:6,border:'1px solid #B8DDD6',background:showId?'#0C6B5A':'#F0FAF6',color:showId?'#fff':'#0C6B5A',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                <FileText size={10}/>{showId?'Hide ID':'View ID'}
               </button>
             </div>
-            <div className="text-xs text-stone-500 mt-0.5 flex items-center gap-3">
-              <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {patient.phone}</span>
-              <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> {patient.insurer} · {patient.policy}</span>
+            <div style={{fontSize:12,color:'#5A7870',marginTop:2,fontWeight:600}}>{patient.phone} · <span style={{color:'#0A6040'}}>{patient.insurer} {patient.policy}</span></div>
+          </div>
+        </div>
+
+        {/* Allergies */}
+        <div style={{borderLeft:'1px solid #EEF2F0',paddingLeft:18,minWidth:160}}>
+          <div style={{...SEC,marginBottom:5,color:'#C04030'}}>Allergies</div>
+          {patient.allergies.map(a=>(
+            <div key={a} style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+              <AlertTriangle size={12} color="#DC4F38"/>
+              <span style={{fontSize:12.5,fontWeight:600,color:'#B02A1E'}}>{a}</span>
             </div>
-          </div>
-        </div>
-
-        {/* Care team */}
-        <div className="border-l border-stone-200 pl-5 min-w-[160px]">
-          <div className="text-xs font-semibold text-stone-700 flex items-center gap-1.5 mb-1.5">
-            <Users className="w-3.5 h-3.5" /> Care team
-          </div>
-          <div className="space-y-1.5">
-            <CareTeamMember member={team.assistantDoctor} color="violet" />
-            <CareTeamMember member={team.nurse} color="sky" />
-          </div>
-        </div>
-
-        {/* Allergies — always highlighted */}
-        <div className="border-l border-stone-200 pl-5 min-w-[140px]">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            Allergies
-          </div>
-          <div className="mt-1 space-y-0.5">
-            {patient.allergies.map(a => (
-              <div key={a} className="text-xs text-red-900 bg-red-50 border border-red-200 px-2 py-0.5 rounded inline-block mr-1">
-                {a}
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
 
         {/* Conditions */}
-        <div className="border-l border-stone-200 pl-5 min-w-[130px]">
-          <div className="text-xs font-semibold text-stone-700">Conditions</div>
-          <div className="mt-1 space-y-0.5">
-            {patient.conditions.map(c => (
-              <div key={c} className="text-xs text-stone-700">{c}</div>
-            ))}
-          </div>
+        <div style={{borderLeft:'1px solid #EEF2F0',paddingLeft:18,minWidth:180}}>
+          <div style={{...SEC,marginBottom:5}}>Conditions</div>
+          {patient.conditions.map(c=><div key={c} style={{fontSize:12.5,fontWeight:600,color:'#2A3830',marginBottom:3}}>· {c}</div>)}
         </div>
 
-        {/* Today's appointment */}
-        <div className="border-l border-stone-200 pl-5 min-w-[150px]">
-          <div className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5" /> Today
-          </div>
-          <div className="text-sm font-medium mt-1">{appointment.procedure}</div>
-          <div className="text-xs text-stone-500 mono mt-0.5">
-            {appointment.time} · {appointment.dur} min
-          </div>
+        {/* Care team */}
+        <div style={{borderLeft:'1px solid #EEF2F0',paddingLeft:18,minWidth:160}}>
+          <div style={{...SEC,marginBottom:5}}>Care team</div>
+          {[team.assistantDoctor, team.nurse].map(m=>(
+            <div key={m.name} style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
+              <div style={{width:44,height: 44,borderRadius:'50%',background:'#E8F3F0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{m.initials}</div>
+              <div><div style={{fontSize:12,fontWeight:600,color:'#111814'}}>{m.name}</div><div style={{fontSize:12,fontWeight:600,color:'#5A7870'}}>{m.role}</div></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Appointment */}
+        <div style={{borderLeft:'1px solid #EEF2F0',paddingLeft:18,marginLeft:'auto'}}>
+          <div style={{...SEC,marginBottom:5}}>Today</div>
+          <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{appointment.procedure}</div>
+          <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>{appointment.time} · {appointment.dur}min</div>
         </div>
       </div>
 
-      {/* ID document viewer — collapsible */}
-      {showId && (
-        <div className="px-6 py-3 bg-sky-50/60 border-t border-sky-200">
-          <div className="flex items-start gap-4">
-            {/* QID front mock */}
-            <div className="w-48 h-28 rounded border border-sky-300 bg-white flex flex-col items-center justify-center text-stone-400 flex-shrink-0">
-              <FileText className="w-6 h-6 mb-1" />
-              <div className="text-[10px] font-medium">QID — Front</div>
-              <div className="text-[9px] text-stone-400 mono mt-0.5">Uploaded 2024-06-15</div>
+      {/* ID viewer */}
+      {showId&&(
+        <div style={{padding:'12px 20px',background:'#F0FAF6',borderTop:'1px solid #B8DDD6',display:'flex',gap:16,alignItems:'flex-start'}}>
+          {['QID — Front','QID — Back'].map(label=>(
+            <div key={label} style={{width:160,height:90,borderRadius:8,background:'#fff',border:'1px solid #B8DDD6',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,flexShrink:0}}>
+              <FileText size={18} color="#4E6860"/>
+              <div style={{fontSize:12,fontWeight:600,color:'#5A7870'}}>{label}</div>
+              <div style={{fontSize:12,color:'#4E6860',fontWeight:600}}>Uploaded 2024-06-15</div>
             </div>
-            {/* QID back mock */}
-            <div className="w-48 h-28 rounded border border-sky-300 bg-white flex flex-col items-center justify-center text-stone-400 flex-shrink-0">
-              <FileText className="w-6 h-6 mb-1" />
-              <div className="text-[10px] font-medium">QID — Back</div>
-              <div className="text-[9px] text-stone-400 mono mt-0.5">Uploaded 2024-06-15</div>
-            </div>
-            {/* ID details */}
-            <div className="flex-1 text-xs space-y-1">
-              <div className="text-[10px] font-semibold text-sky-900 uppercase tracking-wide mb-1.5">ID on file</div>
-              <div className="flex justify-between"><span className="text-stone-500">Document type</span><span className="font-medium">Qatar ID (QID)</span></div>
-              <div className="flex justify-between"><span className="text-stone-500">QID number</span><span className="mono font-medium">{patient.qid}</span></div>
-              <div className="flex justify-between"><span className="text-stone-500">Full name</span><span className="font-medium">{patient.nameEn}</span></div>
-              <div className="flex justify-between"><span className="text-stone-500">Date of birth</span><span className="mono">1992-03-14</span></div>
-              <div className="flex justify-between"><span className="text-stone-500">Nationality</span><span>Qatari</span></div>
-              <div className="flex justify-between"><span className="text-stone-500">Expiry</span><span className="mono">2029-06-30</span></div>
-              <div className="mt-2 text-[10px] text-sky-700 italic">Uploaded by reception during registration. Click images to enlarge.</div>
-            </div>
+          ))}
+          <div style={{flex:1,display:'flex',flexDirection:'column',gap:4}}>
+            <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840',marginBottom:4}}>ID on file</div>
+            {[['Document type','Qatar ID (QID)'],['QID number',patient.qid],['Full name',patient.nameEn],['Date of birth','1989-03-14'],['Nationality','Qatari'],['Expiry','2029-06-30']].map(([l,v])=>(
+              <div key={l} style={{display:'flex',gap:12,fontSize:12.5}}>
+                <span style={{color:'#5A7870',fontWeight:600,width:110,flexShrink:0}}>{l}</span>
+                <span style={{fontWeight:600,color:'#111814',fontFamily:l==='QID number'?"'IBM Plex Mono',monospace":'inherit'}}>{v}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Chief complaint strip */}
-      <div className="px-6 py-2 bg-amber-50 border-t border-amber-200 flex items-start gap-2">
-        <div className="text-[10px] font-semibold text-amber-800 mt-0.5 uppercase tracking-wide">Chief complaint</div>
-        <div className="text-xs text-amber-900 italic">"{appointment.chiefComplaint}"</div>
-        <div className="ml-auto text-[10px] text-amber-700 mono">Logged by reception · 09:14</div>
+      {/* Chief complaint */}
+      <div style={{padding:'9px 20px',background:'#FEF9EC',borderTop:'1px solid #FDE68A',display:'flex',alignItems:'flex-start',gap:10}}>
+        <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#92600A',flexShrink:0,marginTop:1}}>Chief complaint</div>
+        <div style={{fontSize:13,fontWeight:600,color:'#78400A',fontStyle:'italic',flex:1}}>"{appointment.chiefComplaint}"</div>
+        <div style={{fontSize:12,color:'#B08040',fontWeight:600,flexShrink:0}}>Logged by reception · {appointment.time}</div>
       </div>
     </div>
   );
 }
 
-function CareTeamMember({ member, color }) {
-  const colors = {
-    violet: 'bg-violet-100 text-violet-800',
-    sky:    'bg-sky-100 text-sky-800',
-  };
-  return (
-    <div className="flex items-center gap-2">
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 ${colors[color]}`}>
-        {member.initials}
-      </div>
-      <div className="min-w-0">
-        <div className="text-xs font-medium truncate">{member.name}</div>
-        <div className="text-[10px] text-stone-500">{member.role}</div>
-      </div>
-    </div>
-  );
-}
-
-// =====================================================================
-// LEFT COLUMN — History timeline
-// =====================================================================
-function HistoryColumn({ patient, history, mode, onViewEncounter }) {
+// ─── History Column ───────────────────────────────────────────────────────────
+function HistoryColumn({ history, mode, onView }) {
   const [filter, setFilter] = useState('all');
-  const [expandedId, setExpandedId] = useState(null);
-  const filtered = filter === 'all' ? history : history.filter(e => e.kind === filter);
-
+  const [expanded, setExpanded] = useState(null);
+  const filtered = filter==='all'?history:history.filter(e=>e.kind===filter);
   return (
-    <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-      <div className="px-3 py-2.5 border-b border-stone-200 flex items-center justify-between">
-        <div className="text-xs font-semibold text-stone-700">Patient history</div>
-        <div className="flex text-[10px] border border-stone-200 rounded overflow-hidden">
-          {['all', 'dental', 'aesthetic'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-1.5 py-0.5 capitalize ${filter === f ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50'}`}
-            >
-              {f}
-            </button>
+    <div style={{...card,overflow:'hidden',position:'sticky',top:14,alignSelf:'start'}}>
+      <div style={{padding:'11px 14px',borderBottom:'1px solid #EEF2F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>History</div>
+        <div style={{display:'flex',borderRadius:7,overflow:'hidden',border:'1px solid #DCE4E0'}}>
+          {['all','dental','aesthetic'].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)} style={{padding:'3px 8px',fontSize:12,fontWeight:600,border:'none',background:filter===f?CLINIC_CONFIG.primaryColor:'#fff',color:filter===f?'#fff':'#4A6860',cursor:'pointer',textTransform:'capitalize'}}>{f}</button>
           ))}
         </div>
       </div>
-
-      {/* Medications section */}
-      <div className="px-3 py-2.5 border-b border-stone-100 bg-stone-50/60">
-        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">Current meds</div>
-        <div className="space-y-1">
-          {patient.medications.map(m => (
-            <div key={m} className="text-xs flex items-center gap-1.5">
-              <Pill className="w-3 h-3 text-stone-400" />
-              {m}
+      <div style={{maxHeight:'calc(100vh-280px)',overflowY:'auto'}}>
+        {/* Medications */}
+        <div style={{padding:'10px 14px',background:'#F8FAF9',borderBottom:'1px solid #EEF2F0'}}>
+          <div style={{...SEC,marginBottom:6}}>Current meds</div>
+          {PATIENT.medications.map(m=>(
+            <div key={m} style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+              <Pill size={11} color="#4E6860"/>
+              <span style={{fontSize:12,fontWeight:600,color:'#2A3830'}}>{m}</span>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Timeline — expandable */}
-      <div className="px-3 py-2 max-h-[480px] overflow-y-auto">
-        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Encounters</div>
-        <div className="relative">
-          <div className="absolute left-1.5 top-1 bottom-1 w-px bg-stone-200" />
-          {filtered.map(e => {
-            const isExpanded = expandedId === e.id;
-            return (
-              <div key={e.id} className="mb-3 last:mb-0 relative pl-5">
-                <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white ${e.kind === 'dental' ? 'bg-sky-500' : 'bg-rose-400'}`} />
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : e.id)}
-                  className="block w-full text-left hover:bg-stone-50 -mx-1 px-1 py-0.5 rounded"
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="text-[10px] mono text-stone-500">{e.date}</div>
-                    <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                  </div>
-                  <div className="text-xs font-medium mt-0.5">{e.procedure}</div>
-                  <div className="text-[11px] text-stone-500 mt-0.5">{e.doctor}</div>
-                  {!isExpanded && <div className="text-[11px] text-stone-600 mt-1 italic line-clamp-1">{e.notes}</div>}
-                </button>
-
-                {isExpanded && (
-                  <div className="mt-1.5 ml-0 p-2.5 bg-stone-50 border border-stone-200 rounded-md text-xs space-y-2">
-                    {/* Doctor */}
-                    <div className="text-[10px] text-stone-500">{e.doctor} · {e.specialty}</div>
-
-                    {/* Rx Done — items only, no prices */}
-                    {e.rxDone && e.rxDone.length > 0 && (
-                      <div>
-                        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Rx Done</div>
-                        {e.rxDone.map((r, i) => (
-                          <div key={i} className="text-stone-700 mt-0.5">· {r.item}</div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Notes */}
-                    <div>
-                      <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Notes</div>
-                      <div className="text-stone-700 italic mt-0.5">{e.notes}</div>
+        {/* Timeline */}
+        <div style={{padding:'10px 14px'}}>
+          <div style={{...SEC,marginBottom:8}}>Encounters</div>
+          <div style={{position:'relative'}}>
+            <div style={{position:'absolute',left:5,top:6,bottom:0,width:1,background:'#DCE4E0'}}/>
+            {filtered.map(e=>{
+              const isExp = expanded===e.id;
+              return(
+                <div key={e.id} style={{marginBottom:10,paddingLeft:18,position:'relative'}}>
+                  <div style={{position:'absolute',left:0,top:4,width:11,height:11,borderRadius:'50%',border:'2px solid #fff',background:e.kind==='dental'?'#3B82F6':'#FB7185'}}/>
+                  <button className="enc-row" onClick={()=>setExpanded(isExp?null:e.id)} style={{width:'100%',textAlign:'left',background:'transparent',border:'none',padding:'2px 0',cursor:'pointer',borderRadius:6}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                      <span style={{fontSize:12,fontWeight:700,color:'#5A7870'}}>{e.date}</span>
+                      <ChevronDown size={12} color="#5A7870" style={{transform:isExp?'rotate(180deg)':'none',transition:'transform .15s',flexShrink:0}}/>
                     </div>
-
-                    {/* Rx Meds — if any */}
-                    {e.rxMeds && e.rxMeds.length > 0 && (
-                      <div>
-                        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Medications</div>
-                        <div className="text-stone-600 mt-0.5">{e.rxMeds.join(' · ')}</div>
-                      </div>
-                    )}
-
-                    {/* Plan — brief */}
-                    {e.plan && e.plan.length > 0 && (
-                      <div>
-                        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Plan</div>
-                        <div className="text-stone-600 mt-0.5">{e.plan.join(' · ')}</div>
-                      </div>
-                    )}
-
-                    {/* Link to full encounter */}
-                    <button
-                      onClick={() => onViewEncounter(e)}
-                      className="mt-1 w-full px-2 py-1.5 text-[11px] border border-stone-300 rounded hover:bg-white flex items-center justify-center gap-1.5 text-stone-700 font-medium">
-                      <ExternalLink className="w-3 h-3" />
-                      Open full encounter — SOAP, Rx, images
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =====================================================================
-// CENTER — DENTAL ENCOUNTER
-// =====================================================================
-function DentalEncounter({ appointment }) {
-  const [selectedTooth, setSelectedTooth] = useState(16);
-  const [toothFindings, setToothFindings] = useState({
-    16: { status: 'decay', note: 'Distal occlusal caries, ~2mm depth' },
-    11: { status: 'crown', note: 'Existing crown — intact' },
-    36: { status: 'filling', note: 'Composite filling, Feb 2026' },
-  });
-  const [soap, setSoap] = useState({
-    subjective: 'Patient reports cold sensitivity on upper-right back tooth for ~4 days. Pain is sharp but transient, no spontaneous pain at rest. No throbbing or night pain.',
-    objective: 'Tooth #16: distal occlusal caries, ~2mm depth on bitewing. No periapical changes. Negative response to percussion. Positive to cold but resolves within 5 seconds.',
-    assessment: 'Reversible pulpitis secondary to dental caries on #16. No indication for endodontic treatment at this stage.',
-    plan: 'Composite restoration on #16 today. If symptoms persist beyond 2 weeks, reassess for possible endodontic referral.',
-  });
-  const [expanded, setExpanded] = useState({ subjective: true, objective: true, assessment: true, plan: true });
-
-  const toggle = (k) => setExpanded({ ...expanded, [k]: !expanded[k] });
-
-  return (
-    <div className="bg-white border border-stone-200 rounded-lg">
-      <div className="px-4 py-3 border-b border-stone-200 flex items-center justify-between">
-        <div>
-          <div className="text-xs text-stone-500 uppercase tracking-wide font-semibold">Active encounter</div>
-          <div className="text-sm font-semibold mt-0.5">{appointment.procedure}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> In progress · 14m
-          </span>
-        </div>
-      </div>
-
-      {/* Odontogram */}
-      <div className="px-4 py-4 border-b border-stone-100">
-        <div className="text-xs font-semibold text-stone-700 mb-2 flex items-center justify-between">
-          <span>Odontogram</span>
-          <span className="text-[10px] text-stone-500 font-normal">FDI notation · Click any tooth</span>
-        </div>
-        <Odontogram findings={toothFindings} selected={selectedTooth} onSelect={setSelectedTooth} />
-
-        {selectedTooth && (
-          <div className="mt-3 p-2.5 bg-stone-50 border border-stone-200 rounded text-xs">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="font-medium">Tooth #{selectedTooth}</div>
-              <div className="text-[10px] text-stone-500">
-                {selectedTooth >= 11 && selectedTooth <= 18 && 'Upper right'}
-                {selectedTooth >= 21 && selectedTooth <= 28 && 'Upper left'}
-                {selectedTooth >= 31 && selectedTooth <= 38 && 'Lower left'}
-                {selectedTooth >= 41 && selectedTooth <= 48 && 'Lower right'}
-              </div>
-            </div>
-            <div className="text-stone-600">
-              {toothFindings[selectedTooth]?.note || <span className="italic text-stone-400">No findings recorded. Click to add.</span>}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* SOAP note */}
-      <div className="px-4 py-3">
-        <div className="text-xs font-semibold text-stone-700 mb-2 flex items-center justify-between">
-          <span>Clinical note</span>
-          <span className="text-[10px] text-stone-500 font-normal">SOAP format · Auto-saved 12s ago</span>
-        </div>
-
-        {[
-          { key: 'subjective', label: 'S — Subjective', hint: 'What the patient reports' },
-          { key: 'objective',  label: 'O — Objective',  hint: 'What you observe / measure' },
-          { key: 'assessment', label: 'A — Assessment', hint: 'Your diagnosis or impression' },
-          { key: 'plan',       label: 'P — Plan',       hint: 'What you intend to do' },
-        ].map(({ key, label, hint }) => (
-          <SoapSection
-            key={key}
-            label={label}
-            hint={hint}
-            value={soap[key]}
-            onChange={v => setSoap({ ...soap, [key]: v })}
-            expanded={expanded[key]}
-            onToggle={() => toggle(key)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SoapSection({ label, hint, value, onChange, expanded, onToggle }) {
-  return (
-    <div className="border border-stone-200 rounded-md mb-2 overflow-hidden">
-      <button onClick={onToggle} className="w-full px-3 py-2 flex items-center justify-between hover:bg-stone-50 text-left">
-        <div className="flex items-center gap-2">
-          {expanded ? <ChevronDown className="w-3 h-3 text-stone-500" /> : <ChevronRight className="w-3 h-3 text-stone-500" />}
-          <div>
-            <div className="text-xs font-semibold">{label}</div>
-            <div className="text-[10px] text-stone-500">{hint}</div>
-          </div>
-        </div>
-        <div className="text-[10px] mono text-stone-400">{value.length} chars</div>
-      </button>
-      {expanded && (
-        <textarea
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          rows={3}
-          className="w-full px-3 py-2 text-sm border-t border-stone-200 resize-none focus:outline-none focus:bg-stone-50"
-        />
-      )}
-    </div>
-  );
-}
-
-// ---- Odontogram component -------------------------------------------
-function Odontogram({ findings, selected, onSelect }) {
-  // FDI tooth numbering: upper-right 18-11, upper-left 21-28, lower-left 38-31, lower-right 48-41
-  const upper = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
-  const lower = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
-
-  const statusColor = (status) => {
-    if (status === 'decay') return '#fca5a5';
-    if (status === 'filling') return '#93c5fd';
-    if (status === 'crown') return '#fcd34d';
-    if (status === 'missing') return '#d6d3d1';
-    return '#ffffff';
-  };
-
-  return (
-    <div className="bg-stone-50 rounded-md p-3">
-      <div className="flex flex-col items-center gap-1">
-        <div className="text-[9px] text-stone-400 mono">UPPER</div>
-        <div className="flex gap-0.5">
-          {upper.map((t, i) => (
-            <Tooth key={t} num={t} findings={findings[t]} selected={selected === t} onSelect={onSelect} fill={statusColor(findings[t]?.status)} divider={i === 7} />
-          ))}
-        </div>
-        <div className="flex gap-0.5">
-          {lower.map((t, i) => (
-            <Tooth key={t} num={t} findings={findings[t]} selected={selected === t} onSelect={onSelect} fill={statusColor(findings[t]?.status)} divider={i === 7} flipped />
-          ))}
-        </div>
-        <div className="text-[9px] text-stone-400 mono">LOWER</div>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-3 mt-3 pt-2 border-t border-stone-200 text-[10px] text-stone-600">
-        <Legend color="#fca5a5" label="Decay" />
-        <Legend color="#93c5fd" label="Filling" />
-        <Legend color="#fcd34d" label="Crown" />
-        <Legend color="#d6d3d1" label="Missing" />
-        <Legend color="#ffffff" label="Healthy" border />
-      </div>
-    </div>
-  );
-}
-
-function Tooth({ num, findings, selected, onSelect, fill, divider, flipped }) {
-  return (
-    <>
-      {divider && <div className="w-2" />}
-      <button
-        onClick={() => onSelect(num)}
-        className="flex flex-col items-center group"
-      >
-        <div className="text-[8px] text-stone-400 mono group-hover:text-stone-700">{num}</div>
-        <svg width="20" height="26" viewBox="0 0 20 26" className="tooth-svg" style={{ transform: flipped ? 'scaleY(-1)' : 'none' }}>
-          <path
-            d="M3,2 Q3,0 5,0 L15,0 Q17,0 17,2 L18,12 Q18,18 16,22 Q14,26 12,24 L8,24 Q6,26 4,22 Q2,18 2,12 Z"
-            fill={fill}
-            stroke={selected ? '#0c0a09' : '#a8a29e'}
-            strokeWidth={selected ? 1.5 : 0.7}
-          />
-        </svg>
-      </button>
-    </>
-  );
-}
-
-function Legend({ color, label, border }) {
-  return (
-    <div className="flex items-center gap-1">
-      <div className="w-2.5 h-2.5 rounded-sm" style={{ background: color, border: border ? '1px solid #a8a29e' : 'none' }} />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-// =====================================================================
-// CENTER — AESTHETIC ENCOUNTER
-// =====================================================================
-
-// Body zones per tab — each zone has a label and normalised SVG coordinates
-const BODY_ZONES = {
-  face: [
-    { id: 'glabellar',    label: 'Glabellar',        cx: 150, cy: 88  },
-    { id: 'l-frontalis',  label: 'L Frontalis',      cx: 122, cy: 72  },
-    { id: 'r-frontalis',  label: 'R Frontalis',      cx: 178, cy: 72  },
-    { id: 'l-crow',       label: "L Crow's feet",    cx: 102, cy: 108 },
-    { id: 'r-crow',       label: "R Crow's feet",    cx: 198, cy: 108 },
-    { id: 'l-cheek',      label: 'L Cheek',          cx: 108, cy: 148 },
-    { id: 'r-cheek',      label: 'R Cheek',          cx: 192, cy: 148 },
-    { id: 'perioral',     label: 'Perioral',         cx: 150, cy: 185 },
-    { id: 'chin',         label: 'Chin',             cx: 150, cy: 210 },
-    { id: 'masseter-l',   label: 'L Masseter',       cx: 96,  cy: 178 },
-    { id: 'masseter-r',   label: 'R Masseter',       cx: 204, cy: 178 },
-  ],
-  neck: [
-    { id: 'neck-bands',   label: 'Platysmal bands',  cx: 150, cy: 60  },
-    { id: 'neck-l',       label: 'L Neck',           cx: 110, cy: 90  },
-    { id: 'neck-r',       label: 'R Neck',           cx: 190, cy: 90  },
-    { id: 'decolletage',  label: 'Décolletage',      cx: 150, cy: 170 },
-    { id: 'l-shoulder',   label: 'L Shoulder',       cx: 68,  cy: 145 },
-    { id: 'r-shoulder',   label: 'R Shoulder',       cx: 232, cy: 145 },
-  ],
-  arms: [
-    { id: 'l-axilla',     label: 'L Axilla',         cx: 90,  cy: 55  },
-    { id: 'r-axilla',     label: 'R Axilla',         cx: 210, cy: 55  },
-    { id: 'l-forearm',    label: 'L Forearm',        cx: 60,  cy: 155 },
-    { id: 'r-forearm',    label: 'R Forearm',        cx: 240, cy: 155 },
-    { id: 'l-hand',       label: 'L Hand',           cx: 48,  cy: 225 },
-    { id: 'r-hand',       label: 'R Hand',           cx: 252, cy: 225 },
-  ],
-  torso: [
-    { id: 'hyperhidrosis-torso', label: 'Hyperhidrosis — torso', cx: 150, cy: 100 },
-    { id: 'l-flank',      label: 'L Flank',          cx: 88,  cy: 145 },
-    { id: 'r-flank',      label: 'R Flank',          cx: 212, cy: 145 },
-    { id: 'abdomen',      label: 'Abdomen',          cx: 150, cy: 190 },
-    { id: 'lower-back',   label: 'Lower back',       cx: 150, cy: 240 },
-  ],
-  legs: [
-    { id: 'l-thigh',      label: 'L Thigh',          cx: 110, cy: 60  },
-    { id: 'r-thigh',      label: 'R Thigh',          cx: 190, cy: 60  },
-    { id: 'l-calf',       label: 'L Calf',           cx: 104, cy: 175 },
-    { id: 'r-calf',       label: 'R Calf',           cx: 196, cy: 175 },
-    { id: 'l-foot',       label: 'L Plantar',        cx: 100, cy: 255 },
-    { id: 'r-foot',       label: 'R Plantar',        cx: 200, cy: 255 },
-  ],
-};
-
-const BODY_TAB_LABELS = {
-  face: 'Face', neck: 'Neck / Décolletage',
-  arms: 'Arms / Hands', torso: 'Torso', legs: 'Legs / Feet',
-};
-
-function AestheticEncounter({ appointment }) {
-  const [bodyTab, setBodyTab] = useState('face');
-  const [sites, setSites] = useState([
-    { id: 1, zone: 'glabellar',   tab: 'face', product: 'Botox', units: 12, batch: 'BTX-9921', region: 'Glabellar' },
-    { id: 2, zone: 'l-frontalis', tab: 'face', product: 'Botox', units: 4,  batch: 'BTX-9921', region: 'L Frontalis' },
-    { id: 3, zone: 'r-frontalis', tab: 'face', product: 'Botox', units: 4,  batch: 'BTX-9921', region: 'R Frontalis' },
-  ]);
-  const [selectedSite, setSelectedSite] = useState(null);
-  const [addingZone, setAddingZone] = useState(null); // zone id being added
-  const [consent, setConsent] = useState({ procedure: true, photos: false, marketing: false });
-  const [soap, setSoap] = useState({
-    subjective: 'Patient pleased with November Botox result. Now interested in tear-trough filler for mild hollowness, present for 1+ year. No prior filler.',
-    objective: 'Glabellar lines fully resolved. Mild residual frontalis activity. Bilateral tear-trough hollows, grade 2 — palpable bone, mild shadowing.',
-    assessment: 'Recurrence of glabellar/frontalis dynamic lines (5-month interval, expected). Mild infraorbital volume deficit, candidate for HA filler (cannula technique).',
-    plan: 'Botox 20U today (glabellar 12U + frontalis 4U+4U). Schedule tear-trough filler consult in 2 weeks with photography review.',
-  });
-  const [expanded, setExpanded] = useState({ subjective: true, objective: true, assessment: true, plan: true });
-  const toggle = (k) => setExpanded({ ...expanded, [k]: !expanded[k] });
-
-  const tabSites = sites.filter(s => s.tab === bodyTab);
-  const allTotals = {};
-  sites.forEach(s => { allTotals[s.product] = (allTotals[s.product] || 0) + s.units; });
-
-  const addSite = (zoneId) => {
-    const zoneDef = BODY_ZONES[bodyTab].find(z => z.id === zoneId);
-    if (!zoneDef) return;
-    const newSite = {
-      id: Date.now(),
-      zone: zoneId,
-      tab: bodyTab,
-      product: 'Botox',
-      units: 4,
-      batch: 'BTX-9921',
-      region: zoneDef.label,
-    };
-    setSites(prev => [...prev, newSite]);
-    setAddingZone(null);
-    setSelectedSite(newSite.id);
-  };
-
-  const removeSite = (siteId) => {
-    setSites(prev => prev.filter(s => s.id !== siteId));
-    if (selectedSite === siteId) setSelectedSite(null);
-  };
-
-  const occupiedZones = new Set(tabSites.map(s => s.zone));
-
-  return (
-    <div className="bg-white border border-stone-200 rounded-lg">
-      <div className="px-4 py-3 border-b border-stone-200 flex items-center justify-between">
-        <div>
-          <div className="text-xs text-stone-500 uppercase tracking-wide font-semibold">Active encounter</div>
-          <div className="text-sm font-semibold mt-0.5">{appointment.procedure}</div>
-        </div>
-        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> In progress · 8m
-        </span>
-      </div>
-
-      {/* Body map */}
-      <div className="px-4 py-4 border-b border-stone-100">
-        <div className="text-xs font-semibold text-stone-700 mb-2 flex items-center justify-between">
-          <span>Injection site map — full body</span>
-          <div className="flex items-center gap-2 text-[10px] text-stone-500 font-normal">
-            {Object.entries(allTotals).map(([prod, total]) => (
-              <span key={prod} className="bg-stone-100 px-2 py-0.5 rounded mono">{prod} {total}U total</span>
-            ))}
-          </div>
-        </div>
-
-        {/* Body region tabs */}
-        <div className="flex gap-1 mb-3 flex-wrap">
-          {Object.entries(BODY_TAB_LABELS).map(([tab, label]) => {
-            const count = sites.filter(s => s.tab === tab).length;
-            return (
-              <button
-                key={tab}
-                onClick={() => { setBodyTab(tab); setSelectedSite(null); }}
-                className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors flex items-center gap-1.5 ${
-                  bodyTab === tab
-                    ? 'bg-stone-900 text-white border-stone-900'
-                    : 'bg-white text-stone-600 border-stone-200 hover:border-stone-400'
-                }`}
-              >
-                {label}
-                {count > 0 && (
-                  <span className={`text-[10px] font-semibold px-1 rounded-full ${
-                    bodyTab === tab ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700'
-                  }`}>{count}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="bg-stone-50 rounded-md p-3 grid grid-cols-2 gap-3">
-          {/* SVG body zone diagram */}
-          <BodyZoneMap
-            tab={bodyTab}
-            zones={BODY_ZONES[bodyTab]}
-            occupiedZones={occupiedZones}
-            selectedSite={selectedSite}
-            tabSites={tabSites}
-            onZoneClick={(zoneId) => {
-              const existing = tabSites.find(s => s.zone === zoneId);
-              if (existing) { setSelectedSite(existing.id); }
-              else { setAddingZone(zoneId); }
-            }}
-          />
-
-          {/* Site list */}
-          <div>
-            <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
-              {BODY_TAB_LABELS[bodyTab]} sites
-            </div>
-            <div className="space-y-1 max-h-[200px] overflow-y-auto">
-              {tabSites.length === 0 && (
-                <div className="text-[11px] text-stone-400 italic py-3 text-center">
-                  No sites on {BODY_TAB_LABELS[bodyTab]} yet — click a zone to add
-                </div>
-              )}
-              {tabSites.map(s => (
-                <div
-                  key={s.id}
-                  onClick={() => setSelectedSite(s.id)}
-                  className={`px-2 py-1.5 text-xs rounded border cursor-pointer ${
-                    selectedSite === s.id ? 'border-rose-400 bg-rose-50' : 'border-stone-200 bg-white hover:border-stone-400'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{s.region}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="mono text-stone-500">{s.units}U</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeSite(s.id); }}
-                        className="text-stone-300 hover:text-red-500"
-                      >
-                        <X className="w-3 h-3" />
+                    <div style={{fontSize:12.5,fontWeight:600,color:'#111814',marginTop:2,lineHeight:1.3}}>{e.procedure}</div>
+                    <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:1}}>{e.doctor}</div>
+                    {!isExp&&<div style={{fontSize:12,fontWeight:500,color:'#6A8880',marginTop:3,fontStyle:'italic',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.notes}</div>}
+                  </button>
+                  {isExp&&(
+                    <div style={{marginTop:6,padding:'10px 12px',background:'#F5F8F7',borderRadius:9,border:'1px solid #DCE4E0'}}>
+                      <div style={{...SEC,marginBottom:6}}>Rx Done</div>
+                      {e.rxDone.map((r,i)=><div key={i} style={{fontSize:12,fontWeight:500,color:'#2A3830',marginBottom:2}}>· {r.item}</div>)}
+                      <div style={{...SEC,marginTop:8,marginBottom:6}}>Notes</div>
+                      <div style={{fontSize:12,fontWeight:500,color:'#2A3830',fontStyle:'italic'}}>{e.notes}</div>
+                      {e.rxMeds.length>0&&<><div style={{...SEC,marginTop:8,marginBottom:5}}>Medications</div>{e.rxMeds.map((m,i)=><div key={i} style={{fontSize:12,fontWeight:600,color:'#2A3830',marginBottom:2}}>{m}</div>)}</>}
+                      {e.plan.length>0&&<><div style={{...SEC,marginTop:8,marginBottom:5}}>Plan</div>{e.plan.map((p,i)=><div key={i} style={{fontSize:12,fontWeight:600,color:'#2A3830',marginBottom:2}}>{i+1}. {p}</div>)}</>}
+                      <button onClick={()=>onView(e)} style={{marginTop:10,width:'100%',padding:'7px',borderRadius:8,border:'1px solid #DCE4E0',background:'#fff',fontSize:12,fontWeight:600,color:'#2A4840',display:'flex',alignItems:'center',justifyContent:'center',gap:5,cursor:'pointer'}}>
+                        <ExternalLink size={11}/>Open full encounter
                       </button>
                     </div>
-                  </div>
-                  <div className="text-[10px] text-stone-500 mono mt-0.5">{s.product} · Lot {s.batch}</div>
+                  )}
                 </div>
-              ))}
-            </div>
-
-            {/* Add site form — appears when a vacant zone is clicked */}
-            {addingZone && (
-              <AddSiteForm
-                zone={BODY_ZONES[bodyTab].find(z => z.id === addingZone)}
-                onConfirm={addSite}
-                onCancel={() => setAddingZone(null)}
-              />
-            )}
-
-            {!addingZone && (
-              <div className="mt-2 pt-2 border-t border-stone-200 flex items-center justify-between text-[11px]">
-                <span className="text-stone-500">This region total</span>
-                <span className="mono font-medium">{tabSites.reduce((s, x) => s + x.units, 0)}U</span>
-              </div>
-            )}
+              );
+            })}
           </div>
         </div>
       </div>
-
-      {/* Consent */}
-      <div className="px-4 py-3 border-b border-stone-100 bg-amber-50/50">
-        <div className="text-xs font-semibold text-stone-700 mb-2 flex items-center gap-1.5">
-          <Shield className="w-3.5 h-3.5" />
-          Patient consent — required before procedure
-          <span className="text-[10px] text-stone-500 font-normal ml-1">v2.1 · 2026-01-15</span>
-        </div>
-        <div className="space-y-1.5">
-          {[
-            { k: 'procedure', label: 'Procedure consent (Botox + filler info)', required: true },
-            { k: 'photos',    label: 'Clinical photography (chart use only)',     required: true },
-            { k: 'marketing', label: 'Photo use for clinic marketing (optional)', required: false },
-          ].map(c => (
-            <label key={c.k} className="flex items-center gap-2 text-xs cursor-pointer">
-              <input type="checkbox" checked={consent[c.k]} onChange={() => setConsent({ ...consent, [c.k]: !consent[c.k] })} className="w-3.5 h-3.5" />
-              <span className={consent[c.k] ? 'text-stone-900' : 'text-stone-600'}>{c.label}</span>
-              {c.required && !consent[c.k] && <span className="text-[10px] text-red-600 font-semibold">REQUIRED</span>}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* SOAP */}
-      <div className="px-4 py-3">
-        <div className="text-xs font-semibold text-stone-700 mb-2 flex items-center justify-between">
-          <span>Clinical note</span>
-          <span className="text-[10px] text-stone-500 font-normal">SOAP format · Auto-saved 5s ago</span>
-        </div>
-        {[
-          { key: 'subjective', label: 'S — Subjective', hint: 'Patient concerns and goals' },
-          { key: 'objective',  label: 'O — Objective',  hint: 'Examination findings, grading' },
-          { key: 'assessment', label: 'A — Assessment', hint: 'Clinical impression' },
-          { key: 'plan',       label: 'P — Plan',       hint: 'Treatment today + future' },
-        ].map(({ key, label, hint }) => (
-          <SoapSection key={key} label={label} hint={hint} value={soap[key]}
-            onChange={v => setSoap({ ...soap, [key]: v })}
-            expanded={expanded[key]} onToggle={() => toggle(key)} />
-        ))}
-      </div>
     </div>
   );
 }
 
-// Body zone SVG diagrams — one per tab
-function BodyZoneMap({ tab, zones, occupiedZones, selectedSite, tabSites, onZoneClick }) {
-  const siteByZone = {};
-  tabSites.forEach(s => { siteByZone[s.zone] = s; });
-
-  const diagrams = {
-    face: FaceSvg,
-    neck: NeckSvg,
-    arms: ArmsSvg,
-    torso: TorsoSvg,
-    legs: LegsSvg,
-  };
-  const Diagram = diagrams[tab] || FaceSvg;
-
+// ─── Shared SOAP section ──────────────────────────────────────────────────────
+function SoapField({ letter, label, value, onChange }) {
+  const [open, setOpen] = useState(true);
   return (
-    <div className="relative">
-      <Diagram />
-      <svg
-        viewBox="0 0 300 280"
-        className="absolute inset-0 w-full h-full"
-        style={{ cursor: 'crosshair' }}
-      >
-        {zones.map(zone => {
-          const site = siteByZone[zone.id];
-          const isSelected = site && selectedSite === site.id;
-          const occupied = !!site;
-          return (
-            <g key={zone.id} onClick={() => onZoneClick(zone.id)} style={{ cursor: 'pointer' }}>
-              <circle
-                cx={zone.cx} cy={zone.cy}
-                r={isSelected ? 11 : occupied ? 9 : 7}
-                fill={occupied ? (isSelected ? '#f43f5e' : '#fb7185') : 'rgba(244,63,94,0.15)'}
-                stroke={occupied ? 'white' : '#f43f5e'}
-                strokeWidth={occupied ? 1.5 : 1}
-                opacity={occupied ? 0.9 : 0.7}
-              />
-              {occupied && (
-                <text x={zone.cx} y={zone.cy + 3.5} fontSize="8" fill="white" textAnchor="middle" fontWeight="700" pointerEvents="none">
-                  {site.units}
-                </text>
-              )}
-              {!occupied && (
-                <text x={zone.cx} y={zone.cy + 3.5} fontSize="8" fill="#f43f5e" textAnchor="middle" opacity="0.8" pointerEvents="none">+</text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+    <div style={{marginBottom:14,paddingBottom:14,borderBottom:'1px solid #EEF2F0'}}>
+      <button onClick={()=>setOpen(!open)} style={{width:'100%',display:'flex',alignItems:'center',gap:8,background:'transparent',border:'none',padding:0,cursor:'pointer',marginBottom:open?8:0}}>
+        <div style={{width:22,height:22,borderRadius:6,background:CLINIC_CONFIG.primaryColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#fff',flexShrink:0}}>{letter}</div>
+        <span style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840',flex:1,textAlign:'left'}}>{label}</span>
+        <ChevronDown size={13} color="#5A7870" style={{transform:open?'rotate(180deg)':'none',transition:'transform .15s'}}/>
+      </button>
+      {open&&<textarea value={value} onChange={e=>onChange(e.target.value)} rows={3} style={{resize:'vertical',lineHeight:1.6,fontSize:13}}/>}
     </div>
   );
 }
 
-function AddSiteForm({ zone, onConfirm, onCancel }) {
+// ─── Dental Encounter ─────────────────────────────────────────────────────────
+function DentalEncounter({ apt }) {
+  const [soap, setSoap] = useState({s:'Sensitivity to cold on upper-right back tooth, started 4 days ago.',o:'',a:'',p:''});
+  const update = k => v => setSoap(p=>({...p,[k]:v}));
   return (
-    <div className="mt-2 p-2 bg-rose-50 border border-rose-200 rounded text-xs">
-      <div className="font-medium text-rose-900 mb-1.5">Add site: {zone?.label}</div>
-      <div className="text-[10px] text-rose-700 mb-2">Click confirm to add with default settings (Botox 4U). Edit after adding.</div>
-      <div className="flex gap-1.5">
-        <button onClick={() => onConfirm(zone?.id)} className="flex-1 py-1 bg-rose-600 text-white rounded text-[11px] font-medium hover:bg-rose-700">Confirm</button>
-        <button onClick={onCancel} className="px-2 py-1 border border-stone-300 rounded text-stone-600 hover:bg-white text-[11px]">Cancel</button>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={card}>
+        <div style={cardHd}><div><div style={{fontSize:14,fontWeight:700}}>SOAP note</div><div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>{apt.procedure} · {apt.time}</div></div></div>
+        <div style={cardBd}>
+          <SoapField letter="S" label="Subjective"  value={soap.s} onChange={update('s')}/>
+          <SoapField letter="O" label="Objective"   value={soap.o} onChange={update('o')}/>
+          <SoapField letter="A" label="Assessment"  value={soap.a} onChange={update('a')}/>
+          <SoapField letter="P" label="Plan"        value={soap.p} onChange={update('p')}/>
+          <PrimaryBtn style={{marginTop:4}}><Save size={13}/>Save notes</PrimaryBtn>
+        </div>
+      </div>
+      <div style={card}>
+        <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Odontogram</div></div>
+        <div style={{padding:'14px 18px',overflowX:'auto'}}>
+          <svg viewBox="0 0 420 110" style={{width:'100%',minWidth:360}}>
+            {/* Upper arch labels */}
+            {[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28].map((n,i)=>(
+              <text key={n} x={10+i*25} y={15} fontSize="8" textAnchor="middle" fill="#4E6860" fontFamily="IBM Plex Mono,monospace">{n}</text>
+            ))}
+            {/* Upper teeth */}
+            {[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28].map((n,i)=>(
+              <rect key={n} x={2+i*25} y={20} width={18} height={18} rx="3" fill={n===16?'#FDE68A':n===17?'#BBF7D0':'#EEF2F0'} stroke={n===16?'#F59E0B':'#C8D4CF'} strokeWidth="1.5"/>
+            ))}
+            {/* Lower teeth */}
+            {[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38].map((n,i)=>(
+              <rect key={n} x={2+i*25} y={48} width={18} height={18} rx="3" fill={n===36?'#BBF7D0':'#EEF2F0'} stroke={n===36?'#0C6B5A':'#C8D4CF'} strokeWidth="1.5"/>
+            ))}
+            {/* Lower arch labels */}
+            {[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38].map((n,i)=>(
+              <text key={n} x={10+i*25} y={80} fontSize="8" textAnchor="middle" fill="#4E6860" fontFamily="IBM Plex Mono,monospace">{n}</text>
+            ))}
+            {/* Legend */}
+            <rect x={5}  y={92} width={10} height={8} rx="2" fill="#FDE68A" stroke="#F59E0B" strokeWidth="1"/>
+            <text x={18} y={100} fontSize="8" fill="#5A7870" fontFamily="Manrope,sans-serif">Needs treatment</text>
+            <rect x={90} y={92} width={10} height={8} rx="2" fill="#BBF7D0" stroke="#0C6B5A" strokeWidth="1"/>
+            <text x={103} y={100} fontSize="8" fill="#5A7870" fontFamily="Manrope,sans-serif">Treated today</text>
+          </svg>
+        </div>
       </div>
     </div>
   );
 }
 
-// --- Body silhouette SVGs ---
-function FaceSvg() {
+// ─── Aesthetic Encounter ──────────────────────────────────────────────────────
+function AestheticEncounter({ apt }) {
+  const [soap, setSoap] = useState({s:'Wants to refresh Botox from November and discuss tear-trough filler.',o:'',a:'',p:''});
+  const update = k => v => setSoap(p=>({...p,[k]:v}));
+  const [injSites, setInjSites] = useState([{x:150,y:80,label:'Glabellar 8U'},{x:100,y:60,label:'Frontalis L 4U'},{x:200,y:60,label:'Frontalis R 4U'}]);
   return (
-    <svg viewBox="0 0 300 280" className="w-full" style={{ maxHeight: 200 }}>
-      <ellipse cx="150" cy="155" rx="88" ry="112" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <path d="M 72 115 Q 150 55 228 115" stroke="#78716c" strokeWidth="1" fill="none"/>
-      <ellipse cx="118" cy="138" rx="10" ry="5" fill="white" stroke="#78716c" strokeWidth="0.8"/>
-      <ellipse cx="182" cy="138" rx="10" ry="5" fill="white" stroke="#78716c" strokeWidth="0.8"/>
-      <circle cx="118" cy="138" r="2" fill="#44403c"/><circle cx="182" cy="138" r="2" fill="#44403c"/>
-      <path d="M 106 122 Q 118 117 130 122" stroke="#44403c" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-      <path d="M 170 122 Q 182 117 194 122" stroke="#44403c" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-      <path d="M 150 142 L 145 172 Q 150 179 155 172 Z" fill="none" stroke="#a8a29e" strokeWidth="0.8"/>
-      <path d="M 130 213 Q 150 220 170 213 Q 150 223 130 213" fill="#fda4af" stroke="#9f1239" strokeWidth="0.6"/>
-      <path d="M 95 188 Q 62 185 62 215 Q 62 230 80 235" stroke="#a8a29e" strokeWidth="0.8" fill="none"/>
-      <path d="M 205 188 Q 238 185 238 215 Q 238 230 220 235" stroke="#a8a29e" strokeWidth="0.8" fill="none"/>
-    </svg>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={card}>
+        <div style={cardHd}><div><div style={{fontSize:14,fontWeight:700}}>SOAP note</div><div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>{apt.procedure} · {apt.time}</div></div></div>
+        <div style={cardBd}>
+          <SoapField letter="S" label="Subjective" value={soap.s} onChange={update('s')}/>
+          <SoapField letter="O" label="Objective"  value={soap.o} onChange={update('o')}/>
+          <SoapField letter="A" label="Assessment" value={soap.a} onChange={update('a')}/>
+          <SoapField letter="P" label="Plan"       value={soap.p} onChange={update('p')}/>
+          <PrimaryBtn style={{marginTop:4}}><Save size={13}/>Save notes</PrimaryBtn>
+        </div>
+      </div>
+      <div style={card}>
+        <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Injection map — Face</div></div>
+        <div style={{padding:'14px 18px'}}>
+          <svg viewBox="0 0 300 200" style={{width:'100%',maxHeight:180}}>
+            {/* Face outline */}
+            <ellipse cx="150" cy="90" rx="55" ry="70" fill="#FEF3C7" stroke="#D8B960" strokeWidth="1.5"/>
+            <ellipse cx="150" cy="55" rx="40" ry="30" fill="#FEF3C7" stroke="#D8B960" strokeWidth="1"/>
+            {/* Eyes */}
+            <ellipse cx="132" cy="80" rx="10" ry="6" fill="#fff" stroke="#D8B960" strokeWidth="1"/>
+            <ellipse cx="168" cy="80" rx="10" ry="6" fill="#fff" stroke="#D8B960" strokeWidth="1"/>
+            {/* Nose */}
+            <path d="M145 95 Q150 105 155 95" stroke="#D8B960" strokeWidth="1" fill="none"/>
+            {/* Mouth */}
+            <path d="M135 115 Q150 125 165 115" stroke="#D8B960" strokeWidth="1" fill="none"/>
+            {/* Injection sites */}
+            {injSites.map((s,i)=>(
+              <g key={i} className="injection-site">
+                <circle cx={s.x} cy={s.y} r="7" fill="#0C6B5A" opacity=".8"/>
+                <circle cx={s.x} cy={s.y} r="3" fill="#fff"/>
+                <text x={s.x+10} y={s.y+4} fontSize="8" fill="#0C6B5A" fontWeight="700" fontFamily="Manrope,sans-serif">{s.label}</text>
+              </g>
+            ))}
+          </svg>
+          <div style={{marginTop:8,display:'flex',alignItems:'center',gap:10,fontSize:12}}>
+            <div style={{display:'flex',alignItems:'center',gap:5}}><div style={{width:10,height:10,borderRadius:'50%',background:'#0C6B5A'}}/><span style={{fontWeight:600,color:'#3D5850'}}>Injection site</span></div>
+            <span style={{color:'#4E6860',fontWeight:600}}>{injSites.length} sites recorded · {injSites.reduce((_,s)=>_+(parseInt(s.label)||0),0)}U total</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function NeckSvg() {
-  return (
-    <svg viewBox="0 0 300 280" className="w-full" style={{ maxHeight: 200 }}>
-      <rect x="118" y="10" width="64" height="70" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <path d="M 60 90 Q 60 80 118 80 L 118 80 L 182 80 Q 240 80 240 90 L 255 190 Q 255 210 150 210 Q 45 210 45 190 Z" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <path d="M 118 80 Q 150 100 182 80" stroke="#a8a29e" strokeWidth="0.8" fill="none" strokeDasharray="3 2"/>
-      <line x1="140" y1="90" x2="140" y2="175" stroke="#e8d5b7" strokeWidth="0.8"/>
-      <line x1="160" y1="90" x2="160" y2="175" stroke="#e8d5b7" strokeWidth="0.8"/>
-    </svg>
-  );
-}
-
-function ArmsSvg() {
-  return (
-    <svg viewBox="0 0 300 280" className="w-full" style={{ maxHeight: 200 }}>
-      <rect x="120" y="10" width="60" height="30" rx="6" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="125" y="38" width="50" height="80" rx="6" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="30" y="42" width="82" height="32" rx="10" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="18" y="72" width="32" height="100" rx="10" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="10" y="170" width="44" height="36" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="188" y="42" width="82" height="32" rx="10" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="250" y="72" width="32" height="100" rx="10" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="246" y="170" width="44" height="36" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-    </svg>
-  );
-}
-
-function TorsoSvg() {
-  return (
-    <svg viewBox="0 0 300 280" className="w-full" style={{ maxHeight: 200 }}>
-      <rect x="118" y="8" width="64" height="28" rx="6" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <path d="M 70 50 Q 60 45 55 90 L 50 200 Q 50 220 150 220 Q 250 220 250 200 L 245 90 Q 240 45 230 50 Q 200 36 182 36 L 118 36 Q 100 36 70 50 Z" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <ellipse cx="127" cy="80" rx="14" ry="10" fill="none" stroke="#e8d5b7" strokeWidth="1"/>
-      <ellipse cx="173" cy="80" rx="14" ry="10" fill="none" stroke="#e8d5b7" strokeWidth="1"/>
-      <path d="M 150 95 L 150 160" stroke="#e8d5b7" strokeWidth="1" strokeDasharray="3 3"/>
-      <ellipse cx="150" cy="165" rx="12" ry="8" fill="none" stroke="#e8d5b7" strokeWidth="1"/>
-    </svg>
-  );
-}
-
-function LegsSvg() {
-  return (
-    <svg viewBox="0 0 300 280" className="w-full" style={{ maxHeight: 200 }}>
-      <rect x="95" y="8" width="50" height="30" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="155" y="8" width="50" height="30" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="88" y="36" width="56" height="130" rx="12" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="156" y="36" width="56" height="130" rx="12" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="85" y="163" width="30" height="70" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="116" y="163" width="30" height="70" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="153" y="163" width="30" height="70" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="185" y="163" width="30" height="70" rx="8" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="75" y="230" width="76" height="20" rx="6" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-      <rect x="149" y="230" width="76" height="20" rx="6" fill="#fef3e2" stroke="#a8a29e" strokeWidth="1"/>
-    </svg>
-  );
-}
-
-// =====================================================================
-// RIGHT COLUMN — Actions
-// =====================================================================
-function ActionsColumn({ mode, appointment }) {
-  const [tab, setTab] = useState('prescribe');
+// ─── Actions Column ───────────────────────────────────────────────────────────
+function ActionsColumn({ mode, apt }) {
+  const [tab, setTab] = useState('rxdone');
   const [receptionNote, setReceptionNote] = useState('');
   const [noteSaved, setNoteSaved] = useState(false);
-
-  const saveNote = () => { setNoteSaved(true); setTimeout(() => setNoteSaved(false), 2000); };
-
+  const saveNote = () => { setNoteSaved(true); setTimeout(()=>setNoteSaved(false),2000); };
+  const TABS = [
+    {k:'rxmed',  icon:Pill,    label:'Rx Med'},
+    {k:'rxdone', icon:Receipt, label:'Rx Done'},
+    {k:'plan',   icon:FileText,label:'Plan'},
+    {k:'finish', icon:CheckCircle2,label:'Finish'},
+  ];
   return (
-    <div className="space-y-3">
-      {/* Insurance / coverage call-out */}
-      <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
-        <div className="flex items-start gap-2">
-          <Shield className="w-4 h-4 text-sky-700 mt-0.5 flex-shrink-0" />
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-sky-900">
-              {mode === 'dental' ? 'QLM — Dental covered' : 'QLM — Aesthetic excluded'}
-            </div>
-            <div className="text-[11px] text-sky-800 mt-0.5">
-              {mode === 'dental'
-                ? 'Pre-auth approved for filling. Co-pay QAR 60.'
-                : 'Cosmetic procedure. Patient pays direct.'}
-            </div>
-            <div className="text-[10px] text-sky-700 mono mt-1">
-              Auth #{mode === 'dental' ? 'QLM-PA-118822' : '—'}
-            </div>
-          </div>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      {/* Insurance call-out */}
+      <div style={{padding:'11px 14px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:12,display:'flex',alignItems:'flex-start',gap:9}}>
+        <Shield size={15} color="#1D4ED8" style={{flexShrink:0,marginTop:1}}/>
+        <div>
+          <div style={{fontSize:12.5,fontWeight:700,color:'#1E40AF'}}>{mode==='dental'?'QLM — Dental covered':'QLM — Aesthetic excluded'}</div>
+          <div style={{fontSize:12,fontWeight:600,color:'#3B5FA0',marginTop:2}}>{mode==='dental'?'Pre-auth approved. Co-pay QAR 60.':'Cosmetic procedure — patient pays direct.'}</div>
+          {mode==='dental'&&<div style={{fontSize:12,color:'#6080B0',marginTop:2,fontWeight:600}}>Auth #QLM-PA-118822</div>}
         </div>
       </div>
 
       {/* Action tabs */}
-      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-        <div className="grid grid-cols-5 border-b border-stone-200">
-          {[
-            { k: 'prescribe', icon: Pill, label: 'Rx Med' },
-            { k: 'rxdone', icon: Receipt, label: 'Rx Done' },
-            { k: 'plan', icon: ClipboardList, label: 'Plan' },
-            { k: 'images', icon: ImageIcon, label: 'Images' },
-            { k: 'finish', icon: CheckCircle2, label: 'Finish' },
-          ].map(({ k, icon: Icon, label }) => (
-            <button
-              key={k}
-              onClick={() => setTab(k)}
-              className={`px-2 py-2 text-[11px] flex flex-col items-center gap-0.5 ${tab === k ? 'bg-stone-50 border-b-2 border-stone-900 -mb-px font-semibold' : 'text-stone-500 hover:bg-stone-50'}`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {label}
+      <div style={{...card,overflow:'hidden'}}>
+        <div style={{display:'grid',gridTemplateColumns:`repeat(${TABS.length},1fr)`,borderBottom:'1px solid #EEF2F0'}}>
+          {TABS.map(({k,icon:Icon,label})=>(
+            <button key={k} onClick={()=>setTab(k)} style={{padding:'10px 4px',fontSize:12,fontWeight:tab===k?700:500,border:'none',borderBottom:`2.5px solid ${tab===k?CLINIC_CONFIG.primaryColor:'transparent'}`,background:'transparent',color:tab===k?CLINIC_CONFIG.primaryColor:'#4A6860',display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',marginBottom:-1}}>
+              <Icon size={13}/>{label}
             </button>
           ))}
         </div>
-
-        <div className="p-3">
-          {tab === 'prescribe' && <PrescribePanel mode={mode} />}
-          {tab === 'rxdone' && <RxDonePanel mode={mode} appointment={appointment} />}
-          {tab === 'plan' && <TreatmentPlanPanel mode={mode} />}
-          {tab === 'images' && <ImagesPanel mode={mode} />}
-          {tab === 'finish' && <FinishPanel mode={mode} />}
+        <div style={{padding:'14px 16px'}}>
+          {tab==='rxmed'  && <RxMedPanel mode={mode}/>}
+          {tab==='rxdone' && <RxDonePanel mode={mode} apt={apt}/>}
+          {tab==='plan'   && <PlanPanel mode={mode}/>}
+          {tab==='finish' && <FinishPanel mode={mode}/>}
         </div>
       </div>
 
-      {/* Note for reception — always visible, not tab-specific */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="text-[10px] font-semibold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
-            <Bell className="w-3 h-3" /> Note for reception
+      {/* Note for reception */}
+      <div style={{padding:'12px 14px',background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:12}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#92600A',display:'flex',alignItems:'center',gap:5}}>
+            <Bell size={11}/>Note for reception
           </div>
-          <span className="text-[9px] text-amber-700">Visible to reception at checkout</span>
+          <span style={{fontSize:12,fontWeight:600,color:'#B08040'}}>Visible at checkout</span>
         </div>
-        <textarea
-          value={receptionNote}
-          onChange={e => { setReceptionNote(e.target.value); setNoteSaved(false); }}
-          rows={3}
-          placeholder="e.g. Waive co-pay today — patient paid double last visit. Schedule follow-up before leaving. Remind about insurance pre-auth for next procedure..."
-          className="w-full px-2 py-1.5 text-xs border border-amber-300 bg-white rounded focus:outline-none focus:border-amber-500 resize-none"
-        />
-        <div className="flex items-center justify-between mt-1.5">
-          <div className="text-[10px] text-amber-700 italic">
-            {receptionNote.length > 0 ? `${receptionNote.length} characters` : 'No note yet'}
-          </div>
-          <button
-            onClick={saveNote}
-            disabled={!receptionNote.trim()}
-            className={`px-2.5 py-1 text-[11px] rounded flex items-center gap-1 ${noteSaved ? 'bg-emerald-600 text-white' : 'bg-amber-700 text-white hover:bg-amber-800'} disabled:opacity-40`}
-          >
-            {noteSaved ? <><CheckCircle2 className="w-3 h-3" /> Saved</> : <><Save className="w-3 h-3" /> Save note</>}
+        <textarea value={receptionNote} onChange={e=>{setReceptionNote(e.target.value);setNoteSaved(false);}} rows={3} placeholder="e.g. Waive co-pay today · Schedule follow-up before leaving · Remind about pre-auth for next procedure..." style={{background:'#fff',borderColor:'#FDE68A',resize:'none',fontSize:12.5}}/>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
+          <span style={{fontSize:12,color:'#B08040',fontWeight:600}}>{receptionNote.length>0?`${receptionNote.length} chars`:''}</span>
+          <button onClick={saveNote} disabled={!receptionNote.trim()} style={{padding:'5px 12px',borderRadius:7,border:'none',background:noteSaved?'#0A6040':'#92600A',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4,transition:'background .15s'}}>
+            {noteSaved?<><CheckCircle2 size={11}/>Saved</>:<><Save size={11}/>Save note</>}
           </button>
         </div>
       </div>
@@ -1205,85 +484,44 @@ function ActionsColumn({ mode, appointment }) {
   );
 }
 
-function PrescribePanel({ mode }) {
+// ─── Rx Med Panel ─────────────────────────────────────────────────────────────
+function RxMedPanel({ mode }) {
   const [rxList, setRxList] = useState([]);
   const [showCustom, setShowCustom] = useState(false);
-  const [customDrug, setCustomDrug] = useState({ name: '', sig: '', class: 'Other' });
-
-  const addRx = (drug) => {
-    if (drug.name.startsWith('Amoxicillin') || drug.name.startsWith('Penicillin')) {
-      if (!confirm('⚠ Patient is ALLERGIC to Penicillin. Are you sure you want to prescribe Amoxicillin?')) return;
-    }
-    setRxList([...rxList, { ...drug, id: Date.now() }]);
-  };
-
-  const addCustom = () => {
-    if (!customDrug.name) return;
-    addRx(customDrug);
-    setCustomDrug({ name: '', sig: '', class: 'Other' });
-    setShowCustom(false);
-  };
-
+  const [custom, setCustom] = useState({name:'',sig:''});
+  const add = drug => { if(drug.name.startsWith('Amoxicillin')){ if(!confirm('ALLERGY: Patient allergic to Penicillin. Continue?')) return; } setRxList(p=>[...p,{...drug,id:Date.now()}]); };
+  const addCustom = () => { if(!custom.name)return; add(custom); setCustom({name:'',sig:''}); setShowCustom(false); };
   return (
     <div>
-      <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Quick prescribe</div>
-      <div className="space-y-1">
-        {DRUG_FAVOURITES.map(d => {
-          const dangerous = d.name.startsWith('Amoxicillin');
-          return (
-            <button
-              key={d.name}
-              onClick={() => addRx(d)}
-              className={`w-full text-left px-2 py-1.5 text-xs border rounded hover:bg-stone-50 ${dangerous ? 'border-red-200 bg-red-50/30' : 'border-stone-200'}`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{d.name}</span>
-                {dangerous && <AlertTriangle className="w-3 h-3 text-red-600" />}
-              </div>
-              <div className="text-[10px] text-stone-500 mt-0.5">{d.sig}</div>
-            </button>
-          );
-        })}
+      <div style={SEC}>Quick prescribe</div>
+      <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:10}}>
+        {DRUG_FAVOURITES.map(d=>(
+          <button key={d.name} onClick={()=>add(d)} style={{textAlign:'left',padding:'8px 10px',borderRadius:8,border:`1px solid ${d.name.startsWith('Amoxicillin')?'#FECACA':'#DCE4E0'}`,background:d.name.startsWith('Amoxicillin')?'#FEF4F2':'#fff',cursor:'pointer',transition:'filter .13s'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{d.name}</span>
+              {d.name.startsWith('Amoxicillin')&&<AlertTriangle size={12} color="#DC4F38"/>}
+            </div>
+            <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>{d.sig}</div>
+          </button>
+        ))}
       </div>
-
-      {/* Custom medicine */}
-      {!showCustom ? (
-        <button onClick={() => setShowCustom(true)}
-          className="mt-2 w-full px-2 py-1.5 text-[11px] border border-dashed border-stone-300 rounded text-stone-500 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
-          <Plus className="w-3 h-3" /> Add other medicine
-        </button>
-      ) : (
-        <div className="mt-2 p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1.5">
-          <div className="text-[10px] font-semibold text-stone-600">Custom medicine</div>
-          <input value={customDrug.name} onChange={e => setCustomDrug({ ...customDrug, name: e.target.value })}
-            placeholder="Medicine name + strength (e.g. Azithromycin 500mg)"
-            className="w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
-          <input value={customDrug.sig} onChange={e => setCustomDrug({ ...customDrug, sig: e.target.value })}
-            placeholder="Instructions (e.g. 1 tab OD × 3 days)"
-            className="w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
-          <div className="flex gap-1.5 justify-end">
-            <button onClick={() => { setShowCustom(false); setCustomDrug({ name: '', sig: '', class: 'Other' }); }}
-              className="px-2 py-1 text-[11px] border border-stone-300 rounded hover:bg-white">Cancel</button>
-            <button onClick={addCustom} disabled={!customDrug.name}
-              className="px-2 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 disabled:opacity-40 flex items-center gap-1">
-              <Plus className="w-2.5 h-2.5" /> Add
-            </button>
+      {!showCustom?<button onClick={()=>setShowCustom(true)} style={{width:'100%',padding:'8px',borderRadius:8,border:'1.5px dashed #C8D4CF',background:'transparent',fontSize:12.5,fontWeight:600,color:'#5A7870',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}><Plus size={13}/>Add other medicine</button>:(
+        <div style={{padding:'10px 12px',background:'#F5F8F7',borderRadius:9,border:'1px solid #DCE4E0',display:'flex',flexDirection:'column',gap:7}}>
+          <input value={custom.name} onChange={e=>setCustom({...custom,name:e.target.value})} placeholder="Medicine name + strength"/>
+          <input value={custom.sig}  onChange={e=>setCustom({...custom,sig:e.target.value})}  placeholder="Instructions (e.g. 1 tab OD × 3 days)"/>
+          <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+            <GhostBtn onClick={()=>{setShowCustom(false);setCustom({name:'',sig:''});}} style={{padding:'5px 12px',fontSize:12}}>Cancel</GhostBtn>
+            <PrimaryBtn onClick={addCustom} disabled={!custom.name} style={{padding:'5px 12px',fontSize:12}}><Plus size={11}/>Add</PrimaryBtn>
           </div>
         </div>
       )}
-
-      {rxList.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-stone-200">
-          <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">On prescription</div>
-          {rxList.map(r => (
-            <div key={r.id} className="px-2 py-1.5 bg-emerald-50 border border-emerald-200 rounded text-xs mb-1 flex items-start justify-between">
-              <div className="min-w-0">
-                <div className="font-medium text-emerald-900">{r.name}</div>
-                <div className="text-[10px] text-emerald-800">{r.sig}</div>
-              </div>
-              <button onClick={() => setRxList(rxList.filter(x => x.id !== r.id))} className="text-emerald-700 hover:text-red-600 flex-shrink-0">
-                <X className="w-3 h-3" />
-              </button>
+      {rxList.length>0&&(
+        <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid #EEF2F0'}}>
+          <div style={SEC}>On prescription</div>
+          {rxList.map(r=>(
+            <div key={r.id} style={{padding:'7px 10px',background:'#F0FAF6',border:'1px solid #B8DDD6',borderRadius:8,marginBottom:5,display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+              <div><div style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>{r.name}</div><div style={{fontSize:12,fontWeight:600,color:'#2A6040',marginTop:1}}>{r.sig}</div></div>
+              <button onClick={()=>setRxList(p=>p.filter(x=>x.id!==r.id))} style={{background:'none',border:'none',color:'#4E6860',cursor:'pointer',padding:2}}><X size={12}/></button>
             </div>
           ))}
         </div>
@@ -1292,265 +530,156 @@ function PrescribePanel({ mode }) {
   );
 }
 
-// ---- Rx Done panel: treatments done with editable prices + discount --
-function RxDonePanel({ mode, appointment }) {
-  const dentalItems = [
-    { id: 'rd1', label: 'Composite filling — tooth #16', code: 'D2391', price: 600 },
-    { id: 'rd2', label: 'Bitewing X-rays (4 films)', code: 'D0274', price: 220 },
-  ];
-  const aestheticItems = [
-    { id: 'rd3', label: 'Botox 20U — glabellar + frontalis', code: 'M0023', price: 1800 },
-  ];
-
-  const [items, setItems] = useState(
-    (mode === 'dental' ? dentalItems : aestheticItems).map(i => ({ ...i, editPrice: i.price }))
-  );
-  const [discountPct, setDiscountPct] = useState(0);
-  const [discountReason, setDiscountReason] = useState('');
-  const [showDiscount, setShowDiscount] = useState(false);
-
-  const [showAddTreatment, setShowAddTreatment] = useState(false);
-  const [newTreatment, setNewTreatment] = useState({ label: '', code: '', price: '' });
-
-  const addTreatment = () => {
-    if (!newTreatment.label) return;
-    const id = `rd${Date.now()}`;
-    const price = parseInt(newTreatment.price) || 0;
-    setItems(prev => [...prev, { id, label: newTreatment.label, code: newTreatment.code, price, editPrice: price }]);
-    setNewTreatment({ label: '', code: '', price: '' });
-    setShowAddTreatment(false);
-  };
-
-  const removeItem = (id) => setItems(prev => prev.filter(i => i.id !== id));
-  const subtotal = items.reduce((s, i) => s + i.editPrice, 0);
-  const discountAmt = Math.round(subtotal * discountPct / 100);
-  const total = subtotal - discountAmt;
-
+// ─── Rx Done Panel ────────────────────────────────────────────────────────────
+function RxDonePanel({ mode, apt }) {
+  const DEFAULTS = mode==='dental'?[{id:'d1',label:'Composite filling — tooth #16',code:'D2391',price:600},{id:'d2',label:'Bitewing X-rays (4 films)',code:'D0274',price:220}]:[{id:'a1',label:'Botox 20U — glabellar + frontalis',code:'M0023',price:1800}];
+  const [items, setItems] = useState(DEFAULTS.map(i=>({...i,editPrice:i.price})));
+  const [showAdd, setShowAdd] = useState(false);
+  const [newItem, setNewItem] = useState({label:'',code:'',price:''});
+  const [discPct, setDiscPct] = useState(0);
+  const [discReason, setDiscReason] = useState('');
+  const [showDisc, setShowDisc] = useState(false);
+  const subtotal = items.reduce((s,i)=>s+i.editPrice,0);
+  const discAmt = Math.round(subtotal*discPct/100);
+  const total = subtotal-discAmt;
+  const addItem = () => { if(!newItem.label)return; const p=parseInt(newItem.price)||0; setItems(prev=>[...prev,{id:`r${Date.now()}`,label:newItem.label,code:newItem.code,price:p,editPrice:p}]); setNewItem({label:'',code:'',price:''}); setShowAdd(false); };
   return (
     <div>
-      <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Treatments done today</div>
-      <div className="space-y-2">
-        {items.map(item => (
-          <div key={item.id} className="px-2.5 py-2 border border-stone-200 rounded-md">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium">{item.label}</div>
-                <div className="text-[10px] text-stone-400 mono mt-0.5">{item.code} · {appointment.doctor}</div>
+      <div style={SEC}>Treatments done today</div>
+      <div style={{display:'flex',flexDirection:'column',gap:7,marginBottom:8}}>
+        {items.map(item=>(
+          <div key={item.id} style={{padding:'9px 11px',border:'1px solid #DCE4E0',borderRadius:9,background:'#fff'}}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{item.label}</div>
+                <div style={{fontSize:12,fontFamily:"'IBM Plex Mono',monospace",color:'#4E6860',marginTop:1,fontWeight:600}}>{item.code}</div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-stone-500">QAR</span>
-                <input type="number" value={item.editPrice}
-                  onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, editPrice: parseInt(e.target.value) || 0 } : i))}
-                  className="w-20 px-1.5 py-1 text-xs border border-stone-300 rounded mono text-right focus:outline-none focus:border-stone-500" />
-                <button onClick={() => removeItem(item.id)} className="text-stone-300 hover:text-red-500">
-                  <X className="w-3.5 h-3.5" />
-                </button>
+              <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                <span style={{fontSize:12,fontWeight:600,color:'#5A7870'}}>QAR</span>
+                <input type="number" value={item.editPrice} onChange={e=>setItems(p=>p.map(i=>i.id===item.id?{...i,editPrice:parseInt(e.target.value)||0}:i))} style={{width:72,textAlign:'right',fontFamily:"'IBM Plex Mono',monospace",padding:'4px 7px',fontSize:13,fontWeight:700}}/>
+                <button onClick={()=>setItems(p=>p.filter(i=>i.id!==item.id))} style={{background:'none',border:'none',color:'#C8D4CF',cursor:'pointer',padding:2}}><X size={12}/></button>
               </div>
             </div>
-            {item.editPrice !== item.price && (
-              <div className="mt-1 text-[10px] text-amber-700 flex items-center gap-1">
-                <Edit3 className="w-2.5 h-2.5" />
-                Modified from QAR {item.price.toLocaleString()}
-              </div>
-            )}
+            {item.editPrice!==item.price&&<div style={{fontSize:12,fontWeight:600,color:'#C05820',marginTop:4,display:'flex',alignItems:'center',gap:4}}><Edit3 size={10}/>Modified from QAR {item.price.toLocaleString()}</div>}
           </div>
         ))}
       </div>
-
-      {/* Add treatment */}
-      {!showAddTreatment ? (
-        <button onClick={() => setShowAddTreatment(true)}
-          className="mt-2 w-full px-2 py-1.5 text-[11px] border border-dashed border-stone-300 rounded text-stone-500 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
-          <Plus className="w-3 h-3" /> Add treatment
-        </button>
-      ) : (
-        <div className="mt-2 p-2.5 bg-stone-50 border border-stone-200 rounded space-y-1.5">
-          <div className="text-[10px] font-semibold text-stone-600">New treatment</div>
-          <input value={newTreatment.label} onChange={e => setNewTreatment({ ...newTreatment, label: e.target.value })}
-            placeholder="Treatment name (e.g. Chemical peel)"
-            className="w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
-          <div className="flex gap-2">
-            <input value={newTreatment.code} onChange={e => setNewTreatment({ ...newTreatment, code: e.target.value })}
-              placeholder="Code (optional)"
-              className="flex-1 px-2 py-1.5 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
-            <input type="number" value={newTreatment.price} onChange={e => setNewTreatment({ ...newTreatment, price: e.target.value })}
-              placeholder="Price (QAR)"
-              className="w-28 px-2 py-1.5 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
+      {!showAdd?<button onClick={()=>setShowAdd(true)} style={{width:'100%',padding:'7px',borderRadius:8,border:'1.5px dashed #C8D4CF',background:'transparent',fontSize:12.5,fontWeight:600,color:'#5A7870',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5,marginBottom:8}}><Plus size={13}/>Add treatment</button>:(
+        <div style={{padding:'10px 12px',background:'#F5F8F7',borderRadius:9,border:'1px solid #DCE4E0',marginBottom:8,display:'flex',flexDirection:'column',gap:7}}>
+          <input value={newItem.label} onChange={e=>setNewItem({...newItem,label:e.target.value})} placeholder="Treatment name"/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7}}>
+            <input value={newItem.code} onChange={e=>setNewItem({...newItem,code:e.target.value})} placeholder="Code (opt)" style={{fontFamily:"'IBM Plex Mono',monospace"}}/>
+            <input type="number" value={newItem.price} onChange={e=>setNewItem({...newItem,price:e.target.value})} placeholder="Price (QAR)" style={{fontFamily:"'IBM Plex Mono',monospace"}}/>
           </div>
-          <div className="flex gap-1.5 justify-end">
-            <button onClick={() => { setShowAddTreatment(false); setNewTreatment({ label: '', code: '', price: '' }); }}
-              className="px-2 py-1 text-[11px] border border-stone-300 rounded hover:bg-white">Cancel</button>
-            <button onClick={addTreatment} disabled={!newTreatment.label}
-              className="px-2 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 disabled:opacity-40 flex items-center gap-1">
-              <Plus className="w-2.5 h-2.5" /> Add
-            </button>
+          <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+            <GhostBtn onClick={()=>{setShowAdd(false);setNewItem({label:'',code:'',price:''}); }} style={{padding:'5px 12px',fontSize:12}}>Cancel</GhostBtn>
+            <PrimaryBtn onClick={addItem} disabled={!newItem.label} style={{padding:'5px 12px',fontSize:12}}><Plus size={11}/>Add</PrimaryBtn>
           </div>
         </div>
       )}
-      {!showDiscount ? (
-        <button onClick={() => setShowDiscount(true)}
-          className="mt-2 w-full px-2 py-1.5 text-[11px] border border-dashed border-stone-300 rounded text-stone-500 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
-          <Tag className="w-3 h-3" /> Add discount
-        </button>
-      ) : (
-        <div className="mt-2 p-2 bg-stone-50 border border-stone-200 rounded space-y-1.5">
-          <div className="flex gap-2">
-            <div className="w-16">
-              <label className="text-[9px] text-stone-500">Discount %</label>
-              <input type="number" min={0} max={100} value={discountPct}
-                onChange={e => setDiscountPct(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                className="mt-0.5 w-full px-1.5 py-1 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
-            </div>
-            <div className="flex-1">
-              <label className="text-[9px] text-stone-500">Reason</label>
-              <input value={discountReason} onChange={e => setDiscountReason(e.target.value)}
-                placeholder="e.g. Staff family"
-                className="mt-0.5 w-full px-1.5 py-1 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
-            </div>
-            <button onClick={() => { setShowDiscount(false); setDiscountPct(0); setDiscountReason(''); }}
-              className="self-end px-1.5 py-1 text-[10px] text-stone-400 hover:text-stone-700">
-              <X className="w-3 h-3" />
-            </button>
+      {!showDisc?<button onClick={()=>setShowDisc(true)} style={{width:'100%',padding:'7px',borderRadius:8,border:'1.5px dashed #C8D4CF',background:'transparent',fontSize:12.5,fontWeight:600,color:'#5A7870',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5,marginBottom:8}}><Tag size={13}/>Add discount</button>:(
+        <div style={{padding:'10px 12px',background:'#F5F8F7',borderRadius:9,border:'1px solid #DCE4E0',marginBottom:8}}>
+          <div style={{display:'flex',gap:8,marginBottom:6}}>
+            <div style={{width:64}}><div style={{...SEC,marginBottom:4}}>% Off</div><input type="number" min={0} max={100} value={discPct} onChange={e=>setDiscPct(Math.min(100,Math.max(0,parseInt(e.target.value)||0)))} style={{fontFamily:"'IBM Plex Mono',monospace"}}/></div>
+            <div style={{flex:1}}><div style={{...SEC,marginBottom:4}}>Reason</div><input value={discReason} onChange={e=>setDiscReason(e.target.value)} placeholder="e.g. Staff family"/></div>
+            <button onClick={()=>{setShowDisc(false);setDiscPct(0);setDiscReason('');}} style={{alignSelf:'flex-end',marginBottom:2,background:'none',border:'none',color:'#4E6860',cursor:'pointer'}}><X size={14}/></button>
           </div>
-          {discountPct > 0 && (
-            <div className="text-[10px] text-emerald-700 mono">Saves patient QAR {discountAmt.toLocaleString()}</div>
-          )}
+          {discPct>0&&<div style={{fontSize:12,fontWeight:700,color:'#0A6040'}}>Saves patient QAR {discAmt.toLocaleString()}</div>}
         </div>
       )}
-
-      {/* Totals */}
-      <div className="mt-2 pt-2 border-t border-stone-200 space-y-1 text-xs">
-        <div className="flex justify-between">
-          <span className="text-stone-500">Subtotal</span>
-          <span className="mono">{`QAR ${subtotal.toLocaleString()}`}</span>
-        </div>
-        {discountPct > 0 && (
-          <div className="flex justify-between text-emerald-700">
-            <span>Discount ({discountPct}%)</span>
-            <span className="mono">-QAR {discountAmt.toLocaleString()}</span>
-          </div>
-        )}
-        <div className="flex justify-between font-semibold pt-1 border-t border-stone-100">
-          <span>Total</span>
-          <span className="mono">QAR {total.toLocaleString()}</span>
-        </div>
+      <div style={{paddingTop:10,borderTop:'1px solid #EEF2F0',display:'flex',flexDirection:'column',gap:5}}>
+        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:12.5,fontWeight:600,color:'#3D5850'}}>Subtotal</span><span style={{fontSize:12.5,fontWeight:700}}>QAR {subtotal.toLocaleString()}</span></div>
+        {discPct>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:12.5,fontWeight:600,color:'#0A6040'}}>Discount ({discPct}%)</span><span style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>-QAR {discAmt.toLocaleString()}</span></div>}
+        <div style={{display:'flex',justifyContent:'space-between',paddingTop:6,marginTop:2,borderTop:'1px solid #DCE4E0'}}><span style={{fontSize:13,fontWeight:700}}>Total</span><span style={{fontSize:14,fontWeight:800,letterSpacing:'-0.5px'}}>QAR {total.toLocaleString()}</span></div>
       </div>
-      <div className="mt-2 text-[10px] text-stone-400 italic">
-        Prices here flow to the checkout screen. Edits are audit-logged.
-      </div>
+      <div style={{marginTop:8,fontSize:12,fontWeight:600,color:'#4E6860',fontStyle:'italic'}}>Prices flow to checkout. Edits are audit-logged.</div>
     </div>
   );
 }
 
-function TreatmentPlanPanel({ mode }) {
-  const dentalPlan = [
-    { step: 1, item: 'Composite filling #16', when: 'Today', cost: 600, status: 'in-progress' },
-    { step: 2, item: 'Follow-up — sensitivity check', when: '2 weeks', cost: 0, status: 'planned' },
-    { step: 3, item: 'Routine cleaning + check', when: '6 months', cost: 400, status: 'planned' },
-  ];
-  const aestheticPlan = [
-    { step: 1, item: 'Botox 20U — glabellar + frontalis', when: 'Today', cost: 1800, status: 'in-progress' },
-    { step: 2, item: 'Review + photography', when: '14 days', cost: 0, status: 'planned' },
-    { step: 3, item: 'Tear-trough filler consult', when: '2 weeks', cost: 200, status: 'planned' },
-    { step: 4, item: 'Filler placement (if cleared)', when: '4 weeks', cost: 2400, status: 'planned' },
-  ];
-  const plan = mode === 'dental' ? dentalPlan : aestheticPlan;
-
+// ─── Plan Panel ───────────────────────────────────────────────────────────────
+function PlanPanel({ mode }) {
+  const DENTAL_PLAN    = [{step:1,item:'Composite filling #16',when:'Today',status:'in-progress'},{step:2,item:'Follow-up — sensitivity check',when:'2 weeks',status:'planned'},{step:3,item:'Routine cleaning + check',when:'6 months',status:'planned'}];
+  const AESTHETIC_PLAN = [{step:1,item:'Botox 20U — glabellar + frontalis',when:'Today',status:'in-progress'},{step:2,item:'Review at 2 weeks',when:'2 weeks',status:'planned'},{step:3,item:'Tear-trough filler consult',when:'Next visit',status:'planned'}];
+  const plan = mode==='dental'?DENTAL_PLAN:AESTHETIC_PLAN;
   return (
     <div>
-      <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Treatment plan</div>
-      <div className="space-y-1.5">
-        {plan.map(p => (
-          <div key={p.step} className="px-2 py-1.5 border border-stone-200 rounded text-xs">
-            <div className="flex items-start gap-2">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 ${p.status === 'in-progress' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600'}`}>
-                {p.step}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium leading-tight">{p.item}</div>
-                <div className="text-[10px] text-stone-500 mt-0.5 mono">{p.when}</div>
-              </div>
-            </div>
+      <div style={SEC}>Treatment plan</div>
+      <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:10}}>
+        {plan.map(p=>(
+          <div key={p.step} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'9px 11px',border:`1px solid ${p.status==='in-progress'?'#B8DDD6':'#DCE4E0'}`,borderRadius:9,background:p.status==='in-progress'?'#F0FAF6':'#fff'}}>
+            <div style={{width:20,height:20,borderRadius:'50%',background:p.status==='in-progress'?CLINIC_CONFIG.primaryColor:'#EEF2F0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:p.status==='in-progress'?'#fff':'#5A7870',flexShrink:0}}>{p.step}</div>
+            <div style={{flex:1}}><div style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{p.item}</div><div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>{p.when}</div></div>
           </div>
         ))}
       </div>
-      <button className="mt-2 w-full px-2 py-1.5 text-xs border border-dashed border-stone-300 rounded text-stone-600 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
-        <Plus className="w-3 h-3" /> Add step
-      </button>
-      <div className="mt-2 text-[10px] text-stone-400 italic">
-        Treatment plan is clinical only. Pricing is managed in the Rx Done tab.
-      </div>
+      <button style={{width:'100%',padding:'8px',borderRadius:8,border:'1.5px dashed #C8D4CF',background:'transparent',fontSize:12.5,fontWeight:600,color:'#5A7870',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}><Plus size={13}/>Add step</button>
+      <div style={{marginTop:8,fontSize:12,fontWeight:600,color:'#4E6860',fontStyle:'italic'}}>Treatment plan is clinical only. Pricing in Rx Done tab.</div>
     </div>
   );
 }
 
-function ImagesPanel({ mode }) {
-  const dentalImages = [
-    { kind: 'X-ray', label: 'Bitewing right', date: '2025-08-03' },
-    { kind: 'X-ray', label: 'Periapical #16', date: '2025-08-03' },
-    { kind: 'Intraoral', label: 'Pre-op #16', date: 'Today' },
-  ];
-  const aestheticImages = [
-    { kind: 'Photo', label: 'Front, neutral', date: '2025-11-22' },
-    { kind: 'Photo', label: 'Front, animated', date: '2025-11-22' },
-    { kind: 'Photo', label: 'Lateral L', date: '2025-11-22' },
-    { kind: 'Photo', label: 'Pre-op today', date: 'Today' },
-  ];
-  const imgs = mode === 'dental' ? dentalImages : aestheticImages;
-
-  return (
-    <div>
-      <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">
-        {mode === 'dental' ? 'X-rays & intraoral' : 'Clinical photos'}
-      </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        {imgs.map((img, i) => (
-          <div key={i} className="aspect-square bg-stone-100 border border-stone-200 rounded flex flex-col items-center justify-center text-stone-400">
-            {mode === 'dental' ? <ImageIcon className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
-            <div className="text-[9px] mono mt-1">{img.kind}</div>
-            <div className="text-[8px] text-stone-500 mt-0.5 px-1 text-center leading-tight">{img.label}</div>
-            <div className="text-[8px] text-stone-400 mono mt-0.5">{img.date}</div>
-          </div>
-        ))}
-      </div>
-      <button className="mt-2 w-full px-2 py-1.5 text-xs border border-dashed border-stone-300 rounded text-stone-600 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1">
-        <Plus className="w-3 h-3" /> Upload {mode === 'dental' ? 'X-ray' : 'photo'}
-      </button>
-    </div>
-  );
-}
-
+// ─── Finish Panel ─────────────────────────────────────────────────────────────
 function FinishPanel({ mode }) {
+  const CHECKLIST = mode==='dental'?[['SOAP note saved',true],['Odontogram updated',false],['Treatment plan updated',false],['Rx prescribed (if needed)',true],['Rx Done prices confirmed',false],['Note for reception written',false]]:
+    [['SOAP note saved',true],['Injection map updated',true],['Treatment plan updated',false],['Rx Done prices confirmed',false],['Note for reception written',false]];
   return (
     <div>
-      <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Finalize encounter</div>
-      <div className="space-y-1.5 text-xs">
-        <Check item="SOAP note completed" />
-        <Check item={mode === 'dental' ? 'Tooth chart updated' : 'Injection sites logged'} />
-        <Check item="Prescription signed" pending />
-        <Check item={mode === 'dental' ? 'X-ray annotated' : 'Photos uploaded'} pending />
-        <Check item="Treatment plan shared with patient" pending />
+      <div style={SEC}>Visit checklist</div>
+      <div style={{display:'flex',flexDirection:'column',gap:7,marginBottom:14}}>
+        {CHECKLIST.map(([lbl,done])=>(
+          <div key={lbl} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 10px',borderRadius:8,background:done?'#F0FAF6':'#F5F8F7',border:`1px solid ${done?'#B8DDD6':'#DCE4E0'}`}}>
+            <div style={{width:18,height:18,borderRadius:'50%',background:done?CLINIC_CONFIG.primaryColor:'#EEF2F0',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              {done&&<CheckCircle2 size={11} color="#fff"/>}
+            </div>
+            <span style={{fontSize:12.5,fontWeight:600,color:done?'#111814':'#5A7870'}}>{lbl}</span>
+          </div>
+        ))}
       </div>
-
-      <button className="mt-3 w-full px-3 py-2 bg-emerald-700 text-white rounded-md hover:bg-emerald-800 text-sm font-medium flex items-center justify-center gap-1.5">
-        <CheckCircle2 className="w-4 h-4" />
-        Sign & close encounter
-      </button>
-      <div className="text-[10px] text-stone-500 mt-2 text-center">
-        Signing locks the note. Edits require an addendum.
-      </div>
+      <PrimaryBtn style={{width:'100%',justifyContent:'center',padding:'11px'}}><CheckCircle2 size={14}/>Complete visit</PrimaryBtn>
     </div>
   );
 }
 
-function Check({ item, pending }) {
+// ─── Past Encounter View ──────────────────────────────────────────────────────
+function PastEncounterView({ enc, onBack }) {
+  const soap = SOAP_MAP[enc.id] || {s:enc.notes,o:'—',a:'—',p:enc.plan?.join('. ')||'—'};
   return (
-    <div className="flex items-center gap-2">
-      {pending
-        ? <div className="w-3 h-3 rounded-full border border-stone-300" />
-        : <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-      }
-      <span className={pending ? 'text-stone-500' : 'text-stone-900'}>{item}</span>
+    <div style={{padding:'14px 20px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
+        <GhostBtn onClick={onBack}><ChevronLeft size={14}/>Back to today</GhostBtn>
+        <div style={{fontSize:14,fontWeight:700,color:'#111814'}}>{enc.date} — {enc.procedure}</div>
+        <div style={{fontSize:13,fontWeight:600,color:'#5A7870'}}>{enc.doctor} · {enc.specialty}</div>
+        <span style={{marginLeft:'auto',fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:20,background:enc.kind==='dental'?'#EFF6FF':'#FFF0F3',color:enc.kind==='dental'?'#1D4ED8':'#BE185D',border:`1px solid ${enc.kind==='dental'?'#BFDBFE':'#FBCFE8'}`}}>{enc.kind}</span>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:16}}>
+        <div style={card}>
+          <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>SOAP Note — read only</div></div>
+          <div style={cardBd}>
+            {[['S','Subjective',soap.s],['O','Objective',soap.o],['A','Assessment',soap.a],['P','Plan',soap.p]].map(([k,lbl,val])=>(
+              <div key={k} style={{marginBottom:14,paddingBottom:14,borderBottom:'1px solid #EEF2F0'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                  <div style={{width:22,height:22,borderRadius:6,background:CLINIC_CONFIG.primaryColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#fff'}}>{k}</div>
+                  <span style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840'}}>{lbl}</span>
+                </div>
+                <div style={{fontSize:13,fontWeight:500,color:'#2A3830',lineHeight:1.65,paddingLeft:30}}>{val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          {[['Rx Done',enc.rxDone.map((r,i)=><div key={i} style={{fontSize:12.5,fontWeight:600,color:'#2A3830',marginBottom:3}}>· {r.item}</div>)],
+            ['Rx Medicines',enc.rxMeds.length>0?enc.rxMeds.map((m,i)=><div key={i} style={{display:'flex',gap:6,marginBottom:3}}><Pill size={12} color="#4E6860"/><span style={{fontSize:12.5,fontWeight:600,color:'#2A3830'}}>{m}</span></div>):<div style={{fontSize:12.5,fontWeight:600,color:'#4E6860',fontStyle:'italic'}}>None prescribed</div>],
+            ['Plan',enc.plan.map((p,i)=><div key={i} style={{display:'flex',gap:8,marginBottom:4}}><span style={{width:18,height:18,borderRadius:'50%',background:'#EEF2F0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#5A7870',flexShrink:0}}>{i+1}</span><span style={{fontSize:12.5,fontWeight:600,color:'#2A3830'}}>{p}</span></div>)],
+          ].map(([title,content])=>(
+            <div key={title} style={card}>
+              <div style={cardHd}><div style={{fontSize:13,fontWeight:700}}>{title}</div></div>
+              <div style={cardBd}>{content}</div>
+            </div>
+          ))}
+          <div style={{fontSize:12,fontWeight:600,color:'#4E6860',display:'flex',alignItems:'center',gap:5}}><FileText size={12}/>Past encounter — read only. Audit entry created.</div>
+        </div>
+      </div>
     </div>
   );
 }
