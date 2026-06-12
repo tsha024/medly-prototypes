@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   AlertTriangle, Calendar, Package, Users, FileText, ChevronRight,
   ArrowUpRight, ArrowDownRight, Banknote, Shield, Bell, ChevronDown,
   ChevronUp, AlertCircle, CheckCircle2, Printer, Plus, Edit3, Save,
-  X, UserPlus, LayoutGrid, BarChart3, RefreshCw
+  X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Move, Maximize2,
+  Minimize2, RotateCcw, GripVertical
 } from 'lucide-react';
 
 // ─── Clinic branding ──────────────────────────────────────────────────────────
@@ -246,32 +247,485 @@ export default function AdminPrototype() {
 
       {/* ── TABS ── */}
       {tab === 'dashboard' && (
-        <main style={{ display: 'grid', gridTemplateColumns: '1fr 336px', gap: 16, padding: '16px 24px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <Card title="Revenue trend" sub="6 months · Booked vs Collected · Dental & Aesthetic">
-              <RevenueChartSVG data={REVENUE_DATA} />
-            </Card>
-            <Card title="Cost breakdown" sub={`May · ${qar(totalCosts)} total outgoings`}>
-              <CostBreakdown items={COST_BREAKDOWN} />
-            </Card>
-            <Card title="Doctor productivity" sub="May · Revenue, utilisation, avg ticket">
-              <DoctorTable doctors={doctors} />
-            </Card>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <AttentionCard items={ATTENTION_ITEMS} />
-            <Card title="Claims pipeline" sub="Insurance receivables">
-              <ClaimsPipeline items={CLAIMS_PIPELINE} />
-            </Card>
-            <Card title="Obligations" sub="Now and accruing">
-              <ObligationList taxAccrual={taxAccrual} />
-            </Card>
-          </div>
-        </main>
+        <DashboardGrid
+          doctors={doctors}
+          totalCosts={totalCosts}
+          taxAccrual={taxAccrual}
+        />
       )}
       {tab === 'reports'  && <ReportsTab doctors={doctors} />}
       {tab === 'daily'    && <DailyTab   transactions={transactions} setTransactions={setTransactions} doctors={doctors} />}
       {tab === 'settings' && <SettingsTab doctors={doctors} setDoctors={setDoctors} nurses={nurses} setNurses={setNurses} trainees={trainees} setTrainees={setTrainees} treatments={treatments} setTreatments={setTreatments} />}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD GRID — drag, drop, resize with density-aware content
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 12-column grid. Snap sizes: small=4w×3h, medium=6w×4h, large=8w×5h, wide=12w×4h, tall=4w×6h
+const SIZE_PRESETS = {
+  small:  { w: 4,  h: 3 },
+  medium: { w: 6,  h: 4 },
+  large:  { w: 8,  h: 5 },
+  wide:   { w: 12, h: 4 },
+  tall:   { w: 4,  h: 6 },
+};
+const ROW_HEIGHT = 64;
+const GRID_GAP = 14;
+const GRID_COLS = 12;
+
+const DEFAULT_LAYOUT = [
+  { id: 'revenue',     size: 'large',  x: 0, y: 0 },
+  { id: 'attention',   size: 'small',  x: 8, y: 0 },
+  { id: 'claims',      size: 'small',  x: 8, y: 3 },
+  { id: 'costs',       size: 'medium', x: 0, y: 5 },
+  { id: 'doctors',     size: 'medium', x: 6, y: 5 },
+  { id: 'obligations', size: 'wide',   x: 0, y: 9 },
+];
+
+const TILE_META = {
+  revenue:     { title: 'Revenue trend',       minSize: 'small' },
+  costs:       { title: 'Cost breakdown',      minSize: 'small' },
+  doctors:     { title: 'Doctor productivity', minSize: 'small' },
+  attention:   { title: 'Needs attention',     minSize: 'small' },
+  claims:      { title: 'Claims pipeline',     minSize: 'small' },
+  obligations: { title: 'Obligations',         minSize: 'small' },
+};
+
+const LS_KEY = 'medly_admin_dash_layout_v1';
+
+function DashboardGrid({ doctors, totalCosts, taxAccrual }) {
+  // Per-user persistence — keyed by user. In a real app this would come from auth.
+  const userId = 'admin_mehta';
+  const storageKey = `${LS_KEY}_${userId}`;
+
+  const [layout, setLayout] = useState(() => {
+    try {
+      const saved = typeof window !== 'undefined' && window.localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : DEFAULT_LAYOUT;
+    } catch { return DEFAULT_LAYOUT; }
+  });
+  const [editMode, setEditMode] = useState(false);
+  const [dragging, setDragging] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(storageKey, JSON.stringify(layout)); } catch {}
+  }, [layout, storageKey]);
+
+  const resetLayout = () => { setLayout(DEFAULT_LAYOUT); };
+
+  const resizeTile = (id, newSize) => {
+    setLayout(prev => prev.map(t => t.id === id ? { ...t, size: newSize } : t));
+  };
+
+  const swapTiles = (fromId, toId) => {
+    if (fromId === toId) return;
+    setLayout(prev => {
+      const from = prev.find(t => t.id === fromId);
+      const to   = prev.find(t => t.id === toId);
+      if (!from || !to) return prev;
+      return prev.map(t => {
+        if (t.id === fromId) return { ...t, x: to.x, y: to.y };
+        if (t.id === toId)   return { ...t, x: from.x, y: from.y };
+        return t;
+      });
+    });
+  };
+
+  // Compute grid row height total
+  const maxRow = layout.reduce((m, t) => Math.max(m, t.y + SIZE_PRESETS[t.size].h), 0);
+
+  const tileProps = { doctors, totalCosts, taxAccrual };
+
+  return (
+    <main style={{ padding: '14px 24px 32px' }}>
+      {/* Edit mode toggle bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, padding: '8px 14px', background: editMode ? '#FEF9EC' : 'transparent', border: editMode ? '1px solid #FDE68A' : '1px solid transparent', borderRadius: 10, transition: 'all .15s' }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: editMode ? '#78400A' : '#5A7870', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {editMode ? (
+            <><Move size={14} /> Customizing layout — drag tile headers to rearrange, use size buttons to resize</>
+          ) : (
+            <>Dashboard layout saved for your account</>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {editMode && (
+            <button onClick={resetLayout} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, border: '1px solid #DCE4E0', background: '#fff', fontSize: 12, fontWeight: 600, color: '#5A7870', cursor: 'pointer' }}>
+              <RotateCcw size={12} /> Reset to default
+            </button>
+          )}
+          <button onClick={() => setEditMode(e => !e)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 7, border: 'none', background: editMode ? CLINIC_CONFIG.primaryColor : '#fff', color: editMode ? '#fff' : '#2A4840', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: editMode ? 'none' : '0 1px 2px rgba(15,31,26,.08)', border: editMode ? 'none' : '1px solid #DCE4E0' }}>
+            {editMode ? <><CheckCircle2 size={12} /> Done customizing</> : <><LayoutGrid size={12} /> Customize layout</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Grid container */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+        gridAutoRows: `${ROW_HEIGHT}px`,
+        gap: GRID_GAP,
+        minHeight: maxRow * (ROW_HEIGHT + GRID_GAP),
+      }}>
+        {layout.map(tile => {
+          const preset = SIZE_PRESETS[tile.size];
+          const isDragOver = dragOver === tile.id && dragging && dragging !== tile.id;
+          return (
+            <div key={tile.id}
+              style={{
+                gridColumn: `${tile.x + 1} / span ${preset.w}`,
+                gridRow:    `${tile.y + 1} / span ${preset.h}`,
+                minWidth: 0, minHeight: 0,
+                transition: 'transform .15s, opacity .15s',
+                opacity: dragging === tile.id ? .4 : 1,
+                transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
+              }}
+              onDragOver={e => { if (editMode && dragging) { e.preventDefault(); setDragOver(tile.id); } }}
+              onDragLeave={() => setDragOver(null)}
+              onDrop={e => { e.preventDefault(); if (dragging && dragging !== tile.id) swapTiles(dragging, tile.id); setDragging(null); setDragOver(null); }}
+            >
+              <Tile
+                tileId={tile.id}
+                size={tile.size}
+                width={preset.w}
+                height={preset.h}
+                editMode={editMode}
+                isDragOver={isDragOver}
+                onResize={newSize => resizeTile(tile.id, newSize)}
+                onDragStart={() => setDragging(tile.id)}
+                onDragEnd={() => { setDragging(null); setDragOver(null); }}
+                {...tileProps}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </main>
+  );
+}
+
+// ─── Tile shell — handles drag, resize, density-aware content ────────────────
+function Tile({ tileId, size, width, height, editMode, isDragOver, onResize, onDragStart, onDragEnd, doctors, totalCosts, taxAccrual }) {
+  const meta = TILE_META[tileId];
+  // Density: small/medium/large/wide/tall map to a single "density level"
+  // 1 = ultra-compact (just headline number), 2 = summary, 3 = full detail
+  const DENSITY = { small: 1, medium: 2, tall: 2, large: 3, wide: 3 };
+  const density = DENSITY[size];
+
+  const sizeOptions = ['small', 'medium', 'large', 'wide'];
+  if (tileId === 'doctors' || tileId === 'attention') sizeOptions.push('tall');
+
+  return (
+    <div style={{
+      height: '100%',
+      background: '#fff',
+      borderRadius: 14,
+      border: isDragOver ? `2px dashed ${CLINIC_CONFIG.primaryColor}` : '1px solid #DCE4E0',
+      boxShadow: '0 1px 3px rgba(15,31,26,.08), 0 1px 2px rgba(15,31,26,.05)',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'border-color .13s, box-shadow .13s',
+    }}>
+      {/* Header — drag handle when in edit mode */}
+      <div
+        draggable={editMode}
+        onDragStart={editMode ? onDragStart : undefined}
+        onDragEnd={editMode ? onDragEnd : undefined}
+        style={{
+          padding: '12px 16px 10px',
+          borderBottom: '1px solid #EEF2F0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          background: editMode ? '#FEF9EC' : 'transparent',
+          cursor: editMode ? 'grab' : 'default',
+          userSelect: 'none',
+        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+          {editMode && <GripVertical size={14} color="#92600A" style={{ flexShrink: 0 }} />}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111814', letterSpacing: '-.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta.title}</div>
+          </div>
+        </div>
+        {editMode && (
+          <div style={{ display: 'flex', gap: 3, alignItems: 'center', flexShrink: 0 }}>
+            {sizeOptions.map(opt => (
+              <button key={opt} onClick={() => onResize(opt)} title={opt}
+                style={{
+                  padding: '3px 7px', borderRadius: 5,
+                  border: '1px solid ' + (size === opt ? CLINIC_CONFIG.primaryColor : '#DCE4E0'),
+                  background: size === opt ? CLINIC_CONFIG.primaryColor : '#fff',
+                  color: size === opt ? '#fff' : '#5A7870',
+                  fontSize: 10, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize',
+                }}>
+                {opt[0].toUpperCase()}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Content — adapts to density */}
+      <div style={{ flex: 1, padding: '14px 16px', overflow: 'auto', minHeight: 0 }}>
+        <TileContent tileId={tileId} density={density} width={width} height={height} doctors={doctors} totalCosts={totalCosts} taxAccrual={taxAccrual} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Density-aware tile content router ────────────────────────────────────────
+function TileContent({ tileId, density, width, height, doctors, totalCosts, taxAccrual }) {
+  if (tileId === 'revenue')     return <RevenueTile     density={density} width={width} />;
+  if (tileId === 'costs')       return <CostsTile       density={density} totalCosts={totalCosts} />;
+  if (tileId === 'doctors')     return <DoctorsTile     density={density} doctors={doctors} height={height} />;
+  if (tileId === 'attention')   return <AttentionTile   density={density} height={height} />;
+  if (tileId === 'claims')      return <ClaimsTile      density={density} />;
+  if (tileId === 'obligations') return <ObligationsTile density={density} taxAccrual={taxAccrual} />;
+  return null;
+}
+
+// ─── Revenue tile: 1=current month + delta · 2=mini sparkline · 3=full chart ─
+function RevenueTile({ density, width }) {
+  const cur  = REVENUE_DATA[REVENUE_DATA.length - 1];
+  const prev = REVENUE_DATA[REVENUE_DATA.length - 2];
+  const delta = ((cur.collected - prev.collected) / prev.collected * 100).toFixed(1);
+  const up = parseFloat(delta) > 0;
+
+  if (density === 1) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#5A7870' }}>Collected (May)</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.8px', color: '#111814', lineHeight: 1 }}>{qar(cur.collected)}</div>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: up ? '#D4F1E4' : '#FDDDD9', color: up ? '#0A6040' : '#B02A1E' }}>
+            {up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}{Math.abs(parseFloat(delta))}%
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: '#607870', fontWeight: 600 }}>vs {prev.month}: {qar(prev.collected)}</div>
+      </div>
+    );
+  }
+
+  if (density === 2) {
+    // Mini sparkline + summary stats
+    const maxV = Math.max(...REVENUE_DATA.map(d => d.collected));
+    const minV = Math.min(...REVENUE_DATA.map(d => d.collected));
+    const pts = REVENUE_DATA.map((d, i) => {
+      const x = (i / (REVENUE_DATA.length - 1)) * 100;
+      const y = 100 - ((d.collected - minV) / (maxV - minV)) * 100;
+      return `${x},${y}`;
+    }).join(' ');
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.7px', color: '#111814', lineHeight: 1 }}>{qar(cur.collected)}</div>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: up ? '#D4F1E4' : '#FDDDD9', color: up ? '#0A6040' : '#B02A1E' }}>
+            {up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}{Math.abs(parseFloat(delta))}%
+          </span>
+        </div>
+        <div style={{ flex: 1, minHeight: 60 }}>
+          <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+            <polyline points={pts} fill="none" stroke={CLINIC_CONFIG.primaryColor} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+            <polyline points={`${pts} 100,100 0,100`} fill={CLINIC_CONFIG.primaryColor} opacity=".12" />
+          </svg>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: '#607870', fontWeight: 600 }}>
+          <span>{REVENUE_DATA[0].month}</span>
+          <span>YTD: <span style={{ fontWeight: 700, color: '#111814' }}>{qar(REVENUE_DATA.reduce((s, m) => s + m.collected, 0))}</span></span>
+          <span>{REVENUE_DATA[REVENUE_DATA.length - 1].month}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // density 3 — full chart
+  return <RevenueChartSVG data={REVENUE_DATA} />;
+}
+
+// ─── Costs tile ──────────────────────────────────────────────────────────────
+function CostsTile({ density, totalCosts }) {
+  if (density === 1) {
+    const top3 = [...COST_BREAKDOWN].sort((a, b) => b.amount - a.amount).slice(0, 3);
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#5A7870' }}>Total outgoings (May)</div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.7px', color: '#111814', lineHeight: 1 }}>{qar(totalCosts)}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#607870', marginTop: 2 }}>Top: {top3.map(c => c.category).join(' · ')}</div>
+      </div>
+    );
+  }
+  if (density === 2) {
+    const top5 = [...COST_BREAKDOWN].sort((a, b) => b.amount - a.amount).slice(0, 5);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {top5.map(c => (
+          <div key={c.category} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#1A2820', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.category}</div>
+            <div style={{ width: 60, height: 5, borderRadius: 3, background: '#EEF2F0', overflow: 'hidden' }}>
+              <div style={{ width: `${c.pct}%`, height: '100%', borderRadius: 3, background: c.color }} />
+            </div>
+            <div style={{ width: 64, textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#111814' }}>{qar(c.amount)}</div>
+          </div>
+        ))}
+        <div style={{ paddingTop: 8, borderTop: '1px solid #DCE4E0', display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700 }}>
+          <span style={{ color: '#6A8880' }}>Total</span><span>{qar(totalCosts)}</span>
+        </div>
+      </div>
+    );
+  }
+  return <CostBreakdown items={COST_BREAKDOWN} />;
+}
+
+// ─── Doctors tile ────────────────────────────────────────────────────────────
+function DoctorsTile({ density, doctors, height }) {
+  const sorted = [...doctors].sort((a, b) => b.revenue - a.revenue);
+  const total = sorted.reduce((s, d) => s + d.revenue, 0);
+  const avgUtil = Math.round(sorted.reduce((s, d) => s + d.utilization, 0) / sorted.length);
+
+  if (density === 1) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#5A7870' }}>Top performer</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#111814', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sorted[0].name.replace('Dr. ', '')}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.7px', color: CLINIC_CONFIG.primaryColor, lineHeight: 1 }}>{qar(sorted[0].revenue)}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#607870' }}>{doctors.length} doctors · avg {avgUtil}% util</div>
+      </div>
+    );
+  }
+  if (density === 2) {
+    const top = sorted.slice(0, Math.min(4, height >= 6 ? 6 : 4));
+    const maxRev = sorted[0].revenue;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {top.map(d => (
+          <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#111814', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name.replace('Dr. ', '')}</div>
+            <div style={{ flex: 1, height: 5, borderRadius: 3, background: '#EEF2F0', overflow: 'hidden' }}>
+              <div style={{ width: `${(d.revenue / maxRev) * 100}%`, height: '100%', borderRadius: 3, background: CLINIC_CONFIG.primaryColor }} />
+            </div>
+            <div style={{ width: 50, textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#111814' }}>{(d.revenue / 1000).toFixed(0)}k</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <DoctorTable doctors={doctors} />;
+}
+
+// ─── Attention tile ──────────────────────────────────────────────────────────
+function AttentionTile({ density, height }) {
+  const high = ATTENTION_ITEMS.filter(i => i.priority === 'high');
+  if (density === 1) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-1px', color: '#DC4F38', lineHeight: 1 }}>{ATTENTION_ITEMS.length}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#607870' }}>open items · {high.length} urgent</div>
+        </div>
+        {high[0] && <div style={{ padding: '8px 10px', background: '#FEF4F2', borderLeft: '3px solid #DC4F38', borderRadius: '0 7px 7px 0', fontSize: 12, fontWeight: 600, color: '#111814' }}>{high[0].title}</div>}
+      </div>
+    );
+  }
+  // density 2/3 — show items, more rows if taller
+  const PRIORITY = {
+    high:   { border: '#DC4F38', bg: '#FEF4F2', iconBg: '#FDE8E4', iconColor: '#DC4F38' },
+    medium: { border: '#D97706', bg: '#FFFBF0', iconBg: '#FEF3DC', iconColor: '#D97706' },
+    low:    { border: '#607870', bg: '#F5F8F7', iconBg: '#E8EFEC', iconColor: '#5A8A7A' },
+  };
+  const showCount = density === 3 ? ATTENTION_ITEMS.length : Math.min(ATTENTION_ITEMS.length, height >= 6 ? 5 : 3);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {ATTENTION_ITEMS.slice(0, showCount).map((item, i) => {
+        const cfg = PRIORITY[item.priority];
+        const Icon = item.icon;
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 11px', background: cfg.bg, borderLeft: `3px solid ${cfg.border}`, borderRadius: '0 9px 9px 0' }}>
+            <div style={{ width: 26, height: 26, borderRadius: 7, background: cfg.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Icon size={13} color={cfg.iconColor} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111814', lineHeight: 1.35 }}>{item.title}</div>
+              {density === 3 && <div style={{ fontSize: 12, color: '#1E3028', marginTop: 2, fontWeight: 600 }}>{item.sub}</div>}
+            </div>
+          </div>
+        );
+      })}
+      {showCount < ATTENTION_ITEMS.length && (
+        <div style={{ paddingTop: 4, fontSize: 12, fontWeight: 600, color: '#607870', textAlign: 'center' }}>+ {ATTENTION_ITEMS.length - showCount} more</div>
+      )}
+    </div>
+  );
+}
+
+// ─── Claims tile ─────────────────────────────────────────────────────────────
+function ClaimsTile({ density }) {
+  const total = CLAIMS_PIPELINE.reduce((s, c) => s + c.value, 0);
+  const totalCount = CLAIMS_PIPELINE.reduce((s, c) => s + c.count, 0);
+  if (density === 1) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#5A7870' }}>Receivable</div>
+        <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.8px', color: '#111814', lineHeight: 1 }}>{qar(total)}</div>
+        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 2 }}>
+          {CLAIMS_PIPELINE.map(c => <div key={c.status} style={{ flex: c.value, background: c.color }} />)}
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#607870' }}>{totalCount} claims in pipeline</div>
+      </div>
+    );
+  }
+  return <ClaimsPipeline items={CLAIMS_PIPELINE} />;
+}
+
+// ─── Obligations tile ────────────────────────────────────────────────────────
+function ObligationsTile({ density, taxAccrual }) {
+  const rows = [
+    { label: 'May payroll',         sub: 'WPS due May 28',          amount: 92400,  urgent: true  },
+    { label: 'EOS gratuity',        sub: '11 staff accrued',        amount: 184000, urgent: false },
+    { label: 'Corporate tax (MTD)', sub: '10% of net · GTA',         amount: taxAccrual, urgent: false },
+    { label: 'VAT',                 sub: 'Not yet in force in Qatar',amount: 0,      urgent: false },
+  ];
+  if (density === 1) {
+    const urgent = rows.find(r => r.urgent);
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#5A7870' }}>Next due</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#111814' }}>{urgent.label}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.7px', color: '#B02A1E', lineHeight: 1 }}>{qar(urgent.amount)}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#607870' }}>{urgent.sub}</div>
+      </div>
+    );
+  }
+  if (density === 2) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rows.filter(r => r.amount > 0).map(r => (
+          <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #EEF2F0' }}>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: r.urgent ? '#B02A1E' : '#111814' }}>{r.label}</div>
+              <div style={{ fontSize: 11.5, color: '#607870', marginTop: 1, fontWeight: 600 }}>{r.sub}</div>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '-.3px', color: r.urgent ? '#B02A1E' : '#111814' }}>{qar(r.amount)}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // wide: show as a row of cards
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      {rows.map(r => (
+        <div key={r.label} style={{ padding: '12px 14px', background: r.urgent ? '#FEF4F2' : '#F5F8F7', borderRadius: 10, border: r.urgent ? '1px solid #FECACA' : '1px solid #DCE4E0' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: r.urgent ? '#B02A1E' : '#5A7870', marginBottom: 5 }}>{r.label}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-.5px', color: r.urgent ? '#B02A1E' : '#111814' }}>{r.amount === 0 ? '—' : qar(r.amount)}</div>
+          <div style={{ fontSize: 11.5, color: '#607870', marginTop: 3, fontWeight: 600 }}>{r.sub}</div>
+        </div>
+      ))}
     </div>
   );
 }
