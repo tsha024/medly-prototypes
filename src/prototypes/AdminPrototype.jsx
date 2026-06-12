@@ -1,21 +1,34 @@
 import React, { useState, useMemo } from 'react';
 import {
-  TrendingUp, TrendingDown, AlertTriangle, Calendar, Package, Users,
-  FileText, Send, ChevronRight, ArrowUpRight, ArrowDownRight, Activity,
-  CreditCard, Banknote, Shield, Clock, Bell, Settings, ChevronDown,
-  DollarSign, Percent, BarChart3, ArrowRight, Search, ExternalLink,
-  Stethoscope, Sparkles, AlertCircle, CheckCircle2, Printer, Download,
-  Plus, Edit3, Trash2, GripVertical, Save, X, RefreshCw, UserPlus,
-  LayoutGrid, ChevronUp, ArrowLeftRight
+  AlertTriangle, Calendar, Package, Users, FileText, ChevronRight,
+  ArrowUpRight, ArrowDownRight, Banknote, Shield, Bell, ChevronDown,
+  ChevronUp, AlertCircle, CheckCircle2, Printer, Plus, Edit3, Save,
+  X, UserPlus, LayoutGrid, BarChart3, RefreshCw
 } from 'lucide-react';
 
-// =====================================================================
-// MEDLY — Admin Dashboard v2
-// New tabs: Reports, Daily Report, Settings
-// =====================================================================
+// ─── Clinic branding ──────────────────────────────────────────────────────────
+const CLINIC_CONFIG = {
+  name: 'Yasmeen Clinic',
+  nameAr: 'عيادة الياسمين',
+  city: 'Doha, Qatar',
+  logoUrl: null,
+  primaryColor: '#0C6B5A',
+  headerBg: '#0f1f1a',
+};
 
-const MONTHS = ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
+function MedlyLogo({ size = 34 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 34 34" fill="none">
+      <rect width="34" height="34" rx="9" fill={CLINIC_CONFIG.primaryColor} />
+      <path d="M7 24V12L13 20L19 12V18" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19 18C19 22 21.5 24 24.5 24" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="27" cy="24" r="2.2" stroke="#fff" strokeWidth="2" />
+      <circle cx="27" cy="24" r="0.7" fill="#fff" />
+    </svg>
+  );
+}
 
+// ─── Mock data ────────────────────────────────────────────────────────────────
 const REVENUE_DATA = [
   { month: 'Dec', booked: 178400, collected: 162100, dental: 124800, aesthetic: 53600 },
   { month: 'Jan', booked: 192700, collected: 184200, dental: 138900, aesthetic: 53800 },
@@ -24,1166 +37,417 @@ const REVENUE_DATA = [
   { month: 'Apr', booked: 248300, collected: 224500, dental: 168800, aesthetic: 79500 },
   { month: 'May', booked: 242100, collected: 198700, dental: 161200, aesthetic: 80900 },
 ];
-
 const COST_BREAKDOWN = [
-  { category: 'Salaries',             amount: 92400,  pct: 38, trend: +4,  color: '#1d9e75' },
-  { category: 'Supplies',             amount: 38700,  pct: 16, trend: +12, color: '#d85a30', alert: true },
-  { category: 'Rent & utilities',     amount: 28500,  pct: 12, trend: 0,   color: '#378add' },
-  { category: 'Insurance & licenses', amount: 12200,  pct: 5,  trend: 0,   color: '#7f77dd' },
-  { category: 'Marketing',            amount: 18400,  pct: 8,  trend: +22, color: '#ef9f27', alert: true },
-  { category: 'Lab outsourcing',      amount: 21300,  pct: 9,  trend: -3,  color: '#5dcaa5' },
-  { category: 'Other',                amount: 29500,  pct: 12, trend: +2,  color: '#888780' },
+  { category: 'Salaries',             amount: 92400,  pct: 38, trend: +4,  color: '#0C6B5A' },
+  { category: 'Supplies',             amount: 38700,  pct: 16, trend: +12, color: '#DC4F38', alert: true },
+  { category: 'Rent & utilities',     amount: 28500,  pct: 12, trend: 0,   color: '#3B82F6' },
+  { category: 'Insurance & licenses', amount: 12200,  pct: 5,  trend: 0,   color: '#8B5CF6' },
+  { category: 'Marketing',            amount: 18400,  pct: 8,  trend: +22, color: '#F59E0B', alert: true },
+  { category: 'Lab outsourcing',      amount: 21300,  pct: 9,  trend: -3,  color: '#10B981' },
+  { category: 'Other',                amount: 29500,  pct: 12, trend: +2,  color: '#9CA3AF' },
 ];
-
 const INIT_DOCTORS = [
-  { id: 'd1', name: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry',  color: 'rose',    qchp: 'QCHP-D-44218', active: true,  calOrder: 1, revenue: 52400, utilization: 86, ticket: 825,  noshow: 6, hours: 142 },
-  { id: 'd2', name: 'Dr. Omar Al-Sayed',    specialty: 'Orthodontics',        color: 'amber',   qchp: 'QCHP-D-51209', active: true,  calOrder: 2, revenue: 41800, utilization: 78, ticket: 1240, noshow: 4, hours: 128 },
-  { id: 'd3', name: 'Dr. Priya Menon',      specialty: 'Endodontics',         color: 'teal',    qchp: 'QCHP-D-39871', active: true,  calOrder: 3, revenue: 38200, utilization: 71, ticket: 1850, noshow: 2, hours: 114 },
-  { id: 'd4', name: 'Dr. Yusuf Hassan',     specialty: 'Cosmetic Dentistry',  color: 'violet',  qchp: 'QCHP-D-47502', active: true,  calOrder: 4, revenue: 28800, utilization: 64, ticket: 2200, noshow: 9, hours: 96  },
-  { id: 'd5', name: 'Dr. Reem Al-Thani',    specialty: 'Aesthetic Medicine',  color: 'sky',     qchp: 'QCHP-M-22041', active: true,  calOrder: 5, revenue: 48700, utilization: 82, ticket: 1980, noshow: 3, hours: 132 },
-  { id: 'd6', name: 'Dr. Marcus Chen',      specialty: 'Aesthetic Medicine',  color: 'emerald', qchp: 'QCHP-M-29116', active: true,  calOrder: 6, revenue: 32200, utilization: 67, ticket: 1720, noshow: 7, hours: 108 },
+  { id: 'd1', name: 'Dr. Layla Al-Mahmoud', specialty: 'General Dentistry',  color: 'rose',    initials: 'LA', qchp: 'QCHP-D-44218', active: true,  calOrder: 1, revenue: 52400, utilization: 86, ticket: 825,  noshow: 6,  hours: 142 },
+  { id: 'd2', name: 'Dr. Omar Al-Sayed',    specialty: 'Orthodontics',        color: 'amber',   initials: 'OS', qchp: 'QCHP-D-51209', active: true,  calOrder: 2, revenue: 41800, utilization: 78, ticket: 1240, noshow: 4,  hours: 128 },
+  { id: 'd3', name: 'Dr. Priya Menon',      specialty: 'Endodontics',         color: 'teal',    initials: 'PM', qchp: 'QCHP-D-39871', active: true,  calOrder: 3, revenue: 38200, utilization: 71, ticket: 1850, noshow: 2,  hours: 114 },
+  { id: 'd4', name: 'Dr. Yusuf Hassan',     specialty: 'Cosmetic Dentistry',  color: 'violet',  initials: 'YH', qchp: 'QCHP-D-47502', active: true,  calOrder: 4, revenue: 28800, utilization: 64, ticket: 2200, noshow: 9,  hours: 96  },
+  { id: 'd5', name: 'Dr. Reem Al-Thani',    specialty: 'Aesthetic Medicine',  color: 'sky',     initials: 'RT', qchp: 'QCHP-M-22041', active: true,  calOrder: 5, revenue: 48700, utilization: 82, ticket: 1980, noshow: 3,  hours: 132 },
+  { id: 'd6', name: 'Dr. Marcus Chen',      specialty: 'Aesthetic Medicine',  color: 'emerald', initials: 'MC', qchp: 'QCHP-M-29116', active: true,  calOrder: 6, revenue: 32200, utilization: 67, ticket: 1720, noshow: 7,  hours: 108 },
 ];
-
 const INIT_NURSES = [
   { id: 'n1', name: 'Nurse Dina Khalil',   specialty: 'Aesthetic', active: true },
   { id: 'n2', name: 'Nurse Sara Al-Amin',  specialty: 'Dental',    active: true },
   { id: 'n3', name: 'Nurse Mariam Hassan', specialty: 'General',   active: true },
   { id: 'n4', name: 'Nurse Aliya Rahman',  specialty: 'Aesthetic', active: true },
 ];
-
 const INIT_TRAINEES = [
-  { id: 'tr1', name: 'Trainee Ahmed Al-Sulaiti', specialty: 'General Dentistry',  supervisorIds: ['d1', 'd4'], active: true },
-  { id: 'tr2', name: 'Trainee Maryam Jaber',     specialty: 'Aesthetic Medicine', supervisorIds: ['d5'],       active: true },
+  { id: 'tr1', name: 'Trainee Ahmed Al-Sulaiti', specialty: 'General Dentistry',  supervisorIds: ['d1', 'd4'], active: true  },
+  { id: 'tr2', name: 'Trainee Maryam Jaber',     specialty: 'Aesthetic Medicine', supervisorIds: ['d5'],       active: true  },
   { id: 'tr3', name: 'Trainee Faris Al-Dosari',  specialty: 'Orthodontics',       supervisorIds: ['d2'],       active: false },
 ];
-
 const INIT_TREATMENTS = [
-  { id: 't1',  name: 'Consultation',          specialty: 'General Dentistry',  dur: 30,  price: 250,  needsNurse: false, active: true },
-  { id: 't2',  name: 'Cleaning & polish',     specialty: 'General Dentistry',  dur: 45,  price: 400,  needsNurse: true,  active: true },
-  { id: 't3',  name: 'Filling',               specialty: 'General Dentistry',  dur: 45,  price: 600,  needsNurse: true,  active: true },
-  { id: 't4',  name: 'Extraction',            specialty: 'General Dentistry',  dur: 60,  price: 800,  needsNurse: true,  active: true },
-  { id: 't5',  name: 'Root canal treatment',  specialty: 'Endodontics',         dur: 90,  price: 2500, needsNurse: true,  active: true },
-  { id: 't6',  name: 'Braces adjustment',     specialty: 'Orthodontics',        dur: 30,  price: 450,  needsNurse: true,  active: true },
-  { id: 't7',  name: 'Teeth whitening',       specialty: 'Cosmetic Dentistry',  dur: 60,  price: 1500, needsNurse: true,  active: true },
-  { id: 't8',  name: 'Botox',                 specialty: 'Aesthetic Medicine',  dur: 45,  price: 1800, needsNurse: true,  active: true },
-  { id: 't9',  name: 'Dermal filler',         specialty: 'Aesthetic Medicine',  dur: 60,  price: 2400, needsNurse: true,  active: true },
-  { id: 't10', name: 'Hydrafacial',           specialty: 'Aesthetic Medicine',  dur: 60,  price: 1200, needsNurse: true,  active: true },
-  { id: 't11', name: 'Laser hair removal',    specialty: 'Aesthetic Medicine',  dur: 45,  price: 800,  needsNurse: true,  active: true },
-  { id: 't12', name: 'Chemical peel',         specialty: 'Aesthetic Medicine',  dur: 60,  price: 900,  needsNurse: true,  active: true },
+  { id: 't1',  name: 'Consultation',         specialty: 'General Dentistry',  dur: 30, price: 250,  needsNurse: false, active: true },
+  { id: 't2',  name: 'Cleaning & polish',    specialty: 'General Dentistry',  dur: 45, price: 400,  needsNurse: true,  active: true },
+  { id: 't3',  name: 'Filling',              specialty: 'General Dentistry',  dur: 45, price: 600,  needsNurse: true,  active: true },
+  { id: 't4',  name: 'Extraction',           specialty: 'General Dentistry',  dur: 60, price: 800,  needsNurse: true,  active: true },
+  { id: 't5',  name: 'Root canal treatment', specialty: 'Endodontics',         dur: 90, price: 2500, needsNurse: true,  active: true },
+  { id: 't6',  name: 'Braces adjustment',    specialty: 'Orthodontics',        dur: 30, price: 450,  needsNurse: true,  active: true },
+  { id: 't7',  name: 'Teeth whitening',      specialty: 'Cosmetic Dentistry',  dur: 60, price: 1500, needsNurse: true,  active: true },
+  { id: 't8',  name: 'Botox',                specialty: 'Aesthetic Medicine',  dur: 45, price: 1800, needsNurse: true,  active: true },
+  { id: 't9',  name: 'Dermal filler',        specialty: 'Aesthetic Medicine',  dur: 60, price: 2400, needsNurse: true,  active: true },
+  { id: 't10', name: 'Hydrafacial',          specialty: 'Aesthetic Medicine',  dur: 60, price: 1200, needsNurse: true,  active: true },
+  { id: 't11', name: 'Laser hair removal',   specialty: 'Aesthetic Medicine',  dur: 45, price: 800,  needsNurse: true,  active: true },
+  { id: 't12', name: 'Chemical peel',        specialty: 'Aesthetic Medicine',  dur: 60, price: 900,  needsNurse: true,  active: true },
 ];
-
-// Treatment-wise report data
 const TREATMENT_REPORT = [
-  { name: 'Botox',              count: 38, revenue: 68400, avgTicket: 1800, insured: 0,     selfPay: 68400, specialty: 'Aesthetic Medicine' },
-  { name: 'Root canal',         count: 12, revenue: 30000, avgTicket: 2500, insured: 22000, selfPay: 8000,  specialty: 'Endodontics' },
-  { name: 'Dermal filler',      count: 14, revenue: 33600, avgTicket: 2400, insured: 0,     selfPay: 33600, specialty: 'Aesthetic Medicine' },
-  { name: 'Cleaning & polish',  count: 52, revenue: 20800, avgTicket: 400,  insured: 14200, selfPay: 6600,  specialty: 'General Dentistry' },
-  { name: 'Teeth whitening',    count: 11, revenue: 16500, avgTicket: 1500, insured: 0,     selfPay: 16500, specialty: 'Cosmetic Dentistry' },
-  { name: 'Hydrafacial',        count: 18, revenue: 21600, avgTicket: 1200, insured: 0,     selfPay: 21600, specialty: 'Aesthetic Medicine' },
-  { name: 'Filling',            count: 29, revenue: 17400, avgTicket: 600,  insured: 11200, selfPay: 6200,  specialty: 'General Dentistry' },
-  { name: 'Extraction',         count: 16, revenue: 12800, avgTicket: 800,  insured: 8400,  selfPay: 4400,  specialty: 'General Dentistry' },
-  { name: 'Braces adjustment',  count: 22, revenue: 9900,  avgTicket: 450,  insured: 6200,  selfPay: 3700,  specialty: 'Orthodontics' },
-  { name: 'Laser hair removal', count: 9,  revenue: 7200,  avgTicket: 800,  insured: 0,     selfPay: 7200,  specialty: 'Aesthetic Medicine' },
+  { name: 'Botox',             count: 38, revenue: 68400, avgTicket: 1800, insured: 0,     selfPay: 68400, specialty: 'Aesthetic Medicine' },
+  { name: 'Root canal',        count: 12, revenue: 30000, avgTicket: 2500, insured: 22000, selfPay: 8000,  specialty: 'Endodontics' },
+  { name: 'Dermal filler',     count: 14, revenue: 33600, avgTicket: 2400, insured: 0,     selfPay: 33600, specialty: 'Aesthetic Medicine' },
+  { name: 'Cleaning & polish', count: 52, revenue: 20800, avgTicket: 400,  insured: 14200, selfPay: 6600,  specialty: 'General Dentistry' },
+  { name: 'Teeth whitening',   count: 11, revenue: 16500, avgTicket: 1500, insured: 0,     selfPay: 16500, specialty: 'Cosmetic Dentistry' },
+  { name: 'Hydrafacial',       count: 18, revenue: 21600, avgTicket: 1200, insured: 0,     selfPay: 21600, specialty: 'Aesthetic Medicine' },
+  { name: 'Filling',           count: 29, revenue: 17400, avgTicket: 600,  insured: 11200, selfPay: 6200,  specialty: 'General Dentistry' },
+  { name: 'Extraction',        count: 16, revenue: 12800, avgTicket: 800,  insured: 8400,  selfPay: 4400,  specialty: 'General Dentistry' },
+  { name: 'Braces adjustment', count: 22, revenue: 9900,  avgTicket: 450,  insured: 6200,  selfPay: 3700,  specialty: 'Orthodontics' },
+  { name: 'Laser hair removal',count: 9,  revenue: 7200,  avgTicket: 800,  insured: 0,     selfPay: 7200,  specialty: 'Aesthetic Medicine' },
 ];
-
-// Daily report mock data for 24 May 2026
 const DAILY_TRANSACTIONS = [
-  { id: 'tx1',  time: '09:00', patient: 'Fatima Al-Mansoori', fileNo: 'YC-2025-0317', doctor: 'Dr. Layla Al-Mahmoud', treatment: 'Cleaning & polish', amount: 400,  method: 'Card',  insurer: null,   status: 'paid',      corrected: false },
-  { id: 'tx2',  time: '09:30', patient: 'James Patterson',     fileNo: 'YC-2024-0089', doctor: 'Dr. Omar Al-Sayed',    treatment: 'Braces adjustment', amount: 450,  method: 'Cash',  insurer: null,   status: 'paid',      corrected: false },
-  { id: 'tx3',  time: '10:00', patient: 'Aisha Al-Kuwari',     fileNo: 'YC-2024-0142', doctor: 'Dr. Layla Al-Mahmoud', treatment: 'Extraction',        amount: 800,  method: 'Card',  insurer: 'QLM',  status: 'paid',      corrected: false },
-  { id: 'tx4',  time: '10:30', patient: 'Khalid Al-Emadi',     fileNo: 'YC-2026-0028', doctor: 'Dr. Reem Al-Thani',    treatment: 'Botox',             amount: 1800, method: 'Card',  insurer: null,   status: 'paid',      corrected: false },
-  { id: 'tx5',  time: '11:00', patient: 'Sara Nasser',         fileNo: 'YC-2025-0204', doctor: 'Dr. Priya Menon',      treatment: 'Root canal',        amount: 2500, method: 'NAPS',  insurer: 'AXA',  status: 'paid',      corrected: false },
-  { id: 'tx6',  time: '11:30', patient: 'Mohammed Al-Ali',     fileNo: 'YC-2024-0312', doctor: 'Dr. Marcus Chen',      treatment: 'Dermal filler',     amount: 2400, method: 'Apple Pay', insurer: null, status: 'paid',    corrected: false },
-  { id: 'tx7',  time: '13:00', patient: 'Noura Al-Sulaiti',    fileNo: 'YC-2025-0418', doctor: 'Dr. Yusuf Hassan',     treatment: 'Teeth whitening',   amount: 1500, method: 'Card',  insurer: null,   status: 'paid',      corrected: false },
-  { id: 'tx8',  time: '14:00', patient: 'Aisha Al-Kuwari',     fileNo: 'YC-2024-0142', doctor: 'Dr. Priya Menon',      treatment: 'Root canal',        amount: 2500, method: 'Insurance', insurer: 'QLM', status: 'pending', corrected: false },
-  { id: 'tx9',  time: '14:30', patient: 'Reem Al-Hajri',       fileNo: 'YC-2026-0055', doctor: 'Dr. Reem Al-Thani',    treatment: 'Hydrafacial',       amount: 1200, method: 'Card',  insurer: null,   status: 'paid',      corrected: false },
-  { id: 'tx10', time: '15:30', patient: 'Ahmed Al-Marri',      fileNo: 'YC-2025-0137', doctor: 'Dr. Layla Al-Mahmoud', treatment: 'Filling',           amount: 600,  method: 'Cash',  insurer: 'Daman', status: 'paid',     corrected: true, correctionNote: 'Amount corrected from QAR 800 — wrong procedure code used initially.' },
+  { id: 'tx1',  time: '09:00', patient: 'Fatima Al-Mansoori', fileNo: 'YC-2025-0317', doctor: 'Dr. Layla Al-Mahmoud', treatment: 'Cleaning & polish', amount: 400,  method: 'Card',      insurer: null,  status: 'paid',    corrected: false },
+  { id: 'tx2',  time: '09:30', patient: 'James Patterson',    fileNo: 'YC-2024-0089', doctor: 'Dr. Omar Al-Sayed',    treatment: 'Braces adjustment', amount: 450,  method: 'Cash',      insurer: null,  status: 'paid',    corrected: false },
+  { id: 'tx3',  time: '10:00', patient: 'Aisha Al-Kuwari',    fileNo: 'YC-2024-0142', doctor: 'Dr. Layla Al-Mahmoud', treatment: 'Extraction',        amount: 800,  method: 'Card',      insurer: 'QLM', status: 'paid',    corrected: false },
+  { id: 'tx4',  time: '10:30', patient: 'Khalid Al-Emadi',    fileNo: 'YC-2026-0028', doctor: 'Dr. Reem Al-Thani',    treatment: 'Botox',             amount: 1800, method: 'Card',      insurer: null,  status: 'paid',    corrected: false },
+  { id: 'tx5',  time: '11:00', patient: 'Sara Nasser',        fileNo: 'YC-2025-0204', doctor: 'Dr. Priya Menon',      treatment: 'Root canal',        amount: 2500, method: 'NAPS',      insurer: 'AXA', status: 'paid',    corrected: false },
+  { id: 'tx6',  time: '11:30', patient: 'Mohammed Al-Ali',    fileNo: 'YC-2024-0312', doctor: 'Dr. Marcus Chen',      treatment: 'Dermal filler',     amount: 2400, method: 'Apple Pay', insurer: null,  status: 'paid',    corrected: false },
+  { id: 'tx7',  time: '13:00', patient: 'Noura Al-Sulaiti',   fileNo: 'YC-2025-0418', doctor: 'Dr. Yusuf Hassan',     treatment: 'Teeth whitening',   amount: 1500, method: 'Card',      insurer: null,  status: 'paid',    corrected: false },
+  { id: 'tx8',  time: '14:00', patient: 'Aisha Al-Kuwari',    fileNo: 'YC-2024-0142', doctor: 'Dr. Priya Menon',      treatment: 'Root canal',        amount: 2500, method: 'Insurance', insurer: 'QLM', status: 'pending', corrected: false },
+  { id: 'tx9',  time: '14:30', patient: 'Reem Al-Hajri',      fileNo: 'YC-2026-0055', doctor: 'Dr. Reem Al-Thani',    treatment: 'Hydrafacial',       amount: 1200, method: 'Card',      insurer: null,  status: 'paid',    corrected: false },
+  { id: 'tx10', time: '15:30', patient: 'Ahmed Al-Marri',     fileNo: 'YC-2025-0137', doctor: 'Dr. Layla Al-Mahmoud', treatment: 'Filling',           amount: 600,  method: 'Cash',      insurer: 'Daman',status: 'paid',   corrected: true, correctionNote: 'Amount corrected from QAR 800 — wrong procedure code.' },
 ];
-
 const ATTENTION_ITEMS = [
-  { kind: 'claims',   icon: Shield,      priority: 'high',   title: '8 claims awaiting QLM response',      sub: 'QAR 47,200 receivable · 6+ days old',    cta: 'Review claims' },
-  { kind: 'supply',   icon: Package,     priority: 'high',   title: 'Botox stock low — 4 vials remaining', sub: 'Dr. Reem booked 9 patients this week',   cta: 'Reorder' },
-  { kind: 'license',  icon: FileText,    priority: 'medium', title: "Dr. Hassan QCHP license expires",     sub: 'June 30 · 38 days · renewal pending',    cta: 'Track renewal' },
-  { kind: 'payroll',  icon: Banknote,    priority: 'medium', title: 'Monthly payroll SIF due',             sub: 'May 28 · WPS submission to QNB',         cta: 'Prepare' },
-  { kind: 'lab',      icon: AlertCircle, priority: 'low',    title: 'Lab invoice mismatch',                sub: 'NobelBiocare · QAR 1,420 over expected', cta: 'Investigate' },
+  { icon: Shield,      priority: 'high',   title: '8 claims awaiting QLM response',      sub: 'QAR 47,200 receivable · 6+ days old',    cta: 'Review'      },
+  { icon: Package,     priority: 'high',   title: 'Botox stock critical — 4 vials left',  sub: 'Dr. Reem has 9 patients booked',          cta: 'Reorder'     },
+  { icon: FileText,    priority: 'medium', title: 'Dr. Hassan QCHP license expiring',     sub: 'June 30 · 38 days remaining',             cta: 'Track'       },
+  { icon: Banknote,    priority: 'medium', title: 'Payroll SIF due May 28',               sub: 'WPS submission to QNB',                   cta: 'Prepare'     },
+  { icon: AlertCircle, priority: 'low',    title: 'Lab invoice mismatch',                 sub: 'NobelBiocare · QAR 1,420 over expected',  cta: 'Investigate' },
 ];
-
 const CLAIMS_PIPELINE = [
-  { status: 'Submitted',    count: 12, value: 38900, color: 'bg-stone-400' },
-  { status: 'Adjudicating', count: 8,  value: 47200, color: 'bg-amber-500' },
-  { status: 'Approved',     count: 6,  value: 24100, color: 'bg-emerald-500' },
-  { status: 'Disputed',     count: 2,  value: 8800,  color: 'bg-red-500' },
+  { status: 'Submitted',    count: 12, value: 38900, color: '#94A3B8' },
+  { status: 'Adjudicating', count: 8,  value: 47200, color: '#F59E0B' },
+  { status: 'Approved',     count: 6,  value: 24100, color: '#0C6B5A' },
+  { status: 'Disputed',     count: 2,  value: 8800,  color: '#DC4F38' },
 ];
+const AVATAR_COLORS = {
+  rose:    { bg: '#FEE2E2', fg: '#991B1B' },
+  amber:   { bg: '#FEF3C7', fg: '#92400E' },
+  teal:    { bg: '#CCFBF1', fg: '#134E4A' },
+  violet:  { bg: '#EDE9FE', fg: '#4C1D95' },
+  sky:     { bg: '#E0F2FE', fg: '#075985' },
+  emerald: { bg: '#D1FAE5', fg: '#064E3B' },
+};
+const qar = n => `QAR ${Number(n).toLocaleString()}`;
+const S = {
+  fontFamily: "'Manrope', 'Noto Sans Arabic', system-ui, sans-serif",
+  background: '#EAEDEB',
+};
 
-const qar = (n) => `QAR ${Number(n).toLocaleString()}`;
-
-// =====================================================================
-// MAIN
-// =====================================================================
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function AdminPrototype() {
-  const [tab, setTab] = useState('dashboard');
-  const [period, setPeriod] = useState('month');
-  const [doctors, setDoctors] = useState(INIT_DOCTORS);
-  const [nurses, setNurses] = useState(INIT_NURSES);
-  const [trainees, setTrainees] = useState(INIT_TRAINEES);
+  const [tab, setTab]             = useState('dashboard');
+  const [period, setPeriod]       = useState('month');
+  const [doctors, setDoctors]     = useState(INIT_DOCTORS);
+  const [nurses, setNurses]       = useState(INIT_NURSES);
+  const [trainees, setTrainees]   = useState(INIT_TRAINEES);
   const [treatments, setTreatments] = useState(INIT_TREATMENTS);
   const [transactions, setTransactions] = useState(DAILY_TRANSACTIONS);
 
-  const current = REVENUE_DATA[REVENUE_DATA.length - 1];
-  const previous = REVENUE_DATA[REVENUE_DATA.length - 2];
-  const totalCosts = COST_BREAKDOWN.reduce((s, c) => s + c.amount, 0);
-  const grossMargin = ((current.collected - totalCosts) / current.collected * 100).toFixed(1);
-  const monthlyProfit = current.collected - totalCosts;
-  const taxAccrual = Math.max(0, monthlyProfit * 0.10);
-  const eosLiability = 184000;
-
-  const TABS = [
-    { id: 'dashboard',    label: 'Dashboard' },
-    { id: 'reports',      label: 'Reports' },
-    { id: 'daily',        label: 'Daily report' },
-    { id: 'settings',     label: 'Settings' },
-  ];
+  const cur  = REVENUE_DATA[REVENUE_DATA.length - 1];
+  const prev = REVENUE_DATA[REVENUE_DATA.length - 2];
+  const totalCosts    = COST_BREAKDOWN.reduce((s, c) => s + c.amount, 0);
+  const grossMargin   = ((cur.collected - totalCosts) / cur.collected * 100).toFixed(1);
+  const monthlyProfit = cur.collected - totalCosts;
+  const taxAccrual    = Math.max(0, monthlyProfit * 0.10);
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900" style={{ fontFamily: '"IBM Plex Sans", "Noto Sans Arabic", system-ui, sans-serif' }}>
+    <div style={{ ...S, minHeight: '100vh', color: '#111814' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-        .mono { font-family: "IBM Plex Mono", monospace; }
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        * { box-sizing: border-box; }
+        .mono { font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum'; }
+        *:focus-visible { outline: 2px solid ${CLINIC_CONFIG.primaryColor}; outline-offset: 2px; border-radius: 5px; }
+        ::selection { background: #C2DDD7; }
+        button { cursor: pointer; font-family: inherit; transition: opacity .13s, filter .13s, background .13s, border-color .13s; }
+        button:not(:disabled):hover { filter: brightness(.94); }
+        button:disabled { opacity: .4; cursor: not-allowed; }
+        input, select, textarea {
+          font-family: inherit;
+          background: #F2F5F3;
+          border: 1.5px solid #C8D4CF;
+          border-radius: 8px;
+          color: #111814;
+          padding: 8px 12px;
+          font-size: 13px;
+          transition: border-color .13s, box-shadow .13s, background .13s;
+          box-shadow: inset 0 1px 2px rgba(0,0,0,.04);
+          width: 100%;
+        }
+        input:hover, select:hover, textarea:hover { border-color: #8AADA4; background: #fff; }
+        input:focus, select:focus, textarea:focus {
+          outline: none;
+          background: #fff;
+          border-color: ${CLINIC_CONFIG.primaryColor};
+          box-shadow: 0 0 0 3px rgba(12,107,90,.14);
+        }
+        input::placeholder, textarea::placeholder { color: #8AADA4; }
+        .trow:hover { background: #F0F5F3 !important; }
+        .settings-nav-btn:hover { background: #F0F5F3; }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
       `}</style>
 
-      {/* Top bar */}
-      <header className="border-b border-stone-200 bg-white">
-        <div className="px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-stone-900 flex items-center justify-center">
-              <span className="text-white text-sm font-semibold">M</span>
-            </div>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-tight">Medly Admin</div>
-              <div className="text-xs text-stone-500">Yasmeen Clinic, Doha</div>
+      {/* ── HEADER ── */}
+      <header style={{ background: CLINIC_CONFIG.headerBg, borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+        <div style={{ padding: '0 24px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {CLINIC_CONFIG.logoUrl
+              ? <img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{ height: 34 }} />
+              : <MedlyLogo />}
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-.5px', color: '#fff', lineHeight: 1 }}>
+                medly <span style={{ color: '#4EB896', fontWeight: 500 }}>· admin</span>
+              </div>
+              <div style={{ fontSize:12, color: '#8ECFBB', marginTop: 3, fontWeight: 600 }}>{CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {tab === 'dashboard' && (
-              <div className="flex border border-stone-300 rounded-md overflow-hidden text-xs">
+              <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)' }}>
                 {['week', 'month', 'quarter'].map(p => (
-                  <button key={p} onClick={() => setPeriod(p)}
-                    className={`px-3 py-1.5 capitalize ${period === p ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-50'}`}>
-                    {p}
-                  </button>
+                  <button key={p} onClick={() => setPeriod(p)} style={{
+                    padding: '5px 14px', fontSize: 12, fontWeight: 600, border: 'none', textTransform: 'capitalize',
+                    background: period === p ? CLINIC_CONFIG.primaryColor : 'transparent',
+                    color: period === p ? '#fff' : '#6A9080',
+                  }}>{p}</button>
                 ))}
               </div>
             )}
-            <button className="p-1.5 hover:bg-stone-100 rounded text-stone-500 relative">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />
+            <button style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', color: '#7AADA0' }}>
+              <Bell size={15} />
+              <span style={{ position: 'absolute', top: 7, right: 7, width: 7, height: 7, borderRadius: '50%', background: '#DC4F38', border: '1.5px solid ' + CLINIC_CONFIG.headerBg }} />
             </button>
-            <div className="px-3 py-1.5 text-xs bg-stone-100 rounded-md text-stone-700">Dr. Mehta · Owner</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', padding: '5px 12px 5px 6px', borderRadius: 20 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: CLINIC_CONFIG.primaryColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize:12, fontWeight: 800, color: '#fff' }}>D</div>
+              <span style={{ fontSize: 12, color: '#C0D8D0', fontWeight: 500 }}>Dr. Mehta</span>
+            </div>
           </div>
         </div>
-
-        {/* Tab bar */}
-        <div className="px-6 flex gap-0 border-t border-stone-100">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                tab === t.id
-                  ? 'border-stone-900 text-stone-900'
-                  : 'border-transparent text-stone-500 hover:text-stone-700'
-              }`}>
-              {t.label}
-            </button>
+        <div style={{ display: 'flex', padding: '0 24px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
+          {[['dashboard','Dashboard'],['reports','Reports'],['daily','Daily report'],['settings','Settings']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} style={{
+              padding: '11px 18px', fontSize: 13, fontWeight: tab === id ? 700 : 500,
+              color: tab === id ? '#fff' : '#5A8A7A',
+              background: 'transparent', border: 'none',
+              borderBottom: `2.5px solid ${tab === id ? CLINIC_CONFIG.primaryColor : 'transparent'}`,
+              marginBottom: -1, transition: 'color .13s, border-color .13s',
+            }}>{label}</button>
           ))}
         </div>
       </header>
 
-      {/* KPI strip — only on dashboard tab */}
+      {/* ── KPI STRIP ── */}
       {tab === 'dashboard' && (
-        <section className="bg-white border-b border-stone-200 px-6 py-4">
-          <div className="grid grid-cols-4 gap-6">
-            <HeadlineKPI label="Booked revenue (May, MTD)" value={current.booked} previous={previous.booked} currency sub={`vs ${previous.booked.toLocaleString()} in ${previous.month}`} />
-            <HeadlineKPI label="Collected (in bank)" value={current.collected} previous={previous.collected} currency sub={`${Math.round(current.collected / current.booked * 100)}% of booked`} />
-            <HeadlineKPI label="Receivables" value={current.booked - current.collected} previous={previous.booked - previous.collected} currency inverted sub="Mostly QLM, AXA awaiting adjudication" />
-            <HeadlineKPI label="Gross margin" value={grossMargin} previous={32.8} unit="%" sub="Industry benchmark: 35-45%" />
+        <div style={{ background: '#fff', borderBottom: '1px solid #DCE4E0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
+            <KPITile label="Booked revenue" value={cur.booked}                  prev={prev.booked}                  currency sub={`${Math.round(cur.collected/cur.booked*100)}% collected`} />
+            <KPITile label="Collected"      value={cur.collected}               prev={prev.collected}               currency sub="Cleared to bank" />
+            <KPITile label="Receivables"    value={cur.booked - cur.collected}  prev={prev.booked - prev.collected} currency sub="QLM · AXA pending" inverted />
+            <KPITile label="Gross margin"   value={parseFloat(grossMargin)}     prev={32.8}                         unit="%" sub="Benchmark 35–45%" last />
           </div>
-        </section>
+        </div>
       )}
 
-      {/* ── TAB CONTENT ──────────────────────────────────────────── */}
+      {/* ── TABS ── */}
       {tab === 'dashboard' && (
-        <main className="px-6 py-5 grid grid-cols-12 gap-4">
-          <div className="col-span-8 space-y-4">
-            <Card title="Revenue trend" subtitle="Last 6 months · Booked vs Collected · Split by specialty">
-              <RevenueChart data={REVENUE_DATA} />
-              <div className="mt-3 flex items-center gap-4 text-[11px] text-stone-600 border-t border-stone-100 pt-3">
-                <Legend dot="bg-sky-500" label="Dental" />
-                <Legend dot="bg-rose-400" label="Aesthetic" />
-                <div className="ml-auto text-stone-500">YTD: <span className="mono font-semibold text-stone-900">QAR {REVENUE_DATA.reduce((s, m) => s + m.collected, 0).toLocaleString()}</span></div>
-              </div>
+        <main style={{ display: 'grid', gridTemplateColumns: '1fr 336px', gap: 16, padding: '16px 24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Card title="Revenue trend" sub="6 months · Booked vs Collected · Dental & Aesthetic">
+              <RevenueChartSVG data={REVENUE_DATA} />
             </Card>
-            <Card title="Where the money went" subtitle="Costs this month · Watch the arrows">
+            <Card title="Cost breakdown" sub={`May · ${qar(totalCosts)} total outgoings`}>
               <CostBreakdown items={COST_BREAKDOWN} />
-              <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-                <span className="text-stone-500">Total costs · May</span>
-                <span className="mono font-semibold">QAR {totalCosts.toLocaleString()}</span>
-              </div>
             </Card>
-            <Card title="Doctor productivity" subtitle="May · Revenue, utilisation, avg ticket">
-              <DoctorLeaderboard doctors={doctors} />
+            <Card title="Doctor productivity" sub="May · Revenue, utilisation, avg ticket">
+              <DoctorTable doctors={doctors} />
             </Card>
           </div>
-          <aside className="col-span-4 space-y-4">
-            <Card title="Needs your attention" subtitle={`${ATTENTION_ITEMS.length} items`}>
-              <div className="divide-y divide-stone-100 -mx-3">
-                {ATTENTION_ITEMS.map((item, i) => <AttentionRow key={i} item={item} />)}
-              </div>
-            </Card>
-            <Card title="Claims pipeline" subtitle="Insurance receivables">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <AttentionCard items={ATTENTION_ITEMS} />
+            <Card title="Claims pipeline" sub="Insurance receivables">
               <ClaimsPipeline items={CLAIMS_PIPELINE} />
-              <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-                <span className="text-stone-500">Total receivable</span>
-                <span className="mono font-semibold">QAR {CLAIMS_PIPELINE.reduce((s, c) => s + c.value, 0).toLocaleString()}</span>
-              </div>
             </Card>
-            <Card title="Obligations & accruals" subtitle="What you owe (now or later)">
-              <div className="space-y-2.5 text-xs">
-                <ObligationRow label="May payroll" sub="WPS due May 28" amount={92400} urgent />
-                <ObligationRow label="EOS gratuity liability" sub="Accumulated · 11 staff" amount={eosLiability} informational />
-                <ObligationRow label="Corporate tax accrual (MTD)" sub="10% on net profit · GTA" amount={taxAccrual} informational />
-                <ObligationRow label="VAT" sub="Not yet in force in Qatar" amount={0} informational />
-              </div>
+            <Card title="Obligations" sub="Now and accruing">
+              <ObligationList taxAccrual={taxAccrual} />
             </Card>
-          </aside>
+          </div>
         </main>
       )}
-
       {tab === 'reports'  && <ReportsTab doctors={doctors} />}
-      {tab === 'daily'    && <DailyReportTab transactions={transactions} setTransactions={setTransactions} doctors={doctors} />}
-      {tab === 'settings' && <SettingsTab doctors={doctors} setDoctors={setDoctors} nurses={nurses} setNurses={setNurses} trainees={trainees} setTrainees={setTrainees} treatments={treatments} setTreatments={setTreatments} transactions={transactions} setTransactions={setTransactions} />}
+      {tab === 'daily'    && <DailyTab   transactions={transactions} setTransactions={setTransactions} doctors={doctors} />}
+      {tab === 'settings' && <SettingsTab doctors={doctors} setDoctors={setDoctors} nurses={nurses} setNurses={setNurses} trainees={trainees} setTrainees={setTrainees} treatments={treatments} setTreatments={setTreatments} />}
     </div>
   );
 }
 
-// =====================================================================
-// REPORTS TAB — treatment-wise and doctor-wise with date range
-// =====================================================================
-function ReportsTab({ doctors }) {
-  const [view, setView]     = useState('treatment');
-  const [dateFrom, setFrom] = useState('2026-05-01');
-  const [dateTo,   setTo]   = useState('2026-05-24');
-  const [sortBy, setSortBy] = useState('revenue');
-
-  // Scale mock data proportionally to the selected date range.
-  // Reference: TREATMENT_REPORT is calibrated to 24 days (May 1–24).
-  // When the range changes, counts and amounts scale accordingly so the
-  // report feels live. Average ticket stays constant — it's a ratio.
-  const REF_DAYS = 24;
-  const rangeDays = useMemo(() => {
-    const from = new Date(dateFrom);
-    const to   = new Date(dateTo);
-    if (isNaN(from) || isNaN(to) || to < from) return REF_DAYS;
-    return Math.max(1, Math.round((to - from) / 86400000) + 1);
-  }, [dateFrom, dateTo]);
-  const scale = rangeDays / REF_DAYS;
-
-  const scaledTreatments = useMemo(() => {
-    return TREATMENT_REPORT.map(t => ({
-      ...t,
-      count:   Math.max(0, Math.round(t.count   * scale)),
-      revenue: Math.round(t.revenue * scale),
-      insured: Math.round(t.insured * scale),
-      selfPay: Math.round(t.selfPay * scale),
-      // avgTicket is unchanged — it's per-procedure, not cumulative
-    }));
-  }, [scale]);
-
-  const sortedTreatments = useMemo(() => {
-    return [...scaledTreatments].sort((a, b) => b[sortBy] - a[sortBy]);
-  }, [scaledTreatments, sortBy]);
-
-  const totalRevenue = scaledTreatments.reduce((s, t) => s + t.revenue, 0);
-  const totalCount   = scaledTreatments.reduce((s, t) => s + t.count, 0);
-  const totalInsured = scaledTreatments.reduce((s, t) => s + t.insured, 0);
-  const totalSelfPay = scaledTreatments.reduce((s, t) => s + t.selfPay, 0);
-
-  const doctorReport = useMemo(() => doctors.map(d => ({
-    ...d,
-    treatments: Math.max(0, Math.round((d.revenue / d.ticket) * scale)),
-    revenue:    Math.round(d.revenue * scale),
-    insured:    Math.round(d.revenue * 0.35 * scale),
-    selfPay:    Math.round(d.revenue * 0.65 * scale),
-  })), [doctors, scale]);
-
-  const setPreset = (from, to) => { setFrom(from); setTo(to); };
-
-  return (
-    <main className="px-6 py-5 space-y-4">
-      {/* Controls */}
-      <div className="bg-white border border-stone-200 rounded-lg px-4 py-3 flex items-center gap-4 flex-wrap">
-        {/* Date range */}
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-stone-400" />
-          <input type="date" value={dateFrom} onChange={e => setFrom(e.target.value)}
-            className="text-sm border border-stone-300 rounded px-2 py-1 mono focus:outline-none focus:border-stone-500" />
-          <span className="text-stone-400 text-sm">→</span>
-          <input type="date" value={dateTo} onChange={e => setTo(e.target.value)}
-            className="text-sm border border-stone-300 rounded px-2 py-1 mono focus:outline-none focus:border-stone-500" />
-        </div>
-        <div className="h-4 w-px bg-stone-200" />
-        {/* Quick presets */}
-        {[['Today', '2026-05-24', '2026-05-24'], ['This week', '2026-05-18', '2026-05-24'], ['This month', '2026-05-01', '2026-05-24'], ['Last month', '2026-04-01', '2026-04-30']].map(([label, from, to]) => (
-          <button key={label} onClick={() => setPreset(from, to)}
-            className={`text-xs hover:underline ${dateFrom === from && dateTo === to ? 'text-stone-900 font-semibold underline' : 'text-stone-500 hover:text-stone-900'}`}>
-            {label}
-          </button>
-        ))}
-        <span className="text-[10px] text-stone-400 mono">{rangeDays} day{rangeDays !== 1 ? 's' : ''}</span>
-        <div className="ml-auto flex rounded-md border border-stone-300 overflow-hidden text-xs">
-          <button onClick={() => setView('treatment')} className={`px-3 py-1.5 flex items-center gap-1.5 ${view === 'treatment' ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-50'}`}>
-            <BarChart3 className="w-3 h-3" /> By treatment
-          </button>
-          <button onClick={() => setView('doctor')} className={`px-3 py-1.5 flex items-center gap-1.5 ${view === 'doctor' ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-50'}`}>
-            <Users className="w-3 h-3" /> By doctor
-          </button>
-        </div>
-      </div>
-
-      {view === 'treatment' && (
-        <Card title="Treatment report" subtitle={`${dateFrom} to ${dateTo} · ${totalCount} procedures · Sorted by ${sortBy}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-stone-200">
-                  {[['Treatment', null], ['Specialty', null], ['Count', 'count'], ['Revenue', 'revenue'], ['Avg ticket', 'avgTicket'], ['Insured', 'insured'], ['Self-pay', 'selfPay']].map(([col, key]) => (
-                    <th key={col} onClick={() => key && setSortBy(key)}
-                      className={`text-left py-2 pr-4 font-semibold text-stone-600 ${key ? 'cursor-pointer hover:text-stone-900' : ''} ${sortBy === key ? 'text-stone-900' : ''}`}>
-                      {col}{sortBy === key ? ' ↓' : ''}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {sortedTreatments.map(t => (
-                  <tr key={t.name} className="hover:bg-stone-50">
-                    <td className="py-2.5 pr-4 font-medium">{t.name}</td>
-                    <td className="py-2.5 pr-4 text-stone-500">{t.specialty.replace(' Medicine', '').replace(' Dentistry', '')}</td>
-                    <td className="py-2.5 pr-4 mono">{t.count}</td>
-                    <td className="py-2.5 pr-4 mono font-medium">{qar(t.revenue)}</td>
-                    <td className="py-2.5 pr-4 mono text-stone-600">{qar(t.avgTicket)}</td>
-                    <td className="py-2.5 pr-4 mono text-sky-700">{t.insured > 0 ? qar(t.insured) : '—'}</td>
-                    <td className="py-2.5 pr-4 mono text-stone-700">{qar(t.selfPay)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="border-t-2 border-stone-300">
-                <tr className="font-semibold">
-                  <td className="pt-2.5 pr-4">Total</td>
-                  <td />
-                  <td className="pt-2.5 pr-4 mono">{totalCount}</td>
-                  <td className="pt-2.5 pr-4 mono">{qar(totalRevenue)}</td>
-                  <td className="pt-2.5 pr-4 mono text-stone-500">{qar(Math.round(totalRevenue / totalCount))}</td>
-                  <td className="pt-2.5 pr-4 mono text-sky-700">{qar(totalInsured)}</td>
-                  <td className="pt-2.5 pr-4 mono">{qar(totalSelfPay)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {view === 'doctor' && (
-        <Card title="Doctor report" subtitle={`${dateFrom} to ${dateTo}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-stone-200">
-                  {['Doctor', 'Specialty', 'Procedures', 'Revenue', 'Avg ticket', 'Insured', 'Self-pay', 'Utilisation', 'No-shows'].map(col => (
-                    <th key={col} className="text-left py-2 pr-4 font-semibold text-stone-600">{col}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {doctorReport.map(d => (
-                  <tr key={d.id} className="hover:bg-stone-50">
-                    <td className="py-2.5 pr-4 font-medium">{d.name}</td>
-                    <td className="py-2.5 pr-4 text-stone-500">{d.specialty.replace(' Medicine', '').replace(' Dentistry', '')}</td>
-                    <td className="py-2.5 pr-4 mono">{d.treatments}</td>
-                    <td className="py-2.5 pr-4 mono font-medium">{qar(d.revenue)}</td>
-                    <td className="py-2.5 pr-4 mono text-stone-600">{qar(d.ticket)}</td>
-                    <td className="py-2.5 pr-4 mono text-sky-700">{qar(d.insured)}</td>
-                    <td className="py-2.5 pr-4 mono">{qar(d.selfPay)}</td>
-                    <td className="py-2.5 pr-4">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-16 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${d.utilization}%` }} />
-                        </div>
-                        <span className="mono">{d.utilization}%</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 pr-4 mono text-stone-500">{d.noshow}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="border-t-2 border-stone-300">
-                <tr className="font-semibold">
-                  <td className="pt-2.5 pr-4">Total</td>
-                  <td />
-                  <td className="pt-2.5 pr-4 mono">{doctorReport.reduce((s, d) => s + d.treatments, 0)}</td>
-                  <td className="pt-2.5 pr-4 mono">{qar(doctorReport.reduce((s, d) => s + d.revenue, 0))}</td>
-                  <td />
-                  <td className="pt-2.5 pr-4 mono text-sky-700">{qar(doctorReport.reduce((s, d) => s + d.insured, 0))}</td>
-                  <td className="pt-2.5 pr-4 mono">{qar(doctorReport.reduce((s, d) => s + d.selfPay, 0))}</td>
-                  <td colSpan={2} />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </Card>
-      )}
-    </main>
-  );
-}
-
-// =====================================================================
-// DAILY REPORT TAB
-// =====================================================================
-function DailyReportTab({ transactions, setTransactions, doctors }) {
-  const [date, setDate]           = useState('2026-05-24');
-  const [correcting, setCorrecting] = useState(null); // tx id
-  const [correctionAmt, setCorrAmt] = useState('');
-  const [correctionNote, setCorrNote] = useState('');
-
-  const paid    = transactions.filter(t => t.status === 'paid');
-  const pending = transactions.filter(t => t.status === 'pending');
-  const totalCollected  = paid.reduce((s, t) => s + t.amount, 0);
-  const totalPending    = pending.reduce((s, t) => s + t.amount, 0);
-
-  // Per-doctor summary
-  const doctorSummary = doctors.map(d => {
-    const txs = transactions.filter(t => t.doctor === d.name);
-    return { ...d, txCount: txs.length, total: txs.reduce((s, t) => s + t.amount, 0) };
-  }).filter(d => d.txCount > 0);
-
-  const applyCorrection = (txId) => {
-    if (!correctionAmt || !correctionNote) return;
-    setTransactions(prev => prev.map(t => t.id === txId
-      ? { ...t, amount: parseFloat(correctionAmt), corrected: true, correctionNote }
-      : t));
-    setCorrecting(null); setCorrAmt(''); setCorrNote('');
-  };
-
-  const methodColor = { 'Card': 'bg-sky-100 text-sky-800', 'Cash': 'bg-emerald-100 text-emerald-800', 'NAPS': 'bg-violet-100 text-violet-800', 'Apple Pay': 'bg-stone-100 text-stone-700', 'Insurance': 'bg-amber-100 text-amber-800' };
-
-  return (
-    <main className="px-6 py-5 space-y-4">
-      {/* Date picker + print */}
-      <div className="bg-white border border-stone-200 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <Calendar className="w-4 h-4 text-stone-400" />
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="text-sm border border-stone-300 rounded px-2 py-1 mono focus:outline-none focus:border-stone-500" />
-          <span className="text-sm text-stone-500">Daily report</span>
-        </div>
-        <button onClick={() => window.print()}
-          className="px-3 py-1.5 text-xs border border-stone-300 rounded-md hover:bg-stone-50 flex items-center gap-1.5">
-          <Printer className="w-3.5 h-3.5" /> Print / Export PDF
-        </button>
-      </div>
-
-      {/* Headline totals */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: 'Procedures', value: transactions.length, mono: true },
-          { label: 'Collected', value: qar(totalCollected), accent: 'emerald' },
-          { label: 'Pending / insurance', value: qar(totalPending), accent: 'amber' },
-          { label: 'Total billed', value: qar(totalCollected + totalPending), accent: 'stone' },
-        ].map(k => (
-          <div key={k.label} className="bg-white border border-stone-200 rounded-lg px-4 py-3">
-            <div className="text-[10px] uppercase tracking-wide text-stone-500 font-semibold mb-1">{k.label}</div>
-            <div className={`text-lg font-semibold mono ${k.accent === 'emerald' ? 'text-emerald-700' : k.accent === 'amber' ? 'text-amber-700' : 'text-stone-900'}`}>{k.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* All treatments table */}
-      <Card title="All treatments" subtitle={`${date} · ${transactions.length} entries`}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-stone-200">
-                {['Time', 'Patient', 'File #', 'Doctor', 'Treatment', 'Amount (QAR)', 'Method', 'Insurance', 'Status', ''].map(col => (
-                  <th key={col} className="text-left py-2 pr-3 font-semibold text-stone-600">{col}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {transactions.map(tx => (
-                <React.Fragment key={tx.id}>
-                  <tr className={`hover:bg-stone-50 ${tx.corrected ? 'bg-amber-50/40' : ''}`}>
-                    <td className="py-2.5 pr-3 mono text-stone-500">{tx.time}</td>
-                    <td className="py-2.5 pr-3 font-medium">{tx.patient}</td>
-                    <td className="py-2.5 pr-3 mono text-stone-500 text-[10px]">{tx.fileNo}</td>
-                    <td className="py-2.5 pr-3 text-stone-600">{tx.doctor.replace('Dr. ', '')}</td>
-                    <td className="py-2.5 pr-3">{tx.treatment}</td>
-                    <td className="py-2.5 pr-3 mono font-medium">
-                      {tx.amount.toLocaleString()}
-                      {tx.corrected && <span className="ml-1 text-[9px] text-amber-700 bg-amber-100 px-1 py-0.5 rounded">CORRECTED</span>}
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${methodColor[tx.method] || 'bg-stone-100 text-stone-600'}`}>{tx.method}</span>
-                    </td>
-                    <td className="py-2.5 pr-3 text-stone-500">{tx.insurer || '—'}</td>
-                    <td className="py-2.5 pr-3">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${tx.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {tx.status}
-                      </span>
-                    </td>
-                    <td className="py-2.5">
-                      <button onClick={() => { setCorrecting(correcting === tx.id ? null : tx.id); setCorrAmt(tx.amount); setCorrNote(''); }}
-                        className="text-[10px] text-stone-400 hover:text-stone-700 flex items-center gap-0.5">
-                        <Edit3 className="w-3 h-3" /> Correct
-                      </button>
-                    </td>
-                  </tr>
-                  {tx.corrected && tx.correctionNote && (
-                    <tr className="bg-amber-50/60">
-                      <td colSpan={10} className="px-3 py-1.5 text-[10px] text-amber-800 italic">
-                        Correction note: {tx.correctionNote}
-                      </td>
-                    </tr>
-                  )}
-                  {correcting === tx.id && (
-                    <tr className="bg-amber-50">
-                      <td colSpan={10} className="px-3 py-2.5">
-                        <div className="flex items-start gap-3">
-                          <div>
-                            <div className="text-[10px] font-semibold text-amber-900 mb-1">Corrected amount (QAR)</div>
-                            <input type="number" value={correctionAmt} onChange={e => setCorrAmt(e.target.value)}
-                              className="w-28 px-2 py-1 text-sm border border-amber-300 rounded mono focus:outline-none focus:border-amber-500" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-[10px] font-semibold text-amber-900 mb-1">Reason for correction (required)</div>
-                            <input value={correctionNote} onChange={e => setCorrNote(e.target.value)}
-                              placeholder="e.g. Wrong procedure code entered, correct amount is..."
-                              className="w-full px-2 py-1 text-xs border border-amber-300 rounded focus:outline-none focus:border-amber-500" />
-                          </div>
-                          <div className="flex gap-1.5 mt-4">
-                            <button onClick={() => setCorrecting(null)}
-                              className="px-2 py-1 text-[10px] border border-amber-300 rounded hover:bg-white">Cancel</button>
-                            <button onClick={() => applyCorrection(tx.id)}
-                              disabled={!correctionNote || !correctionAmt}
-                              className="px-2 py-1 text-[10px] bg-amber-700 text-white rounded hover:bg-amber-800 disabled:opacity-50">
-                              Apply
-                            </button>
-                          </div>
-                        </div>
-                        <div className="mt-1.5 text-[9px] text-amber-700">Correction is audited — original entry is preserved. Never deletes.</div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-            <tfoot className="border-t-2 border-stone-300">
-              <tr className="font-semibold text-xs">
-                <td colSpan={5} className="pt-2.5 pr-3">Total</td>
-                <td className="pt-2.5 pr-3 mono">{qar(transactions.reduce((s, t) => s + t.amount, 0))}</td>
-                <td colSpan={4} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </Card>
-
-      {/* Per-doctor summary */}
-      <Card title="Per doctor" subtitle="Summary for the day">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-stone-200">
-              {['Doctor', 'Specialty', 'Procedures', 'Total (QAR)'].map(col => (
-                <th key={col} className="text-left py-2 pr-4 font-semibold text-stone-600">{col}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {doctorSummary.map(d => (
-              <tr key={d.id} className="hover:bg-stone-50">
-                <td className="py-2.5 pr-4 font-medium">{d.name}</td>
-                <td className="py-2.5 pr-4 text-stone-500">{d.specialty}</td>
-                <td className="py-2.5 pr-4 mono">{d.txCount}</td>
-                <td className="py-2.5 pr-4 mono font-medium">{qar(d.total)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot className="border-t-2 border-stone-300">
-            <tr className="font-semibold">
-              <td className="pt-2.5 pr-4">Total</td>
-              <td />
-              <td className="pt-2.5 pr-4 mono">{doctorSummary.reduce((s, d) => s + d.txCount, 0)}</td>
-              <td className="pt-2.5 pr-4 mono">{qar(doctorSummary.reduce((s, d) => s + d.total, 0))}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </Card>
-    </main>
-  );
-}
-
-// =====================================================================
-// SETTINGS TAB
-// =====================================================================
-function SettingsTab({ doctors, setDoctors, nurses, setNurses, trainees, setTrainees, treatments, setTreatments, transactions, setTransactions }) {
-  const [section, setSection] = useState('doctors');
-
-  const SECTIONS = [
-    { id: 'doctors',    label: 'Doctors & calendar order' },
-    { id: 'trainees',   label: 'Trainees' },
-    { id: 'nurses',     label: 'Nurses' },
-    { id: 'treatments', label: 'Treatments' },
-  ];
-
-  return (
-    <main className="px-6 py-5">
-      <div className="flex gap-4">
-        {/* Settings sidebar */}
-        <div className="w-52 flex-shrink-0">
-          <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-            {SECTIONS.map(s => (
-              <button key={s.id} onClick={() => setSection(s.id)}
-                className={`w-full text-left px-4 py-3 text-sm border-b border-stone-100 last:border-b-0 flex items-center justify-between ${
-                  section === s.id ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-50'
-                }`}>
-                {s.label}
-                {section === s.id && <ChevronRight className="w-3.5 h-3.5" />}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Settings body */}
-        <div className="flex-1 min-w-0">
-          {section === 'doctors'    && <DoctorSettings    doctors={doctors}    setDoctors={setDoctors} />}
-          {section === 'trainees'   && <TraineeSettings   trainees={trainees}  setTrainees={setTrainees} doctors={doctors} />}
-          {section === 'nurses'     && <NurseSettings     nurses={nurses}      setNurses={setNurses} />}
-          {section === 'treatments' && <TreatmentSettings treatments={treatments} setTreatments={setTreatments} />}
-        </div>
-      </div>
-    </main>
-  );
-}
-
-// ---- Doctor settings: add, reorder calendar, toggle active ----------
-function DoctorSettings({ doctors, setDoctors }) {
-  const [adding, setAdding] = useState(false);
-  const [form, setForm]     = useState({ name: '', specialty: 'General Dentistry', qchp: '', color: 'rose' });
-  const [dragIdx, setDragIdx] = useState(null);
-
-  const sorted = [...doctors].sort((a, b) => a.calOrder - b.calOrder);
-
-  const addDoctor = () => {
-    if (!form.name || !form.qchp) return;
-    const next = { id: `d${Date.now()}`, ...form, active: true, calOrder: doctors.length + 1, revenue: 0, utilization: 0, ticket: 0, noshow: 0, hours: 0 };
-    setDoctors(prev => [...prev, next]);
-    setForm({ name: '', specialty: 'General Dentistry', qchp: '', color: 'rose' });
-    setAdding(false);
-  };
-
-  const toggleActive = (id) => setDoctors(prev => prev.map(d => d.id === id ? { ...d, active: !d.active } : d));
-
-  const moveUp = (idx) => {
-    if (idx === 0) return;
-    const arr = [...sorted];
-    [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
-    setDoctors(prev => prev.map(d => {
-      const updated = arr.find(a => a.id === d.id);
-      return updated ? { ...d, calOrder: arr.indexOf(updated) + 1 } : d;
-    }));
-  };
-
-  const moveDown = (idx) => {
-    if (idx === sorted.length - 1) return;
-    const arr = [...sorted];
-    [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
-    setDoctors(prev => prev.map(d => {
-      const updated = arr.find(a => a.id === d.id);
-      return updated ? { ...d, calOrder: arr.indexOf(updated) + 1 } : d;
-    }));
-  };
-
-  const COLORS = ['rose', 'amber', 'teal', 'violet', 'sky', 'emerald'];
-  const COLOR_DOT = { rose: 'bg-rose-500', amber: 'bg-amber-500', teal: 'bg-teal-500', violet: 'bg-violet-500', sky: 'bg-sky-500', emerald: 'bg-emerald-500' };
-
-  return (
-    <div className="space-y-4">
-      <Card title="Doctors" subtitle="Manage doctors and their order in the reception calendar">
-        <div className="space-y-1 mb-3">
-          {sorted.map((d, idx) => (
-            <div key={d.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-md border ${d.active ? 'border-stone-200 bg-white' : 'border-stone-100 bg-stone-50 opacity-60'}`}>
-              {/* Reorder buttons */}
-              <div className="flex flex-col gap-0.5">
-                <button onClick={() => moveUp(idx)} disabled={idx === 0} className="p-0.5 hover:bg-stone-100 rounded disabled:opacity-20">
-                  <ChevronUp className="w-3 h-3 text-stone-500" />
-                </button>
-                <button onClick={() => moveDown(idx)} disabled={idx === sorted.length - 1} className="p-0.5 hover:bg-stone-100 rounded disabled:opacity-20">
-                  <ChevronDown className="w-3 h-3 text-stone-500" />
-                </button>
-              </div>
-              {/* Position badge */}
-              <div className="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center text-[10px] font-semibold text-stone-600 flex-shrink-0">
-                {idx + 1}
-              </div>
-              <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${COLOR_DOT[d.color]}`} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">{d.name}</div>
-                <div className="text-[10px] text-stone-500">{d.specialty} · {d.qchp}</div>
-              </div>
-              <button onClick={() => toggleActive(d.id)}
-                className={`text-[10px] px-2 py-0.5 rounded border ${d.active ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-stone-300 text-stone-500 hover:bg-stone-100'}`}>
-                {d.active ? 'Active' : 'Inactive'}
-              </button>
-            </div>
-          ))}
-        </div>
-        {!adding ? (
-          <button onClick={() => setAdding(true)} className="w-full px-3 py-2 text-xs border border-dashed border-stone-300 rounded-md hover:bg-stone-50 flex items-center justify-center gap-1.5 text-stone-600">
-            <UserPlus className="w-3.5 h-3.5" /> Add doctor
-          </button>
-        ) : (
-          <div className="p-3 bg-stone-50 border border-stone-200 rounded-md space-y-2">
-            <div className="text-xs font-semibold text-stone-700">New doctor</div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-stone-600">Full name</label>
-                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                  placeholder="Dr. Name" className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
-              </div>
-              <div>
-                <label className="text-[10px] text-stone-600">QCHP license</label>
-                <input value={form.qchp} onChange={e => setForm({ ...form, qchp: e.target.value })}
-                  placeholder="QCHP-D-XXXXX" className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
-              </div>
-              <div>
-                <label className="text-[10px] text-stone-600">Specialty</label>
-                <select value={form.specialty} onChange={e => setForm({ ...form, specialty: e.target.value })}
-                  className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded bg-white focus:outline-none focus:border-stone-500">
-                  {['General Dentistry', 'Orthodontics', 'Endodontics', 'Cosmetic Dentistry', 'Aesthetic Medicine', 'General Practice'].map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-stone-600">Calendar colour</label>
-                <div className="mt-1 flex gap-1.5 flex-wrap">
-                  {COLORS.map(c => (
-                    <button key={c} onClick={() => setForm({ ...form, color: c })}
-                      className={`w-5 h-5 rounded-full ${COLOR_DOT[c]} ${form.color === c ? 'ring-2 ring-offset-1 ring-stone-900' : ''}`} />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end pt-1">
-              <button onClick={() => setAdding(false)} className="px-3 py-1 text-[11px] border border-stone-300 rounded hover:bg-white">Cancel</button>
-              <button onClick={addDoctor} disabled={!form.name || !form.qchp}
-                className="px-3 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 disabled:opacity-50 flex items-center gap-1">
-                <Save className="w-3 h-3" /> Save doctor
-              </button>
-            </div>
-          </div>
-        )}
-      </Card>
-      <div className="text-xs text-stone-500 flex items-center gap-1.5">
-        <LayoutGrid className="w-3.5 h-3.5" /> Order here sets the column sequence in the reception calendar.
-      </div>
-    </div>
-  );
-}
-
-// ---- Nurse settings -------------------------------------------------
-// ---- Trainee settings: add trainees, assign to one or more doctors -
-function TraineeSettings({ trainees, setTrainees, doctors }) {
-  const [adding, setAdding]   = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm]       = useState({ name: '', specialty: 'General Dentistry', supervisorIds: [] });
-
-  const SPECIALTIES = ['General Dentistry', 'Orthodontics', 'Endodontics', 'Cosmetic Dentistry', 'Aesthetic Medicine'];
-
-  const toggleSupervisor = (docId) => {
-    setForm(f => ({
-      ...f,
-      supervisorIds: f.supervisorIds.includes(docId)
-        ? f.supervisorIds.filter(id => id !== docId)
-        : [...f.supervisorIds, docId],
-    }));
-  };
-
-  const startEdit = (t) => {
-    setEditing(t.id);
-    setForm({ name: t.name, specialty: t.specialty, supervisorIds: [...t.supervisorIds] });
-    setAdding(false);
-  };
-
-  const saveEdit = () => {
-    setTrainees(prev => prev.map(t => t.id === editing ? { ...t, ...form } : t));
-    setEditing(null);
-  };
-
-  const addTrainee = () => {
-    if (!form.name) return;
-    setTrainees(prev => [...prev, { id: `tr${Date.now()}`, ...form, active: true }]);
-    setForm({ name: '', specialty: 'General Dentistry', supervisorIds: [] });
-    setAdding(false);
-  };
-
-  const cancelForm = () => { setAdding(false); setEditing(null); setForm({ name: '', specialty: 'General Dentistry', supervisorIds: [] }); };
-
-  const TraineeForm = ({ onSave, saveLabel }) => (
-    <div className="p-3 bg-stone-50 border border-stone-200 rounded-md space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-stone-600 font-medium">Full name</label>
-          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-            placeholder="Trainee Name"
-            className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
-        </div>
-        <div>
-          <label className="text-[10px] text-stone-600 font-medium">Specialty</label>
-          <select value={form.specialty} onChange={e => setForm({ ...form, specialty: e.target.value })}
-            className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded bg-white focus:outline-none focus:border-stone-500">
-            {SPECIALTIES.map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Supervisor assignment — multi-select */}
-      <div>
-        <label className="text-[10px] text-stone-600 font-medium block mb-1.5">
-          Supervising doctor(s)
-          <span className="ml-1 font-normal text-stone-400">— select one or more</span>
-        </label>
-        <div className="space-y-1">
-          {doctors.filter(d => d.active).map(d => (
-            <label key={d.id} className="flex items-center gap-2 cursor-pointer text-xs hover:bg-white rounded px-2 py-1">
-              <input
-                type="checkbox"
-                checked={form.supervisorIds.includes(d.id)}
-                onChange={() => toggleSupervisor(d.id)}
-                className="w-3.5 h-3.5"
-              />
-              <span className="font-medium">{d.name}</span>
-              <span className="text-stone-400">{d.specialty}</span>
-            </label>
-          ))}
-        </div>
-        {form.supervisorIds.length === 0 && (
-          <div className="text-[10px] text-amber-600 mt-1 px-2">Select at least one supervising doctor.</div>
-        )}
-      </div>
-
-      <div className="flex gap-2 justify-end pt-1">
-        <button onClick={cancelForm} className="px-3 py-1 text-[11px] border border-stone-300 rounded hover:bg-white">Cancel</button>
-        <button onClick={onSave} disabled={!form.name || form.supervisorIds.length === 0}
-          className="px-3 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 disabled:opacity-50 flex items-center gap-1">
-          <Save className="w-3 h-3" /> {saveLabel}
-        </button>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      <Card title="Trainees" subtitle="Trainees appear as assistant doctors in reception and doctor portals. One trainee can be assigned to multiple supervisors.">
-        <div className="space-y-1.5 mb-3">
-          {trainees.length === 0 && (
-            <div className="text-xs text-stone-400 italic py-2">No trainees added yet.</div>
-          )}
-          {trainees.map(t => {
-            const supervisors = doctors.filter(d => t.supervisorIds.includes(d.id));
-            return (
-              <div key={t.id}>
-                <div className={`flex items-center gap-3 px-3 py-2.5 rounded-md border ${t.active ? 'border-stone-200 bg-white' : 'border-stone-100 bg-stone-50 opacity-60'}`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium flex items-center gap-2">
-                      {t.name}
-                      <span className="text-[9px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded">Trainee</span>
-                    </div>
-                    <div className="text-[10px] text-stone-500 mt-0.5">{t.specialty}</div>
-                    <div className="text-[10px] text-stone-500 mt-0.5 flex items-center gap-1 flex-wrap">
-                      <span className="text-stone-400">Supervisors:</span>
-                      {supervisors.length > 0
-                        ? supervisors.map(d => (
-                            <span key={d.id} className="bg-stone-100 px-1.5 py-0.5 rounded">{d.name.replace('Dr. ', 'Dr.')}</span>
-                          ))
-                        : <span className="text-amber-600">None assigned</span>
-                      }
-                    </div>
-                  </div>
-                  <button onClick={() => startEdit(t)}
-                    className="text-[10px] text-stone-500 hover:text-stone-900 flex items-center gap-0.5 border border-stone-200 px-2 py-0.5 rounded hover:bg-stone-50">
-                    <Edit3 className="w-3 h-3" /> Edit
-                  </button>
-                  <button onClick={() => setTrainees(prev => prev.map(x => x.id === t.id ? { ...x, active: !x.active } : x))}
-                    className={`text-[10px] px-2 py-0.5 rounded border ${t.active ? 'border-emerald-300 text-emerald-700' : 'border-stone-300 text-stone-500'}`}>
-                    {t.active ? 'Active' : 'Inactive'}
-                  </button>
-                </div>
-                {editing === t.id && <div className="mt-1.5"><TraineeForm onSave={saveEdit} saveLabel="Save changes" /></div>}
-              </div>
-            );
-          })}
-        </div>
-
-        {!adding && !editing && (
-          <button onClick={() => setAdding(true)}
-            className="w-full px-3 py-2 text-xs border border-dashed border-stone-300 rounded-md hover:bg-stone-50 flex items-center justify-center gap-1.5 text-stone-600">
-            <UserPlus className="w-3.5 h-3.5" /> Add trainee
-          </button>
-        )}
-        {adding && <TraineeForm onSave={addTrainee} saveLabel="Add trainee" />}
-      </Card>
-
-      <div className="text-xs text-stone-500 leading-relaxed px-1">
-        Trainees show as <span className="font-medium text-stone-700">assistant</span> when booking appointments under their supervising doctors. 
-        A trainee can be mapped to multiple supervisors; multiple trainees can appear under the same supervisor.
-      </div>
-    </div>
-  );
-}
-
-function NurseSettings({ nurses, setNurses }) {
-  const [adding, setAdding] = useState(false);
-  const [form, setForm]     = useState({ name: '', specialty: 'General' });
-
-  const addNurse = () => {
-    if (!form.name) return;
-    setNurses(prev => [...prev, { id: `n${Date.now()}`, ...form, active: true }]);
-    setForm({ name: '', specialty: 'General' });
-    setAdding(false);
-  };
-
-  return (
-    <Card title="Nurses" subtitle="Manage nursing staff available for procedures">
-      <div className="space-y-1 mb-3">
-        {nurses.map(n => (
-          <div key={n.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-md border ${n.active ? 'border-stone-200 bg-white' : 'border-stone-100 bg-stone-50 opacity-60'}`}>
-            <div className="flex-1">
-              <div className="text-sm font-medium">{n.name}</div>
-              <div className="text-[10px] text-stone-500">{n.specialty}</div>
-            </div>
-            <button onClick={() => setNurses(prev => prev.map(x => x.id === n.id ? { ...x, active: !x.active } : x))}
-              className={`text-[10px] px-2 py-0.5 rounded border ${n.active ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-stone-300 text-stone-500 hover:bg-stone-100'}`}>
-              {n.active ? 'Active' : 'Inactive'}
-            </button>
-          </div>
-        ))}
-      </div>
-      {!adding ? (
-        <button onClick={() => setAdding(true)} className="w-full px-3 py-2 text-xs border border-dashed border-stone-300 rounded-md hover:bg-stone-50 flex items-center justify-center gap-1.5 text-stone-600">
-          <Plus className="w-3.5 h-3.5" /> Add nurse
-        </button>
-      ) : (
-        <div className="p-3 bg-stone-50 border border-stone-200 rounded-md space-y-2">
-          <div className="text-xs font-semibold">New nurse</div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] text-stone-600">Full name</label>
-              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                placeholder="Nurse Name" className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
-            </div>
-            <div>
-              <label className="text-[10px] text-stone-600">Specialty</label>
-              <select value={form.specialty} onChange={e => setForm({ ...form, specialty: e.target.value })}
-                className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded bg-white focus:outline-none focus:border-stone-500">
-                {['General', 'Dental', 'Aesthetic'].map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => setAdding(false)} className="px-3 py-1 text-[11px] border border-stone-300 rounded hover:bg-white">Cancel</button>
-            <button onClick={addNurse} disabled={!form.name}
-              className="px-3 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 disabled:opacity-50 flex items-center gap-1">
-              <Save className="w-3 h-3" /> Save
-            </button>
-          </div>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// ---- Treatment settings: add / edit / toggle ------------------------
-function TreatmentSettings({ treatments, setTreatments }) {
-  const [adding, setAdding]   = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm]       = useState({ name: '', specialty: 'General Dentistry', dur: 30, price: 0, needsNurse: false });
-
-  const SPECIALTIES = ['General Dentistry', 'Orthodontics', 'Endodontics', 'Cosmetic Dentistry', 'Aesthetic Medicine'];
-
-  const startEdit = (t) => {
-    setEditing(t.id);
-    setForm({ name: t.name, specialty: t.specialty, dur: t.dur, price: t.price, needsNurse: t.needsNurse });
-    setAdding(false);
-  };
-
-  const saveEdit = () => {
-    setTreatments(prev => prev.map(t => t.id === editing ? { ...t, ...form } : t));
-    setEditing(null);
-  };
-
-  const addTreatment = () => {
-    if (!form.name) return;
-    setTreatments(prev => [...prev, { id: `t${Date.now()}`, ...form, active: true }]);
-    setForm({ name: '', specialty: 'General Dentistry', dur: 30, price: 0, needsNurse: false });
-    setAdding(false);
-  };
-
-  const bySpecialty = SPECIALTIES.map(s => ({
-    specialty: s,
-    items: treatments.filter(t => t.specialty === s),
-  })).filter(g => g.items.length > 0);
-
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        {!adding && !editing && (
-          <button onClick={() => { setAdding(true); setEditing(null); }}
-            className="px-3 py-1.5 text-xs bg-stone-900 text-white rounded-md hover:bg-stone-800 flex items-center gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> Add treatment
-          </button>
-        )}
-      </div>
-
-      {(adding || editing) && (
-        <Card title={editing ? 'Edit treatment' : 'New treatment'}>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] text-stone-600 font-medium">Treatment name</label>
-              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded focus:outline-none focus:border-stone-500" />
-            </div>
-            <div>
-              <label className="text-[10px] text-stone-600 font-medium">Specialty</label>
-              <select value={form.specialty} onChange={e => setForm({ ...form, specialty: e.target.value })}
-                className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded bg-white focus:outline-none focus:border-stone-500">
-                {SPECIALTIES.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] text-stone-600 font-medium">Default duration (min)</label>
-              <input type="number" min="15" step="15" value={form.dur} onChange={e => setForm({ ...form, dur: parseInt(e.target.value) || 30 })}
-                className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
-            </div>
-            <div>
-              <label className="text-[10px] text-stone-600 font-medium">Default price (QAR)</label>
-              <input type="number" min="0" value={form.price} onChange={e => setForm({ ...form, price: parseInt(e.target.value) || 0 })}
-                className="mt-1 w-full px-2 py-1.5 text-xs border border-stone-300 rounded mono focus:outline-none focus:border-stone-500" />
-            </div>
-          </div>
-          <label className="flex items-center gap-2 text-xs mt-3 cursor-pointer">
-            <input type="checkbox" checked={form.needsNurse} onChange={e => setForm({ ...form, needsNurse: e.target.checked })} className="w-3.5 h-3.5" />
-            Nurse assist recommended for this procedure
-          </label>
-          <div className="flex gap-2 justify-end mt-3">
-            <button onClick={() => { setAdding(false); setEditing(null); }} className="px-3 py-1 text-[11px] border border-stone-300 rounded hover:bg-stone-50">Cancel</button>
-            <button onClick={editing ? saveEdit : addTreatment} disabled={!form.name}
-              className="px-3 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 disabled:opacity-50 flex items-center gap-1">
-              <Save className="w-3 h-3" /> {editing ? 'Save changes' : 'Add treatment'}
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {bySpecialty.map(group => (
-        <Card key={group.specialty} title={group.specialty} subtitle={`${group.items.length} treatments`}>
-          <div className="space-y-1">
-            {group.items.map(t => (
-              <div key={t.id} className={`flex items-center gap-3 px-3 py-2 rounded border ${t.active ? 'border-stone-200 bg-white' : 'border-stone-100 bg-stone-50 opacity-60'}`}>
-                <div className="flex-1">
-                  <div className="text-sm font-medium flex items-center gap-2">
-                    {t.name}
-                    {t.needsNurse && <span className="text-[9px] bg-violet-100 text-violet-800 px-1 py-0.5 rounded">+ nurse</span>}
-                  </div>
-                  <div className="text-[10px] text-stone-500 mono">{t.dur}min · QAR {t.price.toLocaleString()}</div>
-                </div>
-                <button onClick={() => startEdit(t)}
-                  className="text-[10px] text-stone-500 hover:text-stone-900 flex items-center gap-0.5 border border-stone-200 px-2 py-0.5 rounded hover:bg-stone-50">
-                  <Edit3 className="w-3 h-3" /> Edit
-                </button>
-                <button onClick={() => setTreatments(prev => prev.map(x => x.id === t.id ? { ...x, active: !x.active } : x))}
-                  className={`text-[10px] px-2 py-0.5 rounded border ${t.active ? 'border-emerald-300 text-emerald-700' : 'border-stone-300 text-stone-500'}`}>
-                  {t.active ? 'Active' : 'Inactive'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-// =====================================================================
-// SHARED COMPONENTS (unchanged from v1)
-// =====================================================================
-function HeadlineKPI({ label, value, previous, currency, unit, sub, inverted }) {
-  const pct = previous ? ((value - previous) / previous * 100).toFixed(1) : null;
-  const up = pct > 0;
+// ─── KPI Tile ─────────────────────────────────────────────────────────────────
+function KPITile({ label, value, prev, currency, unit, sub, inverted, last }) {
+  const pct  = prev ? ((value - prev) / prev * 100).toFixed(1) : null;
+  const up   = pct > 0;
   const good = inverted ? !up : up;
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-stone-500 font-semibold mb-1">{label}</div>
-      <div className="text-2xl font-semibold mono">
-        {currency ? `QAR ${Number(value).toLocaleString()}` : `${value}${unit || ''}`}
+    <div style={{ padding: '20px 24px', borderRight: last ? 'none' : '1px solid #E8EDEA' }}>
+      <div style={{ fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#2E4840', marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-1.5px', color: '#111814', lineHeight: 1 }}>
+        {Number(value).toLocaleString()}
+        <span style={{ fontSize: 14, fontWeight: 500, color: '#607870', marginLeft: 4 }}>{currency ? 'QAR' : unit}</span>
       </div>
       {pct !== null && (
-        <div className={`text-xs flex items-center gap-1 mt-0.5 ${good ? 'text-emerald-700' : 'text-red-600'}`}>
-          {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-          {Math.abs(pct)}% vs last period
+        <div style={{ marginTop: 8 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            fontSize:12, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+            background: good ? '#D4F1E4' : '#FDDDD9',
+            color: good ? '#0A6040' : '#B02A1E',
+          }}>
+            {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
+            {Math.abs(pct)}%
+          </span>
         </div>
       )}
-      {sub && <div className="text-[10px] text-stone-400 mt-0.5">{sub}</div>}
+      {sub && <div style={{ fontSize:12, color: '#3D5850', marginTop: 5, fontWeight: 600 }}>{sub}</div>}
     </div>
   );
 }
 
-function Card({ title, subtitle, children }) {
+// ─── Card shell ───────────────────────────────────────────────────────────────
+function Card({ title, sub, children, action }) {
   return (
-    <div className="bg-white border border-stone-200 rounded-lg p-4">
-      <div className="mb-3">
-        <div className="text-sm font-semibold">{title}</div>
-        {subtitle && <div className="text-[11px] text-stone-500 mt-0.5">{subtitle}</div>}
+    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #DCE4E0', boxShadow: '0 1px 3px rgba(15,31,26,.08), 0 1px 2px rgba(15,31,26,.05)', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px 12px', borderBottom: '1px solid #EEF2F0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111814', letterSpacing: '-.2px' }}>{title}</div>
+          {sub && <div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>{sub}</div>}
+        </div>
+        {action}
       </div>
-      {children}
+      <div style={{ padding: '16px 20px' }}>{children}</div>
     </div>
   );
 }
 
-function Legend({ dot, label }) {
+// ─── Revenue chart (SVG) ──────────────────────────────────────────────────────
+function RevenueChartSVG({ data }) {
+  const W = 580, H = 190, PL = 48, PR = 12, PT = 10, PB = 24;
+  const cW = W - PL - PR, cH = H - PT - PB;
+  const maxV = Math.max(...data.map(d => d.booked)) * 1.05;
+  const cx = i => PL + (i + 0.5) * (cW / data.length);
+  const cy = v => PT + cH - (v / maxV) * cH;
+  const bw = (cW / data.length) * 0.52;
+  const grids = [0, 0.25, 0.5, 0.75, 1];
+  const collectLine = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${cx(i).toFixed(1)},${cy(d.collected).toFixed(1)}`).join(' ');
   return (
-    <div className="flex items-center gap-1.5">
-      <span className={`w-2 h-2 rounded-full ${dot}`} />
-      <span>{label}</span>
+    <div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible' }}>
+        {grids.map(g => {
+          const y = (PT + cH * (1 - g)).toFixed(1);
+          const val = Math.round(maxV * g);
+          return (
+            <g key={g}>
+              <line x1={PL} y1={y} x2={W - PR} y2={y} stroke="#EEF2F0" strokeWidth="1" />
+              <text x={PL - 6} y={parseFloat(y) + 3.5} textAnchor="end" fontSize="11.5" fontWeight="600" fill="#2E4840" fontFamily="Manrope,sans-serif">{val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}</text>
+            </g>
+          );
+        })}
+        {data.map((d, i) => {
+          const totalH  = cy(0) - cy(d.booked);
+          const collH   = cy(0) - cy(d.collected);
+          const dentH   = (d.dental   / d.collected) * collH;
+          const aesthetH = (d.aesthetic / d.collected) * collH;
+          const yBase = cy(0);
+          return (
+            <g key={d.month}>
+              <rect x={cx(i) - bw/2} y={cy(d.booked)} width={bw} height={totalH} rx="3" fill="#E8EDEA" />
+              <rect x={cx(i) - bw/2} y={yBase - aesthetH} width={bw} height={aesthetH} rx="0" fill="#FB7185" opacity=".85" />
+              <rect x={cx(i) - bw/2} y={yBase - aesthetH - dentH} width={bw} height={dentH} rx="0" fill="#3B82F6" opacity=".85" />
+              <rect x={cx(i) - bw/2} y={cy(d.collected)} width={bw} height={4} rx="2" fill="#3B82F6" opacity=".85" />
+            </g>
+          );
+        })}
+        <path d={collectLine} fill="none" stroke={CLINIC_CONFIG.primaryColor} strokeWidth="2.5" strokeLinejoin="round" />
+        {data.map((d, i) => (
+          <circle key={i} cx={cx(i)} cy={cy(d.collected)} r="4" fill="#fff" stroke={CLINIC_CONFIG.primaryColor} strokeWidth="2.5" />
+        ))}
+        {data.map((d, i) => (
+          <text key={i} x={cx(i)} y={H - 4} textAnchor="middle" fontSize="10" fontWeight="700" fill="#2E4840" fontFamily="Manrope,sans-serif">{d.month}</text>
+        ))}
+      </svg>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 4, paddingTop: 12, borderTop: '1px solid #EEF2F0', fontSize:12, color: '#4E6860' }}>
+        {[['#3B82F6','Dental'],['#FB7185','Aesthetic'],['#E8EDEA','Booked (gap)']].map(([c, l]) => (
+          <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: c, display: 'inline-block' }} />
+            {l}
+          </span>
+        ))}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 24, height: 2.5, borderRadius: 2, background: CLINIC_CONFIG.primaryColor, display: 'inline-block' }} />
+          Collected trend
+        </span>
+        <span style={{ marginLeft: 'auto', color: '#5A7870' }}>
+          YTD <span style={{ fontWeight: 700, color: '#111814' }}>QAR {REVENUE_DATA.reduce((s, m) => s + m.collected, 0).toLocaleString()}</span>
+        </span>
+      </div>
     </div>
   );
 }
 
-function RevenueChart({ data }) {
-  const max = Math.max(...data.map(d => d.booked));
+// ─── Cost breakdown ───────────────────────────────────────────────────────────
+function CostBreakdown({ items }) {
+  const total = items.reduce((s, c) => s + c.amount, 0);
   return (
-    <div className="flex items-end gap-2 h-36">
-      {data.map(d => {
-        const bH = (d.booked / max) * 100;
-        const cH = (d.collected / max) * 100;
-        const dentalH = (d.dental / max) * 100;
-        const aestheticH = (d.aesthetic / max) * 100;
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {items.map(c => (
+        <div key={c.category} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 136, fontSize: 12.5, fontWeight: 600, color: '#1A2820', flexShrink: 0 }}>{c.category}</div>
+          <div style={{ flex: 1, height: 6, borderRadius: 4, background: '#EEF2F0', overflow: 'hidden' }}>
+            <div style={{ width: `${c.pct}%`, height: '100%', borderRadius: 4, background: c.color, transition: 'width .4s ease' }} />
+          </div>
+          <div style={{ width: 90, textAlign: 'right', fontSize: 12.5, fontWeight: 600, color: '#111814' }}>{qar(c.amount)}</div>
+          <div style={{ width: 44, textAlign: 'right', fontSize:12, fontWeight: 700, color: c.trend > 10 ? '#C04030' : c.trend < 0 ? '#0C6B5A' : '#5A7870' }}>
+            {c.trend > 0 ? `+${c.trend}%` : c.trend < 0 ? `${c.trend}%` : '—'}{c.alert ? ' ⚠' : ''}
+          </div>
+        </div>
+      ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 2, borderTop: '1.5px solid #DCE4E0', fontSize: 12.5, fontWeight: 700 }}>
+        <span style={{ color: '#6A8880' }}>Total outgoings · May</span>
+        <span>{qar(total)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Doctor table ─────────────────────────────────────────────────────────────
+function DoctorTable({ doctors }) {
+  const sorted = [...doctors].sort((a, b) => b.revenue - a.revenue);
+  const maxRev = sorted[0]?.revenue || 1;
+  const TH = ({ children, right }) => (
+    <div style={{ fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', textAlign: right ? 'right' : 'left' }}>{children}</div>
+  );
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 96px 80px 72px 56px', gap: 8, paddingBottom: 10, borderBottom: '1.5px solid #DCE4E0', marginBottom: 4 }}>
+        <TH>Doctor</TH><TH>Revenue</TH><TH>Utilisation</TH><TH right>Avg ticket</TH><TH right>No-shows</TH>
+      </div>
+      {sorted.map(d => {
+        const av = AVATAR_COLORS[d.color] || { bg: '#EEF2F0', fg: '#4A6860' };
+        const utilColor = d.utilization >= 80 ? '#0A6040' : d.utilization >= 65 ? '#92600A' : '#C04030';
+        const utilBg    = d.utilization >= 80 ? '#D4F1E4' : d.utilization >= 65 ? '#FEF3DC' : '#FDDDD9';
         return (
-          <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full flex items-end gap-0.5 h-28 relative">
-              <div className="flex-1 rounded-sm bg-stone-200 flex flex-col justify-end" style={{ height: `${bH}%` }}>
-                <div className="w-full rounded-sm" style={{ height: `${(cH / bH) * 100}%`, background: 'linear-gradient(180deg, #38bdf8 0%, #d1fae5 100%)' }}>
-                  <div className="w-full rounded-sm bg-sky-400" style={{ height: `${(dentalH / cH) * 100}%` }} />
-                  <div className="w-full rounded-sm bg-rose-300" style={{ height: `${(aestheticH / cH) * 100}%` }} />
-                </div>
+          <div key={d.id} className="trow" style={{ display: 'grid', gridTemplateColumns: '1fr 96px 80px 72px 56px', gap: 8, alignItems: 'center', padding: '9px 4px', borderBottom: '1px solid #EEF2F0', borderRadius: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: av.bg, color: av.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize:12, fontWeight: 800, flexShrink: 0 }}>{d.initials}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111814', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name.replace('Dr. ', '')}</div>
+                <div style={{ fontSize:12, color: '#3A5248', marginTop: 1, fontWeight: 600 }}>{d.specialty.replace(' Medicine', '').replace(' Dentistry', '')}</div>
               </div>
             </div>
-            <div className="text-[10px] text-stone-500">{d.month}</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111814' }}>{(d.revenue / 1000).toFixed(1)}k</div>
+              <div style={{ marginTop: 4, height: 4, borderRadius: 3, background: '#EEF2F0', overflow: 'hidden' }}>
+                <div style={{ width: `${(d.revenue / maxRev) * 100}%`, height: '100%', borderRadius: 3, background: CLINIC_CONFIG.primaryColor }} />
+              </div>
+            </div>
+            <div>
+              <span style={{ fontSize:12, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: utilBg, color: utilColor }}>{d.utilization}%</span>
+            </div>
+            <div style={{ textAlign: 'right', fontSize: 12.5, fontWeight: 600, color: '#4A6860' }}>{d.ticket.toLocaleString()}</div>
+            <div style={{ textAlign: 'right', fontSize: 12.5, color: d.noshow >= 7 ? '#C04030' : '#6A8880', fontWeight: d.noshow >= 7 ? 700 : 500 }}>{d.noshow}</div>
           </div>
         );
       })}
@@ -1191,89 +455,625 @@ function RevenueChart({ data }) {
   );
 }
 
-function CostBreakdown({ items }) {
-  const total = items.reduce((s, c) => s + c.amount, 0);
+// ─── Attention card ───────────────────────────────────────────────────────────
+function AttentionCard({ items }) {
+  const PRIORITY = {
+    high:   { border: '#DC4F38', bg: '#FEF4F2', iconBg: '#FDE8E4', iconColor: '#DC4F38' },
+    medium: { border: '#D97706', bg: '#FFFBF0', iconBg: '#FEF3DC', iconColor: '#D97706' },
+    low:    { border: '#607870', bg: '#F5F8F7', iconBg: '#E8EFEC', iconColor: '#5A8A7A' },
+  };
+  const high = items.filter(i => i.priority === 'high').length;
   return (
-    <div className="space-y-2">
-      {items.map(c => (
-        <div key={c.category} className="flex items-center gap-3">
-          <div className="w-28 text-xs text-stone-700 truncate">{c.category}</div>
-          <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${c.pct}%`, backgroundColor: c.color }} />
-          </div>
-          <div className="text-xs mono text-stone-700 w-20 text-right">QAR {c.amount.toLocaleString()}</div>
-          <div className={`text-[10px] mono w-12 text-right ${c.trend > 10 ? 'text-red-600 font-semibold' : c.trend < 0 ? 'text-emerald-600' : 'text-stone-500'}`}>
-            {c.trend > 0 ? `+${c.trend}%` : c.trend < 0 ? `${c.trend}%` : '—'}
-            {c.alert && ' ⚠'}
-          </div>
+    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #DCE4E0', boxShadow: '0 1px 3px rgba(15,31,26,.08)', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px 12px', borderBottom: '1px solid #EEF2F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111814', letterSpacing: '-.2px' }}>Needs attention</div>
+          <div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>{high} urgent · {items.length - high} other</div>
         </div>
-      ))}
-    </div>
-  );
-}
-
-function DoctorLeaderboard({ doctors }) {
-  const sorted = [...doctors].sort((a, b) => b.revenue - a.revenue);
-  const max = sorted[0]?.revenue || 1;
-  return (
-    <div className="space-y-2.5">
-      {sorted.map(d => (
-        <div key={d.id} className="flex items-center gap-3">
-          <div className="w-32 text-xs truncate font-medium">{d.name.replace('Dr. ', '')}</div>
-          <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full bg-stone-700" style={{ width: `${(d.revenue / max) * 100}%` }} />
-          </div>
-          <div className="text-xs mono w-24 text-right">QAR {d.revenue.toLocaleString()}</div>
-          <div className="text-[10px] text-stone-500 w-16 text-right mono">{d.utilization}% util</div>
-          <div className="text-[10px] text-stone-400 w-14 text-right mono">avg {d.ticket.toLocaleString()}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AttentionRow({ item }) {
-  const priority = { high: 'text-red-600 bg-red-50', medium: 'text-amber-700 bg-amber-50', low: 'text-stone-500 bg-stone-50' };
-  return (
-    <div className="px-3 py-2.5 flex items-start gap-2.5">
-      <item.icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${item.priority === 'high' ? 'text-red-500' : item.priority === 'medium' ? 'text-amber-500' : 'text-stone-400'}`} />
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium">{item.title}</div>
-        <div className="text-[10px] text-stone-500 mt-0.5">{item.sub}</div>
+        <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#DC4F38', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize:12, fontWeight: 800 }}>{items.length}</div>
       </div>
-      <button className="text-[10px] text-stone-600 hover:text-stone-900 whitespace-nowrap">{item.cta} →</button>
+      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {items.map((item, i) => {
+          const cfg = PRIORITY[item.priority];
+          const Icon = item.icon;
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', background: cfg.bg, borderLeft: `3px solid ${cfg.border}`, borderRadius: '0 9px 9px 0' }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: cfg.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={14} color={cfg.iconColor} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111814', lineHeight: 1.35 }}>{item.title}</div>
+                <div style={{ fontSize: 12, color: '#1E3028', marginTop: 2, fontWeight: 600 }}>{item.sub}</div>
+              </div>
+              <button style={{ flexShrink: 0, fontSize:12, fontWeight: 700, color: CLINIC_CONFIG.primaryColor, padding: '3px 9px', borderRadius: 7, border: `1px solid #B0D8C8`, background: '#F0FAF6' }}>
+                {item.cta}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
+// ─── Claims pipeline ──────────────────────────────────────────────────────────
 function ClaimsPipeline({ items }) {
   const total = items.reduce((s, c) => s + c.value, 0);
   return (
-    <div className="space-y-2">
+    <div>
+      <div style={{ display: 'flex', height: 9, borderRadius: 6, overflow: 'hidden', gap: 2, marginBottom: 16 }}>
+        {items.map(c => (
+          <div key={c.status} style={{ flex: c.value, background: c.color }} />
+        ))}
+      </div>
       {items.map(c => (
-        <div key={c.status} className="flex items-center gap-2">
-          <div className="w-20 text-xs text-stone-600">{c.status}</div>
-          <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${c.color}`} style={{ width: `${(c.value / total) * 100}%` }} />
+        <div key={c.status} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #EEF2F0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: c.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: '#1A2820' }}>{c.status}</span>
+            <span style={{ fontSize:12, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: '#EEF2F0', color: '#5A7A70' }}>{c.count}</span>
           </div>
-          <div className="text-[10px] mono text-stone-600 w-6 text-right">{c.count}</div>
-          <div className="text-xs mono text-stone-700 w-20 text-right">QAR {c.value.toLocaleString()}</div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#111814' }}>{qar(c.value)}</span>
+        </div>
+      ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 4, borderTop: '1.5px solid #DCE4E0' }}>
+        <span style={{ fontSize: 12, color: '#6A8880', fontWeight: 500 }}>Total receivable</span>
+        <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-.5px', color: '#111814' }}>{qar(total)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Obligations ──────────────────────────────────────────────────────────────
+function ObligationList({ taxAccrual }) {
+  const rows = [
+    { label: 'May payroll',         sub: 'WPS due May 28',          amount: 92400,  urgent: true  },
+    { label: 'EOS gratuity',        sub: 'Accumulated · 11 staff',  amount: 184000, urgent: false },
+    { label: 'Corporate tax (MTD)', sub: '10% on net profit · GTA', amount: Math.round(taxAccrual), urgent: false },
+    { label: 'VAT',                 sub: 'Not yet in force',        amount: 0,      urgent: false },
+  ];
+  return (
+    <div>
+      {rows.map((r, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: i < rows.length - 1 ? '1px solid #EEF2F0' : 'none' }}>
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: r.urgent ? '#C04030' : '#2A3830' }}>{r.label}</div>
+            <div style={{ fontSize: 12, color: '#1E3028', marginTop: 2, fontWeight: 600 }}>{r.sub}</div>
+          </div>
+          <div style={{ fontSize: r.amount === 0 ? 13 : 14, fontWeight: 800, letterSpacing: '-.4px', color: r.urgent ? '#C04030' : r.amount === 0 ? '#607870' : '#111814', textAlign: 'right' }}>
+            {r.amount === 0 ? '—' : <>{Number(r.amount).toLocaleString()} <span style={{ fontSize:12, fontWeight: 500, color: '#607870' }}>QAR</span></>}
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-function ObligationRow({ label, sub, amount, urgent, informational }) {
+// ─── Shared table primitives ──────────────────────────────────────────────────
+function THead({ cols }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <div className={`font-medium ${urgent ? 'text-red-700' : 'text-stone-700'}`}>{label}</div>
-        <div className="text-[10px] text-stone-400 mt-0.5">{sub}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: cols.map(c => c.w || '1fr').join(' '), gap: 8, paddingBottom: 10, borderBottom: '1.5px solid #DCE4E0', marginBottom: 2 }}>
+      {cols.map(c => (
+        <div key={c.label} onClick={c.onClick} style={{ fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: c.active ? CLINIC_CONFIG.primaryColor : '#4E6860', textAlign: c.right ? 'right' : 'left', cursor: c.onClick ? 'pointer' : 'default' }}>
+          {c.label}{c.active ? ' ↓' : ''}
+        </div>
+      ))}
+    </div>
+  );
+}
+function StatusBadge({ status }) {
+  const MAP = { paid: ['#D4F1E4','#0A6040'], pending: ['#FEF3DC','#92600A'], CORRECTED: ['#FEF0E8','#A04020'] };
+  const [bg, fg] = MAP[status] || ['#EEF2F0','#5A7A70'];
+  return <span style={{ fontSize:12, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: bg, color: fg }}>{status}</span>;
+}
+function MethodBadge({ method }) {
+  const MAP = { 'Card': ['#EFF6FF','#1D4ED8'], 'Cash': ['#ECFDF5','#065F46'], 'NAPS': ['#F5F3FF','#5B21B6'], 'Apple Pay': ['#F8FAFC','#334155'], 'Insurance': ['#FFFBEB','#92400E'] };
+  const [bg, fg] = MAP[method] || ['#EEF2F0','#5A7A70'];
+  return <span style={{ fontSize:12, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: bg, color: fg }}>{method}</span>;
+}
+
+// ─── Reports tab ──────────────────────────────────────────────────────────────
+function ReportsTab({ doctors }) {
+  const [view, setView]     = useState('treatment');
+  const [from, setFrom]     = useState('2026-05-01');
+  const [to, setTo]         = useState('2026-05-24');
+  const [sortBy, setSortBy] = useState('revenue');
+  const REF = 24;
+  const days  = useMemo(() => { const d = Math.round((new Date(to) - new Date(from)) / 86400000) + 1; return isNaN(d) || d < 1 ? REF : d; }, [from, to]);
+  const scale = days / REF;
+  const scaled = useMemo(() => TREATMENT_REPORT.map(t => ({ ...t, count: Math.round(t.count * scale), revenue: Math.round(t.revenue * scale), insured: Math.round(t.insured * scale), selfPay: Math.round(t.selfPay * scale) })), [scale]);
+  const sorted = useMemo(() => [...scaled].sort((a, b) => b[sortBy] - a[sortBy]), [scaled, sortBy]);
+  const totR = scaled.reduce((s,t)=>s+t.revenue,0), totC = scaled.reduce((s,t)=>s+t.count,0), totI = scaled.reduce((s,t)=>s+t.insured,0), totS = scaled.reduce((s,t)=>s+t.selfPay,0);
+  const docR = useMemo(() => doctors.map(d => ({ ...d, treatments: Math.round(d.revenue / d.ticket * scale), revenue: Math.round(d.revenue * scale), insured: Math.round(d.revenue * .35 * scale), selfPay: Math.round(d.revenue * .65 * scale) })), [doctors, scale]);
+  const PRESETS = [['Today','2026-05-24','2026-05-24'],['This week','2026-05-18','2026-05-24'],['This month','2026-05-01','2026-05-24'],['Last month','2026-04-01','2026-04-30']];
+  const cell = { fontSize: 12.5, padding: '10px 8px 10px 0' };
+  const hcell = { fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', padding: '0 8px 10px 0', cursor: 'pointer' };
+  return (
+    <main style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Calendar size={15} color="#4E6860" />
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={{ width: 140 }} />
+          <span style={{ color: '#5A7870' }}>→</span>
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} style={{ width: 140 }} />
+        </div>
+        <div style={{ width: 1, height: 20, background: '#DCE4E0' }} />
+        {PRESETS.map(([lbl, f, t]) => {
+          const on = from === f && to === t;
+          return <button key={lbl} onClick={() => { setFrom(f); setTo(t); }} style={{ fontSize: 12, fontWeight: on ? 700 : 500, padding: '5px 12px', borderRadius: 8, border: `1px solid ${on ? CLINIC_CONFIG.primaryColor : 'transparent'}`, background: on ? '#EAF5F0' : 'transparent', color: on ? CLINIC_CONFIG.primaryColor : '#6A8880' }}>{lbl}</button>;
+        })}
+        <span style={{ fontSize:12, color: '#5A7870', fontWeight: 600 }}>{days}d</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', borderRadius: 9, overflow: 'hidden', border: '1px solid #DCE4E0' }}>
+          {[['treatment', <BarChart3 size={13} />, 'By treatment'],['doctor', <Users size={13} />, 'By doctor']].map(([id, icon, lbl]) => (
+            <button key={id} onClick={() => setView(id)} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: view === id ? CLINIC_CONFIG.primaryColor : '#fff', color: view === id ? '#fff' : '#6A8880' }}>{icon}{lbl}</button>
+          ))}
+        </div>
       </div>
-      <div className={`mono font-semibold text-sm whitespace-nowrap ${urgent ? 'text-red-700' : informational ? 'text-stone-500' : 'text-stone-900'}`}>
-        {amount === 0 ? '—' : `QAR ${amount.toLocaleString()}`}
+      <Card title={view === 'treatment' ? 'Treatment report' : 'Doctor report'} sub={`${from} → ${to} · ${view === 'treatment' ? totC + ' procedures' : doctors.length + ' doctors'}`}>
+        <div style={{ overflowX: 'auto' }}>
+          {view === 'treatment' ? (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+                  {[['Treatment',null],['Specialty',null],['Count','count'],['Revenue','revenue'],['Avg ticket','avgTicket'],['Insured','insured'],['Self-pay','selfPay']].map(([l,k]) => (
+                    <th key={l} onClick={() => k && setSortBy(k)} style={{ ...hcell, textAlign: 'left', color: sortBy === k ? CLINIC_CONFIG.primaryColor : '#4E6860' }}>{l}{sortBy===k?' ↓':''}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(t => (
+                  <tr key={t.name} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
+                    <td style={{ ...cell, fontWeight: 600 }}>{t.name}</td>
+                    <td style={{ ...cell, color: '#4E6860' }}>{t.specialty.replace(' Medicine','').replace(' Dentistry','')}</td>
+                    <td style={cell}>{t.count}</td>
+                    <td style={{ ...cell, fontWeight: 700 }}>{qar(t.revenue)}</td>
+                    <td style={{ ...cell, color: '#5A7A70' }}>{qar(t.avgTicket)}</td>
+                    <td style={{ ...cell, color: '#1D4ED8' }}>{t.insured > 0 ? qar(t.insured) : <span style={{color:'#C8D8D0'}}>—</span>}</td>
+                    <td style={cell}>{qar(t.selfPay)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
+                  <td style={cell}>Total</td><td/>
+                  <td style={cell}>{totC}</td>
+                  <td style={cell}>{qar(totR)}</td>
+                  <td style={{ ...cell, color: '#4E6860' }}>{qar(Math.round(totR/totC))}</td>
+                  <td style={{ ...cell, color: '#1D4ED8' }}>{qar(totI)}</td>
+                  <td style={cell}>{qar(totS)}</td>
+                </tr>
+              </tbody>
+            </table>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+                  {['Doctor','Specialty','Procedures','Revenue','Avg ticket','Insured','Self-pay','Util.','No-shows'].map(l => (
+                    <th key={l} style={{ ...hcell, textAlign: 'left' }}>{l}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {docR.map(d => (
+                  <tr key={d.id} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
+                    <td style={{ ...cell, fontWeight: 600 }}>{d.name}</td>
+                    <td style={{ ...cell, color: '#4E6860' }}>{d.specialty.replace(' Medicine','').replace(' Dentistry','')}</td>
+                    <td style={cell}>{d.treatments}</td>
+                    <td style={{ ...cell, fontWeight: 700 }}>{qar(d.revenue)}</td>
+                    <td style={{ ...cell, color: '#5A7A70' }}>{qar(d.ticket)}</td>
+                    <td style={{ ...cell, color: '#1D4ED8' }}>{qar(d.insured)}</td>
+                    <td style={cell}>{qar(d.selfPay)}</td>
+                    <td style={cell}><span style={{ fontSize:12, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: d.utilization>=80?'#D4F1E4':d.utilization>=65?'#FEF3DC':'#FDDDD9', color: d.utilization>=80?'#0A6040':d.utilization>=65?'#92600A':'#C04030' }}>{d.utilization}%</span></td>
+                    <td style={cell}>{d.noshow}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
+                  <td style={cell}>Total</td><td/>
+                  <td style={cell}>{docR.reduce((s,d)=>s+d.treatments,0)}</td>
+                  <td style={cell}>{qar(docR.reduce((s,d)=>s+d.revenue,0))}</td>
+                  <td/><td style={{...cell,color:'#1D4ED8'}}>{qar(docR.reduce((s,d)=>s+d.insured,0))}</td>
+                  <td style={cell}>{qar(docR.reduce((s,d)=>s+d.selfPay,0))}</td>
+                  <td/><td/>
+                </tr>
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+    </main>
+  );
+}
+
+// ─── Daily tab ────────────────────────────────────────────────────────────────
+function DailyTab({ transactions, setTransactions, doctors }) {
+  const [date, setDate]         = useState('2026-05-24');
+  const [correcting, setCorr]   = useState(null);
+  const [corrAmt, setCorrAmt]   = useState('');
+  const [corrNote, setCorrNote] = useState('');
+  const paid = transactions.filter(t => t.status === 'paid');
+  const pend = transactions.filter(t => t.status === 'pending');
+  const totC = paid.reduce((s,t)=>s+t.amount,0), totP = pend.reduce((s,t)=>s+t.amount,0);
+  const byDoc = doctors.map(d => { const tx = transactions.filter(t=>t.doctor===d.name); return {...d,txCount:tx.length,total:tx.reduce((s,t)=>s+t.amount,0)}; }).filter(d=>d.txCount>0);
+  const applyCorr = id => { if (!corrAmt||!corrNote) return; setTransactions(prev=>prev.map(t=>t.id===id?{...t,amount:parseFloat(corrAmt),corrected:true,correctionNote:corrNote}:t)); setCorr(null); setCorrAmt(''); setCorrNote(''); };
+  const cell = { fontSize: 12.5, padding: '10px 8px 10px 0', verticalAlign: 'middle' };
+  return (
+    <main style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Calendar size={15} color="#4E6860" />
+          <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{ width: 160 }} />
+          <span style={{ fontSize: 13.5, fontWeight: 500, color: '#6A8880' }}>Daily report</span>
+        </div>
+        <button onClick={()=>window.print()} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 9, border: '1px solid #DCE4E0', background: '#F5F8F7', fontSize: 13, fontWeight: 600, color: '#2A4840' }}>
+          <Printer size={14} /> Print / Export PDF
+        </button>
       </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {[{l:'Procedures',v:transactions.length,c:'#111814'},{l:'Collected',v:qar(totC),c:'#0A6040'},{l:'Pending / insurance',v:qar(totP),c:'#92600A'},{l:'Total billed',v:qar(totC+totP),c:'#111814'}].map(k=>(
+          <div key={k.l} style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', padding: '16px 20px', boxShadow: '0 1px 2px rgba(15,31,26,.06)' }}>
+            <div style={{ fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#4E6860', marginBottom: 8 }}>{k.l}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-1px', color: k.c, lineHeight: 1 }}>{k.v}</div>
+          </div>
+        ))}
+      </div>
+      <Card title="All treatments" sub={`${date} · ${transactions.length} entries`}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+                {['Time','Patient','File #','Doctor','Treatment','Amount','Method','Insurance','Status',''].map(h=>(
+                  <th key={h} style={{ fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', textAlign: 'left', padding: '0 8px 10px 0' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map(tx => (
+                <React.Fragment key={tx.id}>
+                  <tr className="trow" style={{ background: tx.corrected ? 'rgba(255,240,220,.3)' : 'transparent', borderBottom: '1px solid #EEF2F0' }}>
+                    <td style={{ ...cell, color: '#4E6860', fontFamily: "'IBM Plex Mono',monospace" }}>{tx.time}</td>
+                    <td style={{ ...cell, fontWeight: 600 }}>{tx.patient}</td>
+                    <td style={{ ...cell, fontSize:12, color: '#4E6860', fontFamily: "'IBM Plex Mono',monospace" }}>{tx.fileNo}</td>
+                    <td style={{ ...cell, color: '#5A7A70' }}>{tx.doctor.replace('Dr.','').trim()}</td>
+                    <td style={cell}>{tx.treatment}</td>
+                    <td style={{ ...cell, fontWeight: 700 }}>
+                      {tx.amount.toLocaleString()}
+                      {tx.corrected && <span style={{ marginLeft: 6 }}><StatusBadge status="CORRECTED" /></span>}
+                    </td>
+                    <td style={cell}><MethodBadge method={tx.method} /></td>
+                    <td style={{ ...cell, color: '#4E6860' }}>{tx.insurer || '—'}</td>
+                    <td style={cell}><StatusBadge status={tx.status} /></td>
+                    <td style={cell}>
+                      <button onClick={()=>{setCorr(correcting===tx.id?null:tx.id);setCorrAmt(tx.amount);setCorrNote('');}} style={{ fontSize:12, fontWeight: 600, color: '#6A8880', padding: '3px 9px', borderRadius: 7, border: '1px solid #DCE4E0', background: '#F5F8F7', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Edit3 size={11} /> Correct
+                      </button>
+                    </td>
+                  </tr>
+                  {tx.corrected && tx.correctionNote && (
+                    <tr style={{ background: 'rgba(255,240,220,.4)', borderBottom: '1px solid #EEF2F0' }}>
+                      <td colSpan={10} style={{ padding: '6px 8px', fontSize:12, color: '#A05020', fontStyle: 'italic' }}>Note: {tx.correctionNote}</td>
+                    </tr>
+                  )}
+                  {correcting === tx.id && (
+                    <tr style={{ background: '#FFFBF0', borderBottom: '1px solid #EEF2F0' }}>
+                      <td colSpan={10} style={{ padding: '12px 8px' }}>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                          <div style={{ width: 140 }}>
+                            <div style={{ fontSize:12, fontWeight: 700, color: '#92600A', marginBottom: 5 }}>Corrected amount (QAR)</div>
+                            <input type="number" value={corrAmt} onChange={e=>setCorrAmt(e.target.value)} style={{ fontFamily: "'IBM Plex Mono',monospace" }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize:12, fontWeight: 700, color: '#92600A', marginBottom: 5 }}>Reason (required)</div>
+                            <input value={corrNote} onChange={e=>setCorrNote(e.target.value)} placeholder="e.g. Wrong procedure code entered..." />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 22 }}>
+                            <button onClick={()=>setCorr(null)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #DCE4E0', background: '#fff', fontSize: 12, fontWeight: 600, color: '#6A8880' }}>Cancel</button>
+                            <button onClick={()=>applyCorr(tx.id)} disabled={!corrNote||!corrAmt} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#A05020', fontSize: 12, fontWeight: 700, color: '#fff' }}>Apply</button>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8, fontSize:12, color: '#A05020' }}>Correction is audited — original entry preserved. Never deleted.</div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+              <tr style={{ borderTop: '2px solid #DCE4E0' }}>
+                <td colSpan={5} style={{ padding: '10px 8px 0 0', fontSize: 13, fontWeight: 700 }}>Total</td>
+                <td style={{ padding: '10px 8px 0 0', fontSize: 13, fontWeight: 700 }}>{qar(transactions.reduce((s,t)=>s+t.amount,0))}</td>
+                <td colSpan={4} />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <Card title="By doctor" sub="Summary for the day">
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+              {['Doctor','Specialty','Procedures','Total'].map(h=>(
+                <th key={h} style={{ fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', textAlign: 'left', padding: '0 8px 10px 0' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {byDoc.map(d=>(
+              <tr key={d.id} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
+                <td style={{ ...cell, fontWeight: 600 }}>{d.name}</td>
+                <td style={{ ...cell, color: '#4E6860' }}>{d.specialty.replace(' Medicine','')}</td>
+                <td style={cell}>{d.txCount}</td>
+                <td style={{ ...cell, fontWeight: 700 }}>{qar(d.total)}</td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
+              <td style={cell}>Total</td><td/>
+              <td style={cell}>{byDoc.reduce((s,d)=>s+d.txCount,0)}</td>
+              <td style={cell}>{qar(byDoc.reduce((s,d)=>s+d.total,0))}</td>
+            </tr>
+          </tbody>
+        </table>
+      </Card>
+    </main>
+  );
+}
+
+// ─── Settings tab ─────────────────────────────────────────────────────────────
+const SPEC_LIST = ['General Dentistry','Orthodontics','Endodontics','Cosmetic Dentistry','Aesthetic Medicine'];
+const COL_LIST  = ['rose','amber','teal','violet','sky','emerald'];
+const COL_HEX   = { rose:'#FCA5A5',amber:'#FCD34D',teal:'#5EEAD4',violet:'#C4B5FD',sky:'#7DD3FC',emerald:'#6EE7B7' };
+
+function SettingsTab({ doctors, setDoctors, nurses, setNurses, trainees, setTrainees, treatments, setTreatments }) {
+  const [sec, setSec] = useState('doctors');
+  const SECS = [['doctors','Doctors & calendar'],['trainees','Trainees'],['nurses','Nurses'],['treatments','Treatments']];
+  return (
+    <main style={{ padding: '16px 24px', display: 'flex', gap: 16 }}>
+      <div style={{ width: 200, flexShrink: 0 }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', overflow: 'hidden' }}>
+          {SECS.map(([id, lbl]) => (
+            <button key={id} onClick={()=>setSec(id)} className={sec===id?'':'settings-nav-btn'} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: sec===id?700:500, border: 'none', borderBottom: '1px solid #EEF2F0', background: sec===id?CLINIC_CONFIG.primaryColor:'transparent', color: sec===id?'#fff':'#2A3830', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {lbl}{sec===id&&<ChevronRight size={14} style={{opacity:.7}}/>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {sec==='doctors'    && <DoctorSettings    doctors={doctors}    setDoctors={setDoctors} />}
+        {sec==='trainees'   && <TraineeSettings   trainees={trainees}  setTrainees={setTrainees} doctors={doctors} />}
+        {sec==='nurses'     && <NurseSettings     nurses={nurses}      setNurses={setNurses} />}
+        {sec==='treatments' && <TreatmentSettings treatments={treatments} setTreatments={setTreatments} />}
+      </div>
+    </main>
+  );
+}
+
+function SettingsCard({ title, sub, children }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #DCE4E0', boxShadow: '0 1px 3px rgba(15,31,26,.08)', overflow: 'hidden', marginBottom: 14 }}>
+      <div style={{ padding: '14px 20px 12px', borderBottom: '1px solid #EEF2F0' }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#111814', letterSpacing: '-.2px' }}>{title}</div>
+        {sub && <div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>{sub}</div>}
+      </div>
+      <div style={{ padding: '16px 20px' }}>{children}</div>
+    </div>
+  );
+}
+function FormGrid({ children }) { return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>{children}</div>; }
+function FormField({ label, children }) { return <div><div style={{ fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', marginBottom: 6 }}>{label}</div>{children}</div>; }
+function PrimaryBtn({ onClick, disabled, children }) { return <button onClick={onClick} disabled={disabled} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: 'none', background: CLINIC_CONFIG.primaryColor, color: '#fff', fontSize: 13, fontWeight: 700 }}>{children}</button>; }
+function GhostBtn({ onClick, children }) { return <button onClick={onClick} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid #DCE4E0', background: '#F5F8F7', fontSize: 13, fontWeight: 600, color: '#4A6860' }}>{children}</button>; }
+function ActiveBadge({ active, onToggle }) {
+  return <button onClick={onToggle} style={{ fontSize:12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, border: `1px solid ${active?'#A8D8C8':'#DCE4E0'}`, background: active?'#E4F5EE':'#F5F8F7', color: active?'#0A6040':'#6A8880' }}>{active?'Active':'Inactive'}</button>;
+}
+function DashedAddBtn({ onClick, children }) { return <button onClick={onClick} style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1.5px dashed #C8D4CF', background: 'transparent', fontSize: 13, fontWeight: 600, color: '#6A8880', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{children}</button>; }
+function FormBox({ children }) { return <div style={{ padding: 16, borderRadius: 10, background: '#F5F8F7', border: '1px solid #DCE4E0', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>{children}</div>; }
+function FormActions({ onCancel, onSave, saveLabel, disabled }) {
+  return <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}><GhostBtn onClick={onCancel}>Cancel</GhostBtn><PrimaryBtn onClick={onSave} disabled={disabled}><Save size={13}/>{saveLabel}</PrimaryBtn></div>;
+}
+
+function DoctorSettings({ doctors, setDoctors }) {
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name:'', specialty:'General Dentistry', qchp:'', color:'rose' });
+  const sorted = [...doctors].sort((a,b)=>a.calOrder-b.calOrder);
+  const move = (idx, dir) => { const arr=[...sorted]; [arr[idx],arr[idx+dir]]=[arr[idx+dir],arr[idx]]; setDoctors(prev=>prev.map(d=>{const u=arr.find(a=>a.id===d.id);return u?{...d,calOrder:arr.indexOf(u)+1}:d;})); };
+  const add = () => { if(!form.name||!form.qchp)return; setDoctors(prev=>[...prev,{id:`d${Date.now()}`,...form,active:true,calOrder:doctors.length+1,revenue:0,utilization:0,ticket:0,noshow:0,hours:0}]); setForm({name:'',specialty:'General Dentistry',qchp:'',color:'rose'}); setAdding(false); };
+  return (
+    <SettingsCard title="Doctors" sub="Manage doctors and calendar column order">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+        {sorted.map((d,idx) => {
+          const av = AVATAR_COLORS[d.color]||{bg:'#EEF2F0',fg:'#4A6860'};
+          return (
+            <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: '1px solid #DCE4E0', background: d.active?'#fff':'#F8FAF9', opacity: d.active?1:.55 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <button onClick={()=>move(idx,-1)} disabled={idx===0} style={{ width:20,height:20,borderRadius:5,border:'1px solid #DCE4E0',background:'#F5F8F7',display:'flex',alignItems:'center',justifyContent:'center' }}><ChevronUp size={11} color="#4E6860"/></button>
+                <button onClick={()=>move(idx,1)} disabled={idx===sorted.length-1} style={{ width:20,height:20,borderRadius:5,border:'1px solid #DCE4E0',background:'#F5F8F7',display:'flex',alignItems:'center',justifyContent:'center' }}><ChevronDown size={11} color="#4E6860"/></button>
+              </div>
+              <div style={{ width:22,height:22,borderRadius:'50%',background:'#EEF2F0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#5A7A70',flexShrink:0 }}>{idx+1}</div>
+              <div style={{ width:44,height: 44,borderRadius:'50%',background:av.bg,color:av.fg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0 }}>{d.initials}</div>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontSize:13,fontWeight:600,color:'#111814' }}>{d.name}</div>
+                <div style={{ fontSize:12,color:'#4E6860',marginTop:1 }}>{d.specialty} · <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12}}>{d.qchp}</span></div>
+              </div>
+              <ActiveBadge active={d.active} onToggle={()=>setDoctors(prev=>prev.map(x=>x.id===d.id?{...x,active:!x.active}:x))} />
+            </div>
+          );
+        })}
+      </div>
+      {!adding ? <DashedAddBtn onClick={()=>setAdding(true)}><UserPlus size={14}/>Add doctor</DashedAddBtn> : (
+        <FormBox>
+          <div style={{ fontSize:13,fontWeight:700,color:'#111814' }}>New doctor</div>
+          <FormGrid>
+            <FormField label="Full name"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Dr. Name" /></FormField>
+            <FormField label="QCHP license"><input value={form.qchp} onChange={e=>setForm({...form,qchp:e.target.value})} placeholder="QCHP-D-XXXXX" style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+            <FormField label="Specialty"><select value={form.specialty} onChange={e=>setForm({...form,specialty:e.target.value})}>{SPEC_LIST.map(s=><option key={s}>{s}</option>)}</select></FormField>
+            <FormField label="Calendar colour">
+              <div style={{ display:'flex',gap:8,flexWrap:'wrap',marginTop:4 }}>
+                {COL_LIST.map(c=><button key={c} onClick={()=>setForm({...form,color:c})} style={{ width:44,height: 44,borderRadius:'50%',background:COL_HEX[c],border:'none',boxShadow:form.color===c?`0 0 0 2px #fff,0 0 0 4px ${CLINIC_CONFIG.primaryColor}`:'none' }} />)}
+              </div>
+            </FormField>
+          </FormGrid>
+          <FormActions onCancel={()=>setAdding(false)} onSave={add} saveLabel="Save doctor" disabled={!form.name||!form.qchp} />
+        </FormBox>
+      )}
+      <div style={{ marginTop:10,fontSize:12,color:'#4E6860',display:'flex',alignItems:'center',gap:6 }}><LayoutGrid size={13}/>Order here sets column sequence in the reception calendar.</div>
+    </SettingsCard>
+  );
+}
+
+function TraineeSettings({ trainees, setTrainees, doctors }) {
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ name:'', specialty:'General Dentistry', supervisorIds:[] });
+  const toggle = id => setForm(f=>({...f,supervisorIds:f.supervisorIds.includes(id)?f.supervisorIds.filter(x=>x!==id):[...f.supervisorIds,id]}));
+  const cancel = () => { setAdding(false); setEditing(null); setForm({name:'',specialty:'General Dentistry',supervisorIds:[]}); };
+  const save = () => { if(editing) setTrainees(prev=>prev.map(t=>t.id===editing?{...t,...form}:t)); else if(form.name) setTrainees(prev=>[...prev,{id:`tr${Date.now()}`,...form,active:true}]); cancel(); };
+  return (
+    <SettingsCard title="Trainees" sub="Appear as assistant in booking and doctor portals">
+      <div style={{ display:'flex',flexDirection:'column',gap:6,marginBottom:12 }}>
+        {trainees.map(t => {
+          const sups = doctors.filter(d=>t.supervisorIds.includes(d.id));
+          return (
+            <div key={t.id}>
+              <div style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,border:'1px solid #DCE4E0',background:t.active?'#fff':'#F8FAF9',opacity:t.active?1:.55 }}>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                    <span style={{ fontSize:13,fontWeight:600,color:'#111814' }}>{t.name}</span>
+                    <span style={{ fontSize:12,fontWeight:700,padding:'2px 7px',borderRadius:20,background:'#EFF6FF',color:'#1D4ED8' }}>Trainee</span>
+                  </div>
+                  <div style={{ fontSize:12,color:'#4E6860',marginTop:2 }}>{t.specialty}</div>
+                  <div style={{ display:'flex',alignItems:'center',gap:5,flexWrap:'wrap',marginTop:4 }}>
+                    <span style={{ fontSize:12,color:'#5A7870' }}>Supervisors:</span>
+                    {sups.length>0?sups.map(d=><span key={d.id} style={{ fontSize:12,fontWeight:500,padding:'1px 7px',borderRadius:8,background:'#EEF2F0',color:'#3A5048' }}>{d.name.replace('Dr. ','Dr.')}</span>):<span style={{ fontSize:12,color:'#E09050' }}>None assigned</span>}
+                  </div>
+                </div>
+                <button onClick={()=>{setEditing(t.id);setForm({name:t.name,specialty:t.specialty,supervisorIds:[...t.supervisorIds]});setAdding(false);}} style={{ fontSize:12,fontWeight:600,padding:'4px 10px',borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',color:'#4A6860',display:'flex',alignItems:'center',gap:4 }}><Edit3 size={11}/>Edit</button>
+                <ActiveBadge active={t.active} onToggle={()=>setTrainees(prev=>prev.map(x=>x.id===t.id?{...x,active:!x.active}:x))} />
+              </div>
+              {editing===t.id && (
+                <FormBox>
+                  <FormGrid>
+                    <FormField label="Full name"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Trainee Name" /></FormField>
+                    <FormField label="Specialty"><select value={form.specialty} onChange={e=>setForm({...form,specialty:e.target.value})}>{SPEC_LIST.map(s=><option key={s}>{s}</option>)}</select></FormField>
+                  </FormGrid>
+                  <FormField label="Supervising doctors — select one or more">
+                    <div style={{ display:'flex',flexDirection:'column',gap:4,marginTop:4 }}>
+                      {doctors.filter(d=>d.active).map(d=>(
+                        <label key={d.id} style={{ display:'flex',alignItems:'center',gap:8,padding:'6px 10px',borderRadius:7,background:'#fff',border:'1px solid #EEF2F0',cursor:'pointer',fontSize:12.5 }}>
+                          <input type="checkbox" checked={form.supervisorIds.includes(d.id)} onChange={()=>toggle(d.id)} style={{ width:15,height:15,flexShrink:0 }} />
+                          <span style={{ fontWeight:600 }}>{d.name}</span>
+                          <span style={{ color:'#4E6860' }}>{d.specialty.replace(' Dentistry','').replace(' Medicine','')}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {form.supervisorIds.length===0&&<div style={{ fontSize:12,color:'#D97706',marginTop:4 }}>Select at least one supervisor.</div>}
+                  </FormField>
+                  <FormActions onCancel={cancel} onSave={save} saveLabel="Save changes" disabled={!form.name||form.supervisorIds.length===0} />
+                </FormBox>
+              )}
+            </div>
+          );
+        })}
+        {trainees.length===0&&<div style={{ fontSize:12.5,color:'#4E6860',fontStyle:'italic',padding:'8px 0' }}>No trainees added yet.</div>}
+      </div>
+      {!adding&&!editing&&<DashedAddBtn onClick={()=>setAdding(true)}><UserPlus size={14}/>Add trainee</DashedAddBtn>}
+      {adding&&(
+        <FormBox>
+          <FormGrid>
+            <FormField label="Full name"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Trainee Name" /></FormField>
+            <FormField label="Specialty"><select value={form.specialty} onChange={e=>setForm({...form,specialty:e.target.value})}>{SPEC_LIST.map(s=><option key={s}>{s}</option>)}</select></FormField>
+          </FormGrid>
+          <FormField label="Supervising doctors — select one or more">
+            <div style={{ display:'flex',flexDirection:'column',gap:4,marginTop:4 }}>
+              {doctors.filter(d=>d.active).map(d=>(
+                <label key={d.id} style={{ display:'flex',alignItems:'center',gap:8,padding:'6px 10px',borderRadius:7,background:'#fff',border:'1px solid #EEF2F0',cursor:'pointer',fontSize:12.5 }}>
+                  <input type="checkbox" checked={form.supervisorIds.includes(d.id)} onChange={()=>toggle(d.id)} style={{ width:15,height:15,flexShrink:0 }} />
+                  <span style={{ fontWeight:600 }}>{d.name}</span>
+                  <span style={{ color:'#4E6860' }}>{d.specialty.replace(' Dentistry','').replace(' Medicine','')}</span>
+                </label>
+              ))}
+            </div>
+            {form.supervisorIds.length===0&&<div style={{ fontSize:12,color:'#D97706',marginTop:4 }}>Select at least one supervisor.</div>}
+          </FormField>
+          <FormActions onCancel={cancel} onSave={save} saveLabel="Add trainee" disabled={!form.name||form.supervisorIds.length===0} />
+        </FormBox>
+      )}
+      <div style={{ marginTop:10,fontSize:12,color:'#4E6860' }}>One trainee can be mapped to multiple supervisors. Multiple trainees can share one supervisor.</div>
+    </SettingsCard>
+  );
+}
+
+function NurseSettings({ nurses, setNurses }) {
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name:'', specialty:'General' });
+  const add = () => { if(!form.name)return; setNurses(prev=>[...prev,{id:`n${Date.now()}`,...form,active:true}]); setForm({name:'',specialty:'General'}); setAdding(false); };
+  return (
+    <SettingsCard title="Nurses" sub="Manage nursing staff available for procedures">
+      <div style={{ display:'flex',flexDirection:'column',gap:6,marginBottom:12 }}>
+        {nurses.map(n=>(
+          <div key={n.id} style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,border:'1px solid #DCE4E0',background:n.active?'#fff':'#F8FAF9',opacity:n.active?1:.55 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13,fontWeight:600,color:'#111814' }}>{n.name}</div>
+              <div style={{ fontSize:12,color:'#4E6860',marginTop:1 }}>{n.specialty}</div>
+            </div>
+            <ActiveBadge active={n.active} onToggle={()=>setNurses(prev=>prev.map(x=>x.id===n.id?{...x,active:!x.active}:x))} />
+          </div>
+        ))}
+      </div>
+      {!adding?<DashedAddBtn onClick={()=>setAdding(true)}><Plus size={14}/>Add nurse</DashedAddBtn>:(
+        <FormBox>
+          <FormGrid>
+            <FormField label="Full name"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nurse Name" /></FormField>
+            <FormField label="Specialty"><select value={form.specialty} onChange={e=>setForm({...form,specialty:e.target.value})}>{['General','Dental','Aesthetic'].map(s=><option key={s}>{s}</option>)}</select></FormField>
+          </FormGrid>
+          <FormActions onCancel={()=>setAdding(false)} onSave={add} saveLabel="Save nurse" disabled={!form.name} />
+        </FormBox>
+      )}
+    </SettingsCard>
+  );
+}
+
+function TreatmentSettings({ treatments, setTreatments }) {
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ name:'', specialty:'General Dentistry', dur:30, price:0, needsNurse:false });
+  const startEdit = t => { setEditing(t.id); setForm({name:t.name,specialty:t.specialty,dur:t.dur,price:t.price,needsNurse:t.needsNurse}); setAdding(false); };
+  const cancel = () => { setAdding(false); setEditing(null); };
+  const save = () => { if(editing) setTreatments(prev=>prev.map(t=>t.id===editing?{...t,...form}:t)); else if(form.name) setTreatments(prev=>[...prev,{id:`t${Date.now()}`,...form,active:true}]); cancel(); };
+  const groups = SPEC_LIST.map(s=>({s,items:treatments.filter(t=>t.specialty===s)})).filter(g=>g.items.length>0);
+  const TxForm = () => (
+    <FormBox>
+      <div style={{ fontSize:13,fontWeight:700,color:'#111814' }}>{editing?'Edit treatment':'New treatment'}</div>
+      <FormGrid>
+        <FormField label="Treatment name"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} /></FormField>
+        <FormField label="Specialty"><select value={form.specialty} onChange={e=>setForm({...form,specialty:e.target.value})}>{SPEC_LIST.map(s=><option key={s}>{s}</option>)}</select></FormField>
+        <FormField label="Duration (min)"><input type="number" value={form.dur} onChange={e=>setForm({...form,dur:parseInt(e.target.value)||30})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+        <FormField label="Default price (QAR)"><input type="number" value={form.price} onChange={e=>setForm({...form,price:parseInt(e.target.value)||0})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+      </FormGrid>
+      <label style={{ display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:500,color:'#2A3830',cursor:'pointer' }}>
+        <input type="checkbox" checked={form.needsNurse} onChange={e=>setForm({...form,needsNurse:e.target.checked})} style={{ width:15,height:15,flexShrink:0 }} />
+        Nurse assist recommended for this procedure
+      </label>
+      <FormActions onCancel={cancel} onSave={save} saveLabel={editing?'Save changes':'Add treatment'} disabled={!form.name} />
+    </FormBox>
+  );
+  return (
+    <div>
+      {!adding&&!editing&&<div style={{ display:'flex',justifyContent:'flex-end',marginBottom:12 }}><PrimaryBtn onClick={()=>setAdding(true)}><Plus size={14}/>Add treatment</PrimaryBtn></div>}
+      {(adding||editing)&&<div style={{marginBottom:14}}><TxForm/></div>}
+      {groups.map(g=>(
+        <SettingsCard key={g.s} title={g.s} sub={`${g.items.length} treatments`}>
+          <div style={{ display:'flex',flexDirection:'column',gap:6 }}>
+            {g.items.map(t=>(
+              <div key={t.id} style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,border:'1px solid #DCE4E0',background:t.active?'#fff':'#F8FAF9',opacity:t.active?1:.5 }}>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                    <span style={{ fontSize:13,fontWeight:600,color:'#111814' }}>{t.name}</span>
+                    {t.needsNurse&&<span style={{ fontSize:12,fontWeight:700,padding:'2px 7px',borderRadius:20,background:'#EDE9FE',color:'#5B21B6' }}>+ nurse</span>}
+                  </div>
+                  <div style={{ fontSize:12,color:'#4E6860',marginTop:2 }}>{t.dur}min · QAR {t.price.toLocaleString()}</div>
+                </div>
+                <button onClick={()=>startEdit(t)} style={{ fontSize:12,fontWeight:600,padding:'4px 10px',borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',color:'#4A6860',display:'flex',alignItems:'center',gap:4 }}><Edit3 size={11}/>Edit</button>
+                <ActiveBadge active={t.active} onToggle={()=>setTreatments(prev=>prev.map(x=>x.id===t.id?{...x,active:!x.active}:x))} />
+              </div>
+            ))}
+          </div>
+        </SettingsCard>
+      ))}
     </div>
   );
 }

@@ -1,495 +1,412 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Calendar, Search, User, Clock, CheckCircle2, AlertCircle, Phone, Mail,
-  CreditCard, Shield, ChevronLeft, ChevronRight, X, Plus, Globe, Upload,
-  FileText, Settings, Coffee, Plane, Edit3, Save, Eye, Trash2, MoveVertical,
-  CalendarDays, UserPlus, ChevronDown, FileImage, Paperclip, Sparkles, Stethoscope
+  ChevronLeft, ChevronRight, ChevronDown, Calendar, Bell, Settings,
+  Search, Plus, User, Clock, Shield, AlertTriangle, CheckCircle2,
+  FileText, X, Save, Globe, Edit3, CalendarDays
 } from 'lucide-react';
 
-// =====================================================================
-// MEDLY -- Reception Booking Prototype (v2 -- with all 12 user feedback items)
-// Qatar dental + aesthetic clinic, 5-6 doctors
-// =====================================================================
-
-// ---- Doctors --------------------------------------------------------
-const DOCTORS = [
-  { id: 'd1', nameEn: 'Dr. Layla Al-Mahmoud', nameAr: 'د. ليلى المحمود', specialty: 'General Dentistry',  specialtyAr: 'طب الأسنان العام',  qchp: 'QCHP-D-44218', color: 'rose' },
-  { id: 'd2', nameEn: 'Dr. Omar Al-Sayed',    nameAr: 'د. عمر السيد',     specialty: 'Orthodontics',       specialtyAr: 'تقويم الأسنان',      qchp: 'QCHP-D-51209', color: 'amber' },
-  { id: 'd3', nameEn: 'Dr. Priya Menon',      nameAr: 'د. بريا مينون',    specialty: 'Endodontics',        specialtyAr: 'علاج العصب',         qchp: 'QCHP-D-39871', color: 'teal' },
-  { id: 'd4', nameEn: 'Dr. Yusuf Hassan',     nameAr: 'د. يوسف حسن',      specialty: 'Cosmetic Dentistry', specialtyAr: 'تجميل الأسنان',      qchp: 'QCHP-D-47502', color: 'violet' },
-  { id: 'd5', nameEn: 'Dr. Reem Al-Thani',    nameAr: 'د. ريم الثاني',    specialty: 'Aesthetic Medicine', specialtyAr: 'الطب التجميلي',      qchp: 'QCHP-M-22041', color: 'sky' },
-  { id: 'd6', nameEn: 'Dr. Marcus Chen',      nameAr: 'د. ماركوس تشين',   specialty: 'Aesthetic Medicine', specialtyAr: 'الطب التجميلي',      qchp: 'QCHP-M-29116', color: 'emerald' },
-];
-
-// ---- Nurses (NEW: feedback item 12) ---------------------------------
-const NURSES = [
-  { id: 'n1', name: 'Nurse Dina Khalil',    specialty: 'Aesthetic' },
-  { id: 'n2', name: 'Nurse Sara Al-Amin',   specialty: 'Dental' },
-  { id: 'n3', name: 'Nurse Mariam Hassan',  specialty: 'General' },
-  { id: 'n4', name: 'Nurse Aliya Rahman',   specialty: 'Aesthetic' },
-];
-
-// ---- Procedures with nurse-required flag (NEW: feedback item 12) ----
-const PROCEDURES = {
-  'General Dentistry':   [
-    { name: 'Consultation',         dur: 30,  price: 250,  needsNurse: false },
-    { name: 'Cleaning & polish',    dur: 45,  price: 400,  needsNurse: true  },
-    { name: 'Filling',              dur: 45,  price: 600,  needsNurse: true  },
-    { name: 'Extraction',           dur: 60,  price: 800,  needsNurse: true  },
-    { name: 'X-ray (bitewing)',     dur: 15,  price: 200,  needsNurse: false },
-  ],
-  'Orthodontics':        [
-    { name: 'Ortho consult',        dur: 45,  price: 350,  needsNurse: false },
-    { name: 'Braces adjustment',    dur: 30,  price: 450,  needsNurse: true  },
-    { name: 'Retainer fitting',     dur: 60,  price: 1200, needsNurse: true  },
-  ],
-  'Endodontics':         [
-    { name: 'Root canal consult',   dur: 30,  price: 400,  needsNurse: false },
-    { name: 'Root canal treatment', dur: 90,  price: 2500, needsNurse: true  },
-  ],
-  'Cosmetic Dentistry':  [
-    { name: 'Veneer consultation',  dur: 30,  price: 300,  needsNurse: false },
-    { name: 'Teeth whitening',      dur: 60,  price: 1500, needsNurse: true  },
-    { name: 'Veneer fitting',       dur: 120, price: 4500, needsNurse: true  },
-  ],
-  'Aesthetic Medicine':  [
-    { name: 'Aesthetic consult',    dur: 30,  price: 200,  needsNurse: false },
-    { name: 'Botox',                dur: 45,  price: 1800, needsNurse: true  },
-    { name: 'Dermal filler',        dur: 60,  price: 2400, needsNurse: true  },
-    { name: 'Chemical peel',        dur: 60,  price: 900,  needsNurse: true  },
-    { name: 'Hydrafacial',          dur: 60,  price: 1200, needsNurse: true  },
-    { name: 'Laser hair removal',   dur: 45,  price: 800,  needsNurse: true  },
-    { name: 'Microneedling',        dur: 60,  price: 1500, needsNurse: true  },
-    { name: 'IV drip therapy',      dur: 45,  price: 1000, needsNurse: true  },
-  ],
+// ─── Clinic branding ─────────────────────────────────────────────────────────
+const CLINIC_CONFIG = {
+  name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
+  logoUrl:null, primaryColor:'#0C6B5A', headerBg:'#0f1f1a',
 };
-
-// Flat list of all procedures for autocomplete (NEW: feedback item 9)
-const ALL_PROCEDURES = Object.values(PROCEDURES).flat();
-
-// ---- Patients with file numbers + uploaded docs (NEW: items 7, 8) ---
-const MOCK_PATIENTS = [
-  {
-    id: 'p1', fileNo: 'YC-2024-0142', qid: '28934567812',
-    nameEn: 'Aisha Al-Kuwari', nameAr: 'عائشة الكواري',
-    phone: '+974 5512 4488', dob: '1989-03-14',
-    insurer: 'QLM', policy: 'QLM-447821', eligible: true,
-    lastVisit: '2026-02-14',
-    idFront: 'qid-front-aisha.jpg',
-    idBack: 'qid-back-aisha.jpg',
-    insuranceCard: 'qlm-card-aisha.jpg',
-    allergies: ['Penicillin (rash)', 'Latex'],
-    conditions: ['Type 2 diabetes (controlled)', 'Hypertension'],
-    notes: 'Prefers afternoon appointments. Anxious about dental work.',
-    encounterHistory: [
-      { date: '2026-02-14', doctor: 'Dr. Layla Al-Mahmoud', procedure: 'Cleaning & polish', notes: 'Mild gingivitis lower right.' },
-      { date: '2025-11-22', doctor: 'Dr. Reem Al-Thani',    procedure: 'Botox -- glabellar',   notes: '20U total. Pleased at follow-up.' },
-      { date: '2025-08-03', doctor: 'Dr. Layla Al-Mahmoud', procedure: 'Consultation + X-rays', notes: 'Referred to endodontics.' },
-    ],
-  },
-  {
-    id: 'p2', fileNo: 'YC-2024-0089', qid: '29612039874',
-    nameEn: 'James Patterson',   nameAr: 'جيمس باترسون',
-    phone: '+974 7011 9923', dob: '1985-11-02',
-    insurer: 'Cash/Card', policy: null, eligible: null,
-    lastVisit: '2025-11-08',
-    idFront: 'passport-james.jpg', idBack: null,
-    insuranceCard: null,
-    allergies: [],
-    conditions: [],
-    notes: '',
-    encounterHistory: [
-      { date: '2025-11-08', doctor: 'Dr. Omar Al-Sayed', procedure: 'Braces adjustment', notes: 'Progressing well.' },
-    ],
-  },
-  {
-    id: 'p3', fileNo: 'YC-2025-0317', qid: '28701445129',
-    nameEn: 'Fatima Al-Mansoori', nameAr: 'فاطمة المنصوري',
-    phone: '+974 3344 7712', dob: '1992-07-22',
-    insurer: 'AXA', policy: 'AXA-Q-998812', eligible: true,
-    lastVisit: '2026-04-30',
-    idFront: 'qid-front-fatima.jpg',
-    idBack: 'qid-back-fatima.jpg',
-    insuranceCard: 'axa-card-fatima.jpg',
-    allergies: ['Sulfa drugs'],
-    conditions: [],
-    notes: 'Pregnant (24 weeks). Avoid X-rays.',
-    encounterHistory: [
-      { date: '2026-04-30', doctor: 'Dr. Reem Al-Thani', procedure: 'Hydrafacial', notes: 'Good outcome.' },
-    ],
-  },
-];
-
-// ---- Status workflow (NEW: feedback item 4 -- expanded statuses) ----
-const STATUS_FLOW = {
-  booked:            { label: 'Booked',         labelAr: 'محجوز',     dot: 'bg-stone-400',    chip: 'bg-stone-100 text-stone-700 border-stone-300' },
-  confirmed:         { label: 'Confirmed',      labelAr: 'مؤكد',      dot: 'bg-sky-500',      chip: 'bg-sky-100 text-sky-800 border-sky-300' },
-  arrived:           { label: 'Arrived',        labelAr: 'وصل',       dot: 'bg-amber-500',    chip: 'bg-amber-100 text-amber-800 border-amber-300' },
-  'in-progress':     { label: 'Ongoing',        labelAr: 'جاري',      dot: 'bg-emerald-500',  chip: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-  'treatment-done':  { label: 'Treatment done', labelAr: 'انتهى',     dot: 'bg-violet-500',   chip: 'bg-violet-100 text-violet-800 border-violet-300' },
-  'payment-done':    { label: 'Paid',           labelAr: 'مدفوع',     dot: 'bg-teal-500',     chip: 'bg-teal-100 text-teal-800 border-teal-300' },
-  cancelled:         { label: 'Cancelled',      labelAr: 'ملغى',      dot: 'bg-red-400',      chip: 'bg-red-50 text-red-700 border-red-200' },
-  'no-show':         { label: 'No-show',        labelAr: 'لم يحضر',   dot: 'bg-red-600',      chip: 'bg-red-100 text-red-800 border-red-300' },
-};
-
-// ---- Doctor schedules (NEW: feedback item 10) -----------------------
-// Working hours, weekly off-days, vacations, breaks. In the day grid,
-// any slot outside these is blocked from booking.
-const DOCTOR_SCHEDULES = {
-  d1: { workStart: '09:00', workEnd: '17:00', offDays: ['friday'],            breaks: [{ start: '13:00', end: '14:00', label: 'Lunch' }], vacations: [] },
-  d2: { workStart: '10:00', workEnd: '18:00', offDays: ['friday', 'saturday'], breaks: [{ start: '13:00', end: '14:00', label: 'Lunch' }], vacations: [{ start: '2026-06-15', end: '2026-06-22', reason: 'Annual leave' }] },
-  d3: { workStart: '09:00', workEnd: '18:00', offDays: ['friday'],            breaks: [{ start: '12:30', end: '13:30', label: 'Prayer + lunch' }], vacations: [] },
-  d4: { workStart: '11:00', workEnd: '18:00', offDays: ['friday', 'sunday'],  breaks: [{ start: '13:00', end: '14:00', label: 'Lunch' }], vacations: [] },
-  d5: { workStart: '12:00', workEnd: '18:00', offDays: ['friday'],            breaks: [], vacations: [{ start: '2026-05-28', end: '2026-05-30', reason: 'Conference' }] },
-  d6: { workStart: '09:00', workEnd: '17:00', offDays: ['friday'],            breaks: [{ start: '13:00', end: '14:00', label: 'Lunch' }], vacations: [] },
-};
-
-// Day grid: 09:00 to 18:00 in 30-min slots
-const TIME_SLOTS = Array.from({ length: 18 }, (_, i) => {
-  const h = 9 + Math.floor(i / 2);
-  const m = i % 2 === 0 ? '00' : '30';
-  return `${String(h).padStart(2, '0')}:${m}`;
-});
-
-// Pre-seeded appointments with new statuses and nurse references
-const SEED_APPOINTMENTS = [
-  { id: 'a1', doctorId: 'd1', patientId: 'p3', start: '09:00', dur: 45, procedure: 'Cleaning & polish',    status: 'payment-done',  nurseId: 'n2', notes: 'Standard cleaning. No issues.' },
-  { id: 'a2', doctorId: 'd1', patientId: 'p1', start: '10:30', dur: 60, procedure: 'Extraction',           status: 'arrived',       nurseId: 'n2', asstDoctorId: 'd4', notes: 'Anxious patient -- explain steps slowly.' },
-  { id: 'a3', doctorId: 'd2', patientId: 'p2', start: '11:00', dur: 30, procedure: 'Braces adjustment',    status: 'confirmed',     nurseId: null, notes: '' },
-  { id: 'a4', doctorId: 'd3', patientId: 'p1', start: '14:00', dur: 90, procedure: 'Root canal treatment', status: 'in-progress',   nurseId: 'n2', notes: '' },
-  { id: 'a5', doctorId: 'd5', patientId: 'p3', start: '15:30', dur: 60, procedure: 'Hydrafacial',          status: 'booked',        nurseId: 'n1', notes: 'First hydrafacial -- check skin sensitivity.' },
-  { id: 'a6', doctorId: 'd6', patientId: 'p2', start: '10:00', dur: 45, procedure: 'Botox',                status: 'treatment-done', nurseId: 'n4', notes: '20U total.' },
-];
-
-const COLOR_MAP = {
-  rose:    { bg: 'bg-rose-50',    border: 'border-rose-300',    text: 'text-rose-900',    dot: 'bg-rose-500' },
-  amber:   { bg: 'bg-amber-50',   border: 'border-amber-300',   text: 'text-amber-900',   dot: 'bg-amber-500' },
-  teal:    { bg: 'bg-teal-50',    border: 'border-teal-300',    text: 'text-teal-900',    dot: 'bg-teal-500' },
-  violet:  { bg: 'bg-violet-50',  border: 'border-violet-300',  text: 'text-violet-900',  dot: 'bg-violet-500' },
-  sky:     { bg: 'bg-sky-50',     border: 'border-sky-300',     text: 'text-sky-900',     dot: 'bg-sky-500' },
-  emerald: { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-900', dot: 'bg-emerald-500' },
-};
-
-// ---- Helpers --------------------------------------------------------
-const fmt = (d) => d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
-const fmtShort = (d) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-const validateQID = (qid) => /^\d{11}$/.test(qid.replace(/\s/g, ''));
-const validateQatarPhone = (p) => /^\+974\s?\d{4}\s?\d{4}$/.test(p);
-const dayOfWeek = (d) => d.toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase();
-const slotToMinutes = (slot) => { const [h, m] = slot.split(':').map(Number); return h * 60 + m; };
-const minutesToSlot = (m) => { const h = Math.floor(m / 60); const min = m % 60; return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`; };
-
-// Returns true if a given time slot is blocked for a doctor on a given date.
-function isSlotBlocked(doctorId, date, slot) {
-  const sched = DOCTOR_SCHEDULES[doctorId];
-  if (!sched) return false;
-  const dow = dayOfWeek(date);
-  if (sched.offDays.includes(dow)) return true;
-  const dateStr = date.toISOString().slice(0, 10);
-  for (const v of sched.vacations) {
-    if (dateStr >= v.start && dateStr <= v.end) return true;
-  }
-  const slotMin = slotToMinutes(slot);
-  if (slotMin < slotToMinutes(sched.workStart) || slotMin >= slotToMinutes(sched.workEnd)) return true;
-  for (const b of sched.breaks) {
-    if (slotMin >= slotToMinutes(b.start) && slotMin < slotToMinutes(b.end)) return true;
-  }
-  return false;
+function MedlyLogo({ size=34 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 34 34" fill="none">
+      <rect width="34" height="34" rx="9" fill={CLINIC_CONFIG.primaryColor}/>
+      <path d="M7 24V12L13 20L19 12V18" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M19 18C19 22 21.5 24 24.5 24" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="27" cy="24" r="2.2" stroke="#fff" strokeWidth="2"/>
+      <circle cx="27" cy="24" r="0.7" fill="#fff"/>
+    </svg>
+  );
 }
 
-// Returns a human-readable reason a slot is blocked (for tooltips).
+// ─── Data ─────────────────────────────────────────────────────────────────────
+const DOCTORS = [
+  { id:'d1', nameEn:'Dr. Layla Al-Mahmoud', nameAr:'د. ليلى المحمود', specialty:'General Dentistry',  specialtyAr:'طب الأسنان العام',  qchp:'QCHP-D-44218', color:'rose'    },
+  { id:'d2', nameEn:'Dr. Omar Al-Sayed',    nameAr:'د. عمر السيد',     specialty:'Orthodontics',       specialtyAr:'تقويم الأسنان',      qchp:'QCHP-D-51209', color:'amber'   },
+  { id:'d3', nameEn:'Dr. Priya Menon',      nameAr:'د. بريا مينون',    specialty:'Endodontics',        specialtyAr:'علاج العصب',         qchp:'QCHP-D-39871', color:'teal'    },
+  { id:'d4', nameEn:'Dr. Yusuf Hassan',     nameAr:'د. يوسف حسن',      specialty:'Cosmetic Dentistry', specialtyAr:'تجميل الأسنان',      qchp:'QCHP-D-47502', color:'violet'  },
+  { id:'d5', nameEn:'Dr. Reem Al-Thani',    nameAr:'د. ريم الثاني',    specialty:'Aesthetic Medicine', specialtyAr:'الطب التجميلي',      qchp:'QCHP-M-22041', color:'sky'     },
+  { id:'d6', nameEn:'Dr. Marcus Chen',      nameAr:'د. ماركوس تشين',   specialty:'Aesthetic Medicine', specialtyAr:'الطب التجميلي',      qchp:'QCHP-M-29116', color:'emerald' },
+];
+const NURSES = [
+  { id:'n1', name:'Nurse Dina Khalil',   specialty:'Aesthetic' },
+  { id:'n2', name:'Nurse Sara Al-Amin',  specialty:'Dental'    },
+  { id:'n3', name:'Nurse Mariam Hassan', specialty:'General'   },
+  { id:'n4', name:'Nurse Aliya Rahman',  specialty:'Aesthetic' },
+];
+const PROCEDURES = {
+  'General Dentistry':  [{ name:'Consultation',dur:30,price:250,needsNurse:false},{name:'Cleaning & polish',dur:45,price:400,needsNurse:true},{name:'Filling',dur:45,price:600,needsNurse:true},{name:'Extraction',dur:60,price:800,needsNurse:true},{name:'X-ray (bitewing)',dur:15,price:200,needsNurse:false}],
+  'Orthodontics':       [{ name:'Ortho consult',dur:45,price:350,needsNurse:false},{name:'Braces adjustment',dur:30,price:450,needsNurse:true},{name:'Retainer fitting',dur:60,price:1200,needsNurse:true}],
+  'Endodontics':        [{ name:'Root canal consult',dur:30,price:400,needsNurse:false},{name:'Root canal treatment',dur:90,price:2500,needsNurse:true}],
+  'Cosmetic Dentistry': [{ name:'Veneer consultation',dur:30,price:300,needsNurse:false},{name:'Teeth whitening',dur:60,price:1500,needsNurse:true},{name:'Veneer fitting',dur:120,price:4500,needsNurse:true}],
+  'Aesthetic Medicine': [{ name:'Aesthetic consult',dur:30,price:200,needsNurse:false},{name:'Botox',dur:45,price:1800,needsNurse:true},{name:'Dermal filler',dur:60,price:2400,needsNurse:true},{name:'Chemical peel',dur:60,price:900,needsNurse:true},{name:'Hydrafacial',dur:60,price:1200,needsNurse:true},{name:'Laser hair removal',dur:45,price:800,needsNurse:true}],
+};
+const ALL_PROCEDURES = Object.values(PROCEDURES).flat();
+const MOCK_PATIENTS = [
+  { id:'p1', fileNo:'YC-2024-0142', qid:'28934567812', nameEn:'Aisha Al-Kuwari',     nameAr:'عائشة الكواري',    phone:'+974 5512 4488', dob:'1989-03-14', insurer:'QLM',       policy:'QLM-447821',  eligible:true,  lastVisit:'2026-02-14', allergies:['Penicillin (rash)','Latex'],   conditions:['Type 2 diabetes (controlled)','Hypertension'], notes:'Prefers afternoon. Anxious about dental work.',   encounterHistory:[{date:'2026-02-14',doctor:'Dr. Layla Al-Mahmoud',procedure:'Cleaning & polish',notes:'Mild gingivitis lower right.'},{date:'2025-11-22',doctor:'Dr. Reem Al-Thani',procedure:'Botox -- glabellar',notes:'20U. Pleased at follow-up.'},{date:'2025-08-03',doctor:'Dr. Layla Al-Mahmoud',procedure:'Consultation + X-rays',notes:'Referred to endodontics.'}] },
+  { id:'p2', fileNo:'YC-2024-0089', qid:'29612039874', nameEn:'James Patterson',      nameAr:'جيمس باترسون',     phone:'+974 7011 9923', dob:'1985-11-02', insurer:'Cash/Card', policy:null,          eligible:null,  lastVisit:'2025-11-08', allergies:[],                              conditions:[],                                              notes:'',                                                encounterHistory:[{date:'2025-11-08',doctor:'Dr. Omar Al-Sayed',procedure:'Braces adjustment',notes:'Progressing well.'}] },
+  { id:'p3', fileNo:'YC-2025-0317', qid:'28701445129', nameEn:'Fatima Al-Mansoori',   nameAr:'فاطمة المنصوري',   phone:'+974 3344 7712', dob:'1992-07-22', insurer:'AXA',       policy:'AXA-Q-998812',eligible:true,  lastVisit:'2026-04-30', allergies:['Sulfa drugs'],                conditions:[],                                              notes:'Pregnant (24 weeks). Avoid X-rays.',              encounterHistory:[{date:'2026-04-30',doctor:'Dr. Reem Al-Thani',procedure:'Hydrafacial',notes:'Good outcome.'}] },
+];
+const STATUS_CFG = {
+  booked:           { label:'Booked',         labelAr:'محجوز',   dot:'#A0B0AA', chip:['#E8EDEB','#2A3830']  },
+  confirmed:        { label:'Confirmed',      labelAr:'مؤكد',    dot:'#3B82F6', chip:['#EFF6FF','#1D4ED8']  },
+  arrived:          { label:'Arrived',        labelAr:'وصل',     dot:'#F59E0B', chip:['#FEF3C7','#92400E']  },
+  'in-progress':    { label:'Ongoing',        labelAr:'جاري',    dot:'#10B981', chip:['#D1FAE5','#065F46']  },
+  'treatment-done': { label:'Treatment done', labelAr:'انتهى',   dot:'#8B5CF6', chip:['#EDE9FE','#4C1D95']  },
+  'payment-done':   { label:'Paid',           labelAr:'مدفوع',   dot:'#0D9488', chip:['#CCFBF1','#134E4A']  },
+  cancelled:        { label:'Cancelled',      labelAr:'ملغى',    dot:'#EF4444', chip:['#FEF2F2','#991B1B']  },
+  'no-show':        { label:'No-show',        labelAr:'لم يحضر', dot:'#DC2626', chip:['#FEE2E2','#991B1B']  },
+};
+const DOC_COLORS = {
+  rose:    { left:'#F87171', bg:'#FFF5F5', initBg:'#FEE2E2', initFg:'#991B1B' },
+  amber:   { left:'#F59E0B', bg:'#FFFBEB', initBg:'#FEF3C7', initFg:'#92400E' },
+  teal:    { left:'#14B8A6', bg:'#F0FDFA', initBg:'#CCFBF1', initFg:'#134E4A' },
+  violet:  { left:'#8B5CF6', bg:'#F5F3FF', initBg:'#EDE9FE', initFg:'#4C1D95' },
+  sky:     { left:'#38BDF8', bg:'#F0F9FF', initBg:'#E0F2FE', initFg:'#075985' },
+  emerald: { left:'#34D399', bg:'#ECFDF5', initBg:'#A7F3D0', initFg:'#064E3B' },
+};
+const DOCTOR_SCHEDULES = {
+  d1:{ workStart:'09:00', workEnd:'17:00', offDays:['friday'],             breaks:[{start:'13:00',end:'14:00',label:'Lunch'}], vacations:[] },
+  d2:{ workStart:'10:00', workEnd:'18:00', offDays:['friday','saturday'],  breaks:[{start:'13:00',end:'14:00',label:'Lunch'}], vacations:[{start:'2026-06-15',end:'2026-06-22',reason:'Annual leave'}] },
+  d3:{ workStart:'09:00', workEnd:'18:00', offDays:['friday'],             breaks:[{start:'12:30',end:'13:30',label:'Prayer + lunch'}], vacations:[] },
+  d4:{ workStart:'11:00', workEnd:'18:00', offDays:['friday','sunday'],    breaks:[{start:'13:00',end:'14:00',label:'Lunch'}], vacations:[] },
+  d5:{ workStart:'12:00', workEnd:'18:00', offDays:['friday'],             breaks:[], vacations:[{start:'2026-05-28',end:'2026-05-30',reason:'Conference'}] },
+  d6:{ workStart:'09:00', workEnd:'17:00', offDays:['friday'],             breaks:[{start:'13:00',end:'14:00',label:'Lunch'}], vacations:[] },
+};
+const TIME_SLOTS = Array.from({length:18},(_,i)=>{ const h=9+Math.floor(i/2); const m=i%2===0?'00':'30'; return `${String(h).padStart(2,'0')}:${m}`; });
+const SEED_APPOINTMENTS = [
+  {id:'a1',doctorId:'d1',patientId:'p3',start:'09:00',dur:45,procedure:'Cleaning & polish',    status:'payment-done',  nurseId:'n2',notes:'Standard cleaning.'},
+  {id:'a2',doctorId:'d1',patientId:'p1',start:'10:30',dur:60,procedure:'Extraction',           status:'arrived',       nurseId:'n2',asstDoctorId:'d4',notes:'Anxious patient.'},
+  {id:'a3',doctorId:'d2',patientId:'p2',start:'11:00',dur:30,procedure:'Braces adjustment',    status:'confirmed',     nurseId:null,notes:''},
+  {id:'a4',doctorId:'d3',patientId:'p1',start:'14:00',dur:90,procedure:'Root canal treatment', status:'in-progress',   nurseId:'n2',notes:''},
+  {id:'a5',doctorId:'d5',patientId:'p3',start:'15:30',dur:60,procedure:'Hydrafacial',          status:'booked',        nurseId:'n1',notes:'First hydrafacial.'},
+  {id:'a6',doctorId:'d6',patientId:'p2',start:'10:00',dur:45,procedure:'Botox',                status:'treatment-done',nurseId:'n4',notes:'20U total.'},
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmt      = d => d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+const fmtShort = d => d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+const validateQID        = qid  => /^\d{11}$/.test(qid.replace(/\s/g,''));
+const validateQatarPhone = p    => /^\+974\s?\d{4}\s?\d{4}$/.test(p);
+const dayOfWeek          = d    => d.toLocaleDateString('en-GB',{weekday:'long'}).toLowerCase();
+const slotToMin          = slot => { const [h,m]=slot.split(':').map(Number); return h*60+m; };
+
+function isSlotBlocked(doctorId, date, slot) {
+  const s=DOCTOR_SCHEDULES[doctorId]; if(!s) return false;
+  if(s.offDays.includes(dayOfWeek(date))) return true;
+  const ds=date.toISOString().slice(0,10);
+  if(s.vacations.some(v=>ds>=v.start&&ds<=v.end)) return true;
+  const sm=slotToMin(slot);
+  if(sm<slotToMin(s.workStart)||sm>=slotToMin(s.workEnd)) return true;
+  return s.breaks.some(b=>sm>=slotToMin(b.start)&&sm<slotToMin(b.end));
+}
 function blockedReason(doctorId, date, slot) {
-  const sched = DOCTOR_SCHEDULES[doctorId];
-  if (!sched) return null;
-  const dow = dayOfWeek(date);
-  if (sched.offDays.includes(dow)) return `Off ${dow}`;
-  const dateStr = date.toISOString().slice(0, 10);
-  for (const v of sched.vacations) {
-    if (dateStr >= v.start && dateStr <= v.end) return v.reason;
-  }
-  const slotMin = slotToMinutes(slot);
-  if (slotMin < slotToMinutes(sched.workStart)) return `Before shift (${sched.workStart})`;
-  if (slotMin >= slotToMinutes(sched.workEnd)) return `After shift (${sched.workEnd})`;
-  for (const b of sched.breaks) {
-    if (slotMin >= slotToMinutes(b.start) && slotMin < slotToMinutes(b.end)) return b.label;
-  }
+  const s=DOCTOR_SCHEDULES[doctorId]; if(!s) return null;
+  if(s.offDays.includes(dayOfWeek(date))) return `Off ${dayOfWeek(date)}`;
+  const ds=date.toISOString().slice(0,10);
+  for(const v of s.vacations) if(ds>=v.start&&ds<=v.end) return v.reason;
+  const sm=slotToMin(slot);
+  if(sm<slotToMin(s.workStart)) return `Before shift (${s.workStart})`;
+  if(sm>=slotToMin(s.workEnd))  return `After shift (${s.workEnd})`;
+  for(const b of s.breaks) if(sm>=slotToMin(b.start)&&sm<slotToMin(b.end)) return b.label;
   return null;
 }
-
-// Generate next file number from highest existing.
 function nextFileNumber(patients) {
-  const year = new Date().getFullYear();
-  let max = 0;
-  patients.forEach(p => {
-    const m = p.fileNo && p.fileNo.match(/^YC-(\d{4})-(\d{4})$/);
-    if (m && parseInt(m[1]) === year) {
-      max = Math.max(max, parseInt(m[2]));
-    }
-  });
-  return `YC-${year}-${String(max + 1).padStart(4, '0')}`;
+  const year=new Date().getFullYear(); let max=0;
+  patients.forEach(p=>{ const m=p.fileNo&&p.fileNo.match(/^YC-(\d{4})-(\d{4})$/); if(m&&parseInt(m[1])===year) max=Math.max(max,parseInt(m[2])); });
+  return `YC-${year}-${String(max+1).padStart(4,'0')}`;
 }
 
-// =====================================================================
-// MAIN APP
-// =====================================================================
+// ─── Shared UI atoms ──────────────────────────────────────────────────────────
+const T      = { fontFamily:"'Manrope','Noto Sans Arabic',system-ui,sans-serif" };
+const CANVAS = '#EAEDEB';
+const card   = { background:'#fff', borderRadius:14, border:'1px solid #DCE4E0', boxShadow:'0 1px 3px rgba(15,31,26,.08)' };
+const PrimaryBtn = ({onClick,disabled,children,style={}}) => <button onClick={onClick} disabled={disabled} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:9,border:'none',background:CLINIC_CONFIG.primaryColor,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',opacity:disabled?.4:1,transition:'filter .13s',...style}}>{children}</button>;
+const GhostBtn   = ({onClick,children,style={}}) => <button onClick={onClick} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:9,border:'1px solid #DCE4E0',background:'#F5F8F7',fontSize:13,fontWeight:600,color:'#2A4840',cursor:'pointer',...style}}>{children}</button>;
+function StatusChip({status,isAr}) {
+  const cfg=STATUS_CFG[status]; if(!cfg) return null;
+  const [bg,fg]=cfg.chip;
+  return <span style={{fontSize:12,fontWeight:700,padding:'2px 7px',borderRadius:20,background:bg,color:fg,whiteSpace:'nowrap'}}>{isAr?cfg.labelAr:cfg.label}</span>;
+}
+
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function ReceptionPrototype() {
-  const [date, setDate]                 = useState(new Date(2026, 4, 24)); // Sun 24 May 2026
-  const [appointments, setAppointments] = useState(SEED_APPOINTMENTS);
-  const [patients, setPatients]         = useState(MOCK_PATIENTS);
-  const [bookingModal, setBookingModal] = useState(null); // { doctorId, slot } | null
-  const [detailModal, setDetailModal]   = useState(null); // appointment | null
-  const [showSchedules, setShowSchedules] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [fileViewer, setFileViewer]     = useState(null); // patient | null
-  const [locale, setLocale]             = useState('en'); // 'en' | 'ar'
-  const [draggingAppt, setDraggingAppt] = useState(null); // appointment being dragged
-  const [dragOverCell, setDragOverCell] = useState(null); // { doctorId, slot }
+  const [date,setDate]               = useState(new Date(2026,4,24));
+  const [appointments,setAppts]      = useState(SEED_APPOINTMENTS);
+  const [patients,setPatients]       = useState(MOCK_PATIENTS);
+  const [bookingModal,setBookingModal] = useState(null);
+  const [detailModal,setDetailModal] = useState(null);
+  const [showSchedules,setShowSched] = useState(false);
+  const [showCalendar,setShowCal]    = useState(false);
+  const [fileViewer,setFileViewer]   = useState(null);
+  const [locale,setLocale]           = useState('en');
+  const [dragging,setDragging]       = useState(null);
+  const [dragOver,setDragOver]       = useState(null);
+  const isAr = locale==='ar';
 
-  const isArabic = locale === 'ar';
+  const stats = useMemo(()=>({
+    total:     appointments.filter(a=>a.status!=='cancelled'&&a.status!=='no-show').length,
+    arrived:   appointments.filter(a=>a.status==='arrived').length,
+    ongoing:   appointments.filter(a=>a.status==='in-progress').length,
+    done:      appointments.filter(a=>a.status==='payment-done').length,
+  }),[appointments]);
 
-  const stats = useMemo(() => {
-    const total      = appointments.filter(a => a.status !== 'cancelled' && a.status !== 'no-show').length;
-    const arrived    = appointments.filter(a => a.status === 'arrived').length;
-    const inProgress = appointments.filter(a => a.status === 'in-progress').length;
-    const done       = appointments.filter(a => a.status === 'payment-done').length;
-    return { total, arrived, inProgress, done };
-  }, [appointments]);
+  const [now, setNow]                     = useState(new Date());
+  const [hSearch, setHSearch]             = useState('');
+  const [hSearchOpen, setHSearchOpen]     = useState(false);
+  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),30000); return ()=>clearInterval(t); },[]);
 
-  const addAppointment = (apt) => {
-    setAppointments(prev => [...prev, { ...apt, id: `a${Date.now()}`, status: 'booked' }]);
-    setBookingModal(null);
+  // Current-time indicator — pixels from top of grid (09:00 = 0, each 30min = 56px)
+  const SLOT_H = 56;
+  const nowMin = now.getHours()*60+now.getMinutes();
+  const gridStartMin = 9*60, gridEndMin = 18*60;
+  const nowInGrid = nowMin>=gridStartMin && nowMin<gridEndMin;
+  const nowPx = ((nowMin-gridStartMin)/30)*SLOT_H;
+
+  // Next status map for one-click update
+  const STATUS_NEXT = {'booked':'confirmed','confirmed':'arrived','arrived':'in-progress','in-progress':'treatment-done','treatment-done':'payment-done'};
+  const cycleStatus = (e,aptId,cur) => { e.stopPropagation(); if(STATUS_NEXT[cur]) updateAppt(aptId,{status:STATUS_NEXT[cur]}); };
+
+  // Header patient search
+  const hResults = hSearch.length>1 ? patients.filter(p=>{
+    const q=hSearch.toLowerCase();
+    return p.nameEn.toLowerCase().includes(q)||p.qid.includes(q)||(p.fileNo&&p.fileNo.includes(q));
+  }).slice(0,5) : [];
+
+  const addAppt    = apt  => { setAppts(p=>[...p,{...apt,id:`a${Date.now()}`,status:'booked'}]); setBookingModal(null); };
+  const updateAppt = (id,patch) => setAppts(p=>p.map(a=>a.id===id?{...a,...patch}:a));
+  const addPatient = p    => { const fp={...p,id:`p${Date.now()}`,fileNo:nextFileNumber(patients),encounterHistory:[]}; setPatients(prev=>[...prev,fp]); return fp; };
+  const updatePatient = (id,patch) => { setPatients(p=>p.map(x=>x.id===id?{...x,...patch}:x)); setFileViewer(p=>p&&p.id===id?{...p,...patch}:p); };
+  const prevDay = () => setDate(d=>{ const n=new Date(d); n.setDate(d.getDate()-1); return n; });
+  const nextDay = () => setDate(d=>{ const n=new Date(d); n.setDate(d.getDate()+1); return n; });
+
+  const handleDragOver = (e,docId,slot) => { if(!dragging) return; e.preventDefault(); setDragOver({docId,slot}); };
+  const handleDrop     = (e,docId,slot) => {
+    e.preventDefault(); if(!dragging) return;
+    if(isSlotBlocked(docId,date,slot)) { setDragging(null); setDragOver(null); return; }
+    const ci=dragging.dur/30; const si=TIME_SLOTS.indexOf(slot);
+    const conflict=appointments.some(a=>{ if(a.id===dragging.id||a.doctorId!==docId||a.status==='cancelled'||a.status==='no-show') return false; const as=TIME_SLOTS.indexOf(a.start); return si<as+a.dur/30&&si+ci>as; });
+    if(!conflict) updateAppt(dragging.id,{doctorId:docId,start:slot});
+    setDragging(null); setDragOver(null);
   };
 
-  const updateAppointment = (id, patch) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a));
-  };
-
-  const addPatient = (patient) => {
-    const fileNo = nextFileNumber(patients);
-    const newPatient = { ...patient, id: `p${Date.now()}`, fileNo, encounterHistory: [] };
-    setPatients(prev => [...prev, newPatient]);
-    return newPatient;
-  };
-
-  const updatePatient = (id, patch) => {
-    setPatients(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
-    // If the file viewer is open on this patient, refresh its data too
-    setFileViewer(prev => prev && prev.id === id ? { ...prev, ...patch } : prev);
-  };
-
-  const prevDay = () => setDate(d => { const n = new Date(d); n.setDate(d.getDate() - 1); return n; });
-  const nextDay = () => setDate(d => { const n = new Date(d); n.setDate(d.getDate() + 1); return n; });
-
-  // ── DRAG-AND-DROP HANDLERS (feedback item 3) ──────────────────────
-  const handleDragStart = (apt) => setDraggingAppt(apt);
-  const handleDragEnd   = () => { setDraggingAppt(null); setDragOverCell(null); };
-  const handleDragOver  = (e, doctorId, slot) => {
-    if (!draggingAppt) return;
-    e.preventDefault();
-    setDragOverCell({ doctorId, slot });
-  };
-  const handleDrop = (e, doctorId, slot) => {
-    e.preventDefault();
-    if (!draggingAppt) return;
-    if (isSlotBlocked(doctorId, date, slot)) { handleDragEnd(); return; }
-    // Check conflict with existing appointments
-    const cellsNeeded = draggingAppt.dur / 30;
-    const slotIdx = TIME_SLOTS.indexOf(slot);
-    const conflict = appointments.some(a => {
-      if (a.id === draggingAppt.id) return false;
-      if (a.doctorId !== doctorId) return false;
-      if (a.status === 'cancelled' || a.status === 'no-show') return false;
-      const aStart = TIME_SLOTS.indexOf(a.start);
-      const aEnd   = aStart + a.dur / 30;
-      return slotIdx < aEnd && slotIdx + cellsNeeded > aStart;
-    });
-    if (conflict) { handleDragEnd(); return; }
-    updateAppointment(draggingAppt.id, { doctorId, start: slot });
-    handleDragEnd();
-  };
+  const NDAYS = DOCTORS.length;
+  const cols = `80px repeat(${NDAYS},1fr)`;
 
   return (
-    <div dir={isArabic ? 'rtl' : 'ltr'} className="min-h-screen bg-stone-50 text-stone-900" style={{ fontFamily: '"IBM Plex Sans", "Noto Sans Arabic", system-ui, sans-serif' }}>
+    <div dir={isAr?'rtl':'ltr'} style={{...T,minHeight:'100vh',background:CANVAS,color:'#111814'}}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Arabic:wght@400;500;600&display=swap');
-        .mono { font-family: "IBM Plex Mono", monospace; }
-        .grid-cell { transition: background-color 120ms ease; }
-        .grid-cell:hover { background-color: rgba(120, 113, 108, 0.06); cursor: pointer; }
-        .grid-cell-blocked { background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(120,113,108,0.08) 6px, rgba(120,113,108,0.08) 7px); cursor: not-allowed; }
-        .grid-cell-drag-over { background-color: rgba(16,185,129,0.18); outline: 2px dashed rgb(16,185,129); outline-offset: -2px; }
-        .appt-draggable { cursor: grab; }
-        .appt-draggable:active { cursor: grabbing; }
-        .appt-dragging { opacity: 0.4; }
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        *{box-sizing:border-box;}
+        .mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:'tnum';}
+        *:focus-visible{outline:2px solid #0C6B5A;outline-offset:2px;border-radius:5px;}
+        button{cursor:pointer;font-family:inherit;transition:filter .13s,background .13s;}
+        button:not(:disabled):hover{filter:brightness(.93);}
+        button:disabled{opacity:.4;cursor:not-allowed;}
+        input,select,textarea{font-family:inherit;background:#F2F5F3;border:1.5px solid #C8D4CF;border-radius:8px;color:#111814;padding:8px 12px;font-size:13px;transition:all .13s;width:100%;}
+        input:hover,select:hover{border-color:#7A9A90;background:#fff;}
+        input:focus,select:focus,textarea:focus{outline:none;background:#fff;border-color:#0C6B5A;box-shadow:0 0 0 3px rgba(12,107,90,.12);}
+        input::placeholder{color:#8AA8A0;}
+        .grid-cell{position:relative;}
+        .grid-cell:hover{background:rgba(12,107,90,.06);cursor:pointer;}
+        .grid-cell:hover::after{content:'+';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:300;color:rgba(12,107,90,.35);pointer-events:none;}
+        .grid-cell-blocked{background-image:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(0,0,0,.03) 5px,rgba(0,0,0,.03) 6px);cursor:not-allowed;}
+        .grid-cell-dragover{background:rgba(12,107,90,.1)!important;outline:2px dashed #0C6B5A;outline-offset:-2px;}
+        .appt-btn{cursor:pointer;transition:box-shadow .13s,filter .13s!important;}.appt-btn:active{cursor:grabbing;}
+        .appt-btn.dragging{opacity:.35;}
+        .appt-btn:hover{box-shadow:0 2px 8px rgba(15,31,26,.14);filter:none!important;}
+        .appt-grip{opacity:0;transition:opacity .13s;}
+        .appt-btn:hover .appt-grip{opacity:1;}
+        .doc-col-header{position:sticky;top:0;z-index:10;background:#F8FAF9;}
+        .trow:hover{background:#F5F8F7;}
+        .status-chip-btn{cursor:pointer;transition:filter .13s;}
+        .status-chip-btn:hover{filter:brightness(.88);}
+        @media(prefers-reduced-motion:reduce){*{transition:none!important;}}
       `}</style>
 
-      {/* Top bar */}
-      <header className="border-b border-stone-200 bg-white">
-        <div className="px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-stone-900 flex items-center justify-center">
-              <span className="text-white text-sm font-semibold">M</span>
-            </div>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-tight">Medly Reception</div>
-              <div className="text-xs text-stone-500">{isArabic ? 'عيادة الياسمين، الدوحة' : 'Yasmeen Clinic, Doha'}</div>
+      {/* ── HEADER ── */}
+      <header style={{background:CLINIC_CONFIG.headerBg,borderBottom:'1px solid rgba(255,255,255,.07)'}}>
+        <div style={{padding:'0 24px',height:54,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            {CLINIC_CONFIG.logoUrl?<img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{height:34}}/>:<MedlyLogo/>}
+            <div>
+              <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>· reception</span></div>
+              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{isAr?CLINIC_CONFIG.nameAr:CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowSchedules(true)} className="px-3 py-1.5 text-xs border border-stone-300 rounded-md hover:bg-stone-100 flex items-center gap-1.5">
-              <Settings className="w-3.5 h-3.5" />
-              Doctor schedules
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <button onClick={()=>setShowSched(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',borderRadius:8,border:'1px solid rgba(255,255,255,.14)',background:'rgba(255,255,255,.07)',fontSize:12.5,fontWeight:600,color:'#B0D0C8'}}>
+              <Settings size={13}/>Doctor schedules
             </button>
-            <button onClick={() => setLocale(l => l === 'en' ? 'ar' : 'en')} className="px-3 py-1.5 text-xs border border-stone-300 rounded-md hover:bg-stone-100 flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5" />
-              {locale === 'en' ? 'العربية' : 'English'}
+            <button onClick={()=>setLocale(l=>l==='en'?'ar':'en')} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',borderRadius:8,border:'1px solid rgba(255,255,255,.14)',background:'rgba(255,255,255,.07)',fontSize:12.5,fontWeight:600,color:'#B0D0C8'}}>
+              <Globe size={13}/>{locale==='en'?'العربية':'English'}
             </button>
-            <div className="px-3 py-1.5 text-xs bg-stone-100 rounded-md text-stone-700">Rania M. · Reception</div>
+            {/* Patient search */}
+            <div style={{position:'relative'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,background:'rgba(255,255,255,.07)',border:'1px solid rgba(255,255,255,.14)',borderRadius:9,padding:'5px 10px',transition:'all .13s',minWidth:hSearchOpen?200:36}}>
+                <Search size={14} color="#7AADA0" style={{flexShrink:0,cursor:'pointer'}} onClick={()=>setHSearchOpen(o=>!o)}/>
+                {hSearchOpen&&<input autoFocus value={hSearch} onChange={e=>setHSearch(e.target.value)} placeholder="Patient name or QID…" onBlur={()=>{if(!hSearch)setHSearchOpen(false);}} style={{background:'transparent',border:'none',boxShadow:'none',padding:0,fontSize:12.5,color:'#fff',width:'100%'}}/>}
+              </div>
+              {hResults.length>0&&(
+                <div style={{position:'absolute',top:'calc(100% + 6px)',right:0,width:280,background:'#fff',borderRadius:10,border:'1px solid #DCE4E0',boxShadow:'0 8px 24px rgba(15,31,26,.14)',overflow:'hidden',zIndex:200}}>
+                  {hResults.map(p=>(
+                    <button key={p.id} onClick={()=>{setFileViewer(p);setHSearch('');setHSearchOpen(false);}} style={{width:'100%',textAlign:'left',padding:'10px 14px',background:'transparent',border:'none',borderBottom:'1px solid #F0EDE8',cursor:'pointer',display:'flex',alignItems:'center',gap:10}}>
+                      <div style={{width:44,height: 44,borderRadius:'50%',background:'#E8F3F0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{p.nameEn.split(' ').map(w=>w[0]).slice(0,2).join('')}</div>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{p.nameEn}</div>
+                        <div style={{fontSize:12,color:'#6A8880',fontWeight:600}}>{p.fileNo} · {p.insurer||'Cash'}</div>
+                      </div>
+                      {p.allergies?.length>0&&<AlertTriangle size={12} color="#DC4F38" style={{marginLeft:'auto',flexShrink:0}}/>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button style={{position:'relative',width:44,height: 44,borderRadius:8,background:'rgba(255,255,255,.07)',border:'1px solid rgba(255,255,255,.1)',display:'flex',alignItems:'center',justifyContent:'center',color:'#7AADA0'}}>
+              <Bell size={15}/>
+              <span style={{position:'absolute',top:7,right:7,width:7,height:7,borderRadius:'50%',background:'#DC4F38',border:'1.5px solid '+CLINIC_CONFIG.headerBg}}/>
+            </button>
+            {/* + Book appointment */}
+            <button onClick={()=>setBookingModal({doctorId:DOCTORS[0].id,slot:TIME_SLOTS.find(sl=>!isSlotBlocked(DOCTORS[0].id,date,sl)&&!appointments.some(a=>a.doctorId===DOCTORS[0].id&&a.start===sl))||'09:00'})} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:9,border:'none',background:CLINIC_CONFIG.primaryColor,fontSize:13,fontWeight:700,color:'#fff'}}>
+              <Plus size={14}/> Book
+            </button>
+            <div style={{display:'flex',alignItems:'center',gap:8,background:'rgba(255,255,255,.07)',border:'1px solid rgba(255,255,255,.1)',padding:'5px 12px 5px 6px',borderRadius:20}}>
+              <div style={{width:44,height: 44,borderRadius:'50%',background:CLINIC_CONFIG.primaryColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#fff'}}>R</div>
+              <span style={{fontSize:12,color:'#C0D8D0',fontWeight:500}}>Rania M.</span>
+            </div>
           </div>
         </div>
 
-        {/* Stats + calendar strip */}
-        <div className="px-6 py-2.5 flex items-center gap-5 border-t border-stone-100 bg-stone-50/60">
-          {/* Date picker (NEW: feedback item 1) */}
-          <div className="flex items-center gap-2 relative">
-            <Calendar className="w-4 h-4 text-stone-500" />
-            <button onClick={prevDay} className="p-1 hover:bg-stone-200 rounded"><ChevronLeft className="w-3.5 h-3.5" /></button>
-            <button
-              onClick={() => setShowCalendar(s => !s)}
-              className="text-sm font-medium mono w-44 text-center hover:bg-stone-200 rounded px-2 py-0.5 flex items-center justify-center gap-1.5"
-            >
-              <CalendarDays className="w-3.5 h-3.5 text-stone-500" />
-              {fmt(date)}
+        {/* Stats + date strip */}
+        <div style={{padding:'0 24px',borderTop:'1px solid rgba(255,255,255,.06)',height:46,display:'flex',alignItems:'center',gap:20}}>
+          {/* Date nav */}
+          <div style={{display:'flex',alignItems:'center',gap:6,position:'relative'}}>
+            <Calendar size={14} color="#6A9080"/>
+            <button onClick={prevDay} style={{width:44,height: 44,borderRadius:6,background:'rgba(255,255,255,.07)',border:'1px solid rgba(255,255,255,.1)',display:'flex',alignItems:'center',justifyContent:'center',color:'#7AADA0'}}>
+              <ChevronLeft size={13}/>
             </button>
-            <button onClick={nextDay} className="p-1 hover:bg-stone-200 rounded"><ChevronRight className="w-3.5 h-3.5" /></button>
-            <button
-              onClick={() => setDate(new Date(2026, 4, 24))}
-              className="px-2 py-0.5 text-[10px] text-stone-600 hover:text-stone-900 hover:bg-stone-200 rounded"
-            >
-              Today
+            <button onClick={()=>setShowCal(s=>!s)} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:7,background:'rgba(255,255,255,.07)',border:'1px solid rgba(255,255,255,.1)',fontSize:12.5,fontWeight:600,color:'#D0E8E0'}}>
+              <CalendarDays size={13}/>{fmt(date)}
             </button>
-            {showCalendar && (
-              <DatePickerPopover
-                value={date}
-                onSelect={(d) => { setDate(d); setShowCalendar(false); }}
-                onClose={() => setShowCalendar(false)}
-              />
-            )}
+            <button onClick={nextDay} style={{width:44,height: 44,borderRadius:6,background:'rgba(255,255,255,.07)',border:'1px solid rgba(255,255,255,.1)',display:'flex',alignItems:'center',justifyContent:'center',color:'#7AADA0'}}>
+              <ChevronRight size={13}/>
+            </button>
+            <button onClick={()=>setDate(new Date(2026,4,24))} style={{padding:'4px 8px',borderRadius:6,fontSize:12,fontWeight:600,color:'#6A9080',background:'transparent',border:'none'}}>Today</button>
+            {showCalendar&&<DatePickerPopover value={date} onSelect={d=>{setDate(d);setShowCal(false);}} onClose={()=>setShowCal(false)}/>}
           </div>
-          <div className="h-4 w-px bg-stone-300" />
-          <Stat label={isArabic ? 'إجمالي' : 'Total'} value={stats.total} />
-          <Stat label={isArabic ? 'وصل' : 'Arrived'} value={stats.arrived} accent="amber" />
-          <Stat label={isArabic ? 'جاري' : 'Ongoing'} value={stats.inProgress} accent="emerald" />
-          <Stat label={isArabic ? 'انتهى' : 'Done'} value={stats.done} accent="teal" />
+          <div style={{width:1,height:16,background:'rgba(255,255,255,.12)'}}/>
+          {[['Total',stats.total,'#C0D8D0'],['Arrived',stats.arrived,'#FCD34D'],['Ongoing',stats.ongoing,'#34D399'],['Done',stats.done,'#5EEAD4']].map(([l,v,c])=>(
+            <div key={l} style={{display:'flex',alignItems:'baseline',gap:5}}>
+              <span style={{fontSize:16,fontWeight:800,letterSpacing:'-1px',color:c}}>{v}</span>
+              <span style={{fontSize:12,fontWeight:600,color:'rgba(255,255,255,.45)'}}>{l}</span>
+            </div>
+          ))}
         </div>
       </header>
 
-      {/* Main grid */}
-      <main className="px-6 py-5">
-        <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-          {/* Doctor column headers */}
-          <div className="grid border-b border-stone-200" style={{ gridTemplateColumns: `80px repeat(${DOCTORS.length}, 1fr)` }}>
-            <div className="p-3 text-xs text-stone-500 font-medium border-r border-stone-200">{isArabic ? 'الوقت' : 'Time'}</div>
-            {DOCTORS.map(doc => (
-              <div key={doc.id} className="p-3 border-r border-stone-200 last:border-r-0">
-                <div className="flex items-start gap-2">
-                  <div className={`w-2 h-2 rounded-full mt-1.5 ${COLOR_MAP[doc.color].dot}`} />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{isArabic ? doc.nameAr : doc.nameEn}</div>
-                    <div className="text-xs text-stone-500 truncate">{isArabic ? doc.specialtyAr : doc.specialty}</div>
-                    <div className="text-[10px] text-stone-400 mono mt-0.5">{doc.qchp}</div>
+      {/* ── CALENDAR GRID ── */}
+      <main style={{padding:'14px 24px'}}>
+        <div style={{...card,overflow:'hidden',maxHeight:'calc(100vh - 168px)',overflowY:'auto'}}>
+          {/* Doctor headers — sticky */}
+          <div className="doc-col-header" style={{display:'grid',gridTemplateColumns:cols,borderBottom:'1px solid #DCE4E0',boxShadow:'0 1px 0 #DCE4E0'}}>
+            <div style={{padding:'10px 14px',fontSize:12,fontWeight:700,color:'#6A8880',borderRight:'1px solid #DCE4E0',textTransform:'uppercase',letterSpacing:'.05em'}}>Time</div>
+            {DOCTORS.map(doc=>{
+              const dc=DOC_COLORS[doc.color];
+              const initials=doc.nameEn.split(' ').filter(w=>w.startsWith('Dr.')?false:true).map(w=>w[0]).slice(0,2).join('');
+              return(
+                <div key={doc.id} style={{padding:'10px 14px',borderRight:'1px solid #DCE4E0',display:'flex',alignItems:'center',gap:9}}>
+                  <div style={{width:44,height: 44,borderRadius:'50%',background:dc.initBg,color:dc.initFg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>
+                    {initials}
+                  </div>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:12.5,fontWeight:700,color:'#111814',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{doc.nameEn.replace('Dr. ','')}</div>
+                    <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{doc.specialty.replace(' Dentistry','').replace(' Medicine','')}</div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Time-slot rows */}
-          <div className="relative">
-            {TIME_SLOTS.map((slot, idx) => (
-              <div
-                key={slot}
-                className="grid border-b border-stone-100 last:border-b-0"
-                style={{ gridTemplateColumns: `80px repeat(${DOCTORS.length}, 1fr)`, minHeight: '44px' }}
-              >
-                <div className={`px-3 py-2 text-xs mono text-stone-500 border-r border-stone-200 ${idx % 2 === 0 ? '' : 'opacity-60'}`}>
-                  {idx % 2 === 0 ? slot : ''}
+          {/* Time slots */}
+          <div style={{position:'relative'}}>
+            {/* Current time indicator */}
+            {nowInGrid&&(
+              <div style={{position:'absolute',top:nowPx,left:0,right:0,zIndex:5,pointerEvents:'none',display:'flex',alignItems:'center'}}>
+                <div style={{width:80,display:'flex',justifyContent:'flex-end',paddingRight:8,flexShrink:0}}>
+                  <span style={{fontSize:12,fontWeight:800,letterSpacing:'-.3px',color:'#0C6B5A',background:'#fff',padding:'1px 5px',borderRadius:4,border:'1px solid #0C6B5A'}}>{now.getHours().toString().padStart(2,'0')}:{now.getMinutes().toString().padStart(2,'0')}</span>
                 </div>
-                {DOCTORS.map(doc => {
-                  const apt = appointments.find(a => a.doctorId === doc.id && a.start === slot && a.status !== 'cancelled' && a.status !== 'no-show');
-                  if (apt) {
-                    const patient = patients.find(p => p.id === apt.patientId);
-                    const cells = apt.dur / 30;
-                    const colors = COLOR_MAP[doc.color];
-                    const status = STATUS_FLOW[apt.status];
-                    const isDragging = draggingAppt?.id === apt.id;
-                    return (
-                      <button
-                        key={doc.id + slot}
-                        onClick={() => setDetailModal(apt)}
-                        draggable
-                        onDragStart={() => handleDragStart(apt)}
-                        onDragEnd={handleDragEnd}
-                        className={`appt-draggable ${isDragging ? 'appt-dragging' : ''} relative border-r border-stone-200 last:border-r-0 text-left p-2 m-0.5 rounded ${colors.bg} ${colors.border} border ${colors.text} hover:brightness-95`}
-                        style={{ gridRow: `span ${cells}`, minHeight: `${cells * 44 - 4}px` }}
-                      >
-                        <div className="flex items-start justify-between gap-1">
-                          <div className="text-xs font-medium truncate flex-1">{patient?.nameEn}</div>
-                          <span className={`text-[9px] mono px-1 py-0.5 rounded border ${status.chip} whitespace-nowrap`}>
-                            {status.label}
-                          </span>
+                <div style={{flex:1,height:2,background:'linear-gradient(90deg,#0C6B5A,rgba(12,107,90,.2))',borderRadius:1}}/>
+              </div>
+            )}
+            {TIME_SLOTS.map((slot,idx)=>(
+              <div key={slot} style={{display:'grid',gridTemplateColumns:cols,borderBottom:'1px solid #EEF2F0',minHeight:SLOT_H}}>
+                {/* Time label */}
+                <div style={{padding:'0 14px',display:'flex',alignItems:'center',fontSize:12,fontWeight:idx%2===0?700:400,letterSpacing:idx%2===0?'-.3px':'normal',color:idx%2===0?'#3D5850':'#B0C4BC',borderRight:'1px solid #DCE4E0',background:'#FAFBFA',flexShrink:0}}>
+                  {idx%2===0?slot:''}
+                </div>
+                {DOCTORS.map(doc=>{
+                  const apt=appointments.find(a=>a.doctorId===doc.id&&a.start===slot&&a.status!=='cancelled'&&a.status!=='no-show');
+                  if(apt) {
+                    const patient=patients.find(p=>p.id===apt.patientId);
+                    const cells=apt.dur/30;
+                    const dc=DOC_COLORS[doc.color];
+                    const isDrag=dragging?.id===apt.id;
+                    const nurse=NURSES.find(n=>n.id===apt.nurseId);
+                    return(
+                      <button key={doc.id+slot}
+                        onClick={()=>setDetailModal(apt)}
+                        draggable onDragStart={()=>setDragging(apt)} onDragEnd={()=>{setDragging(null);setDragOver(null);}}
+                        className={`appt-btn${isDrag?' dragging':''}`}
+                        style={{
+                          gridRow:`span ${cells}`,minHeight:`${cells*SLOT_H-2}px`,
+                          margin:2,padding:'7px 10px',
+                          borderRadius:8,border:`1px solid ${dc.left}30`,
+                          borderLeft:`3px solid ${dc.left}`,
+                          background:dc.bg,
+                          textAlign:'left',display:'flex',flexDirection:'column',gap:3,
+                          overflow:'hidden',position:'relative',
+                        }}>
+                        {/* Drag grip */}
+                        <div className="appt-grip" style={{position:'absolute',top:4,right:4,display:'flex',gap:1.5,flexDirection:'column'}}>
+                          {[0,1,2].map(i=><div key={i} style={{display:'flex',gap:1.5}}>{[0,1].map(j=><div key={j} style={{width:2.5,height:2.5,borderRadius:'50%',background:'rgba(0,0,0,.2)'}}/>)}</div>)}
                         </div>
-                        <div className="text-[11px] truncate opacity-80">{apt.procedure}</div>
-                        <div className="text-[10px] mono opacity-70 mt-0.5 flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5" />
-                          {apt.start} · {apt.dur}m
-                          {apt.nurseId && (
-                            <span className="ml-auto flex items-center gap-0.5 text-stone-600">
-                              <User className="w-2.5 h-2.5" />
-                              {NURSES.find(n => n.id === apt.nurseId)?.name.replace('Nurse ', '')}
-                            </span>
-                          )}
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:4}}>
+                          <div style={{fontSize:12.5,fontWeight:700,color:'#111814',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{patient?.nameEn}</div>
+                          {/* Clickable status chip — advances without opening modal */}
+                          <button className="status-chip-btn" onClick={e=>cycleStatus(e,apt.id,apt.status)} title={STATUS_NEXT[apt.status]?`→ ${STATUS_CFG[STATUS_NEXT[apt.status]]?.label}`:'Final status'} style={{flexShrink:0,border:'none',padding:0,background:'transparent'}}>
+                            <StatusChip status={apt.status} isAr={isAr}/>
+                          </button>
+                        </div>
+                        <div style={{fontSize:12,fontWeight:600,color:'#3D5850',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{apt.procedure}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:12,color:'#6A8880',fontWeight:500}}>
+                          <Clock size={10}/>{apt.start} · {apt.dur}m
+                          {nurse&&<span style={{marginLeft:'auto',fontSize:12,fontWeight:600,color:'#4E6860'}}>{nurse.name.replace('Nurse ','')}</span>}
                         </div>
                       </button>
                     );
                   }
-                  // Check if a previous appointment occupies this slot
-                  const occupied = appointments.some(a => {
-                    if (a.doctorId !== doc.id) return false;
-                    if (a.status === 'cancelled' || a.status === 'no-show') return false;
-                    const startIdx = TIME_SLOTS.indexOf(a.start);
-                    const endIdx = startIdx + a.dur / 30;
-                    const thisIdx = TIME_SLOTS.indexOf(slot);
-                    return thisIdx > startIdx && thisIdx < endIdx;
-                  });
-                  if (occupied) return <div key={doc.id + slot} className="border-r border-stone-200 last:border-r-0" />;
-
-                  // Blocked? (NEW: feedback item 10)
-                  const blocked = isSlotBlocked(doc.id, date, slot);
-                  if (blocked) {
-                    const reason = blockedReason(doc.id, date, slot);
-                    return (
-                      <div
-                        key={doc.id + slot}
-                        title={reason || 'Unavailable'}
-                        className="grid-cell-blocked border-r border-stone-200 last:border-r-0 flex items-center justify-center"
-                      >
-                        {idx % 2 === 0 && reason && (
-                          <span className="text-[9px] text-stone-400 px-1 truncate">{reason}</span>
-                        )}
+                  const occupied=appointments.some(a=>{ if(a.doctorId!==doc.id||a.status==='cancelled'||a.status==='no-show') return false; const s=TIME_SLOTS.indexOf(a.start); return TIME_SLOTS.indexOf(slot)>s&&TIME_SLOTS.indexOf(slot)<s+a.dur/30; });
+                  if(occupied) return <div key={doc.id+slot} style={{borderRight:'1px solid #EEF2F0'}}/>;
+                  const blocked=isSlotBlocked(doc.id,date,slot);
+                  if(blocked) {
+                    const reason=blockedReason(doc.id,date,slot);
+                    return(
+                      <div key={doc.id+slot} title={reason||'Unavailable'} className="grid-cell-blocked" style={{borderRight:'1px solid #EEF2F0',display:'flex',alignItems:'center',padding:'0 8px'}}>
+                        {reason&&<span style={{fontSize:12,color:'#4E6860',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{reason}</span>}
                       </div>
                     );
                   }
-
-                  const isDragOver = dragOverCell?.doctorId === doc.id && dragOverCell?.slot === slot;
-                  return (
-                    <div
-                      key={doc.id + slot}
-                      onClick={() => setBookingModal({ doctorId: doc.id, slot })}
-                      onDragOver={(e) => handleDragOver(e, doc.id, slot)}
-                      onDrop={(e) => handleDrop(e, doc.id, slot)}
-                      className={`grid-cell ${isDragOver ? 'grid-cell-drag-over' : ''} border-r border-stone-200 last:border-r-0`}
-                    />
+                  const isDO=dragOver?.docId===doc.id&&dragOver?.slot===slot;
+                  return(
+                    <div key={doc.id+slot}
+                      onClick={()=>setBookingModal({doctorId:doc.id,slot})}
+                      onDragOver={e=>handleDragOver(e,doc.id,slot)}
+                      onDrop={e=>handleDrop(e,doc.id,slot)}
+                      className={`grid-cell${isDO?' grid-cell-dragover':''}`}
+                      style={{borderRight:'1px solid #EEF2F0'}}/>
                   );
                 })}
               </div>
@@ -497,1307 +414,484 @@ export default function ReceptionPrototype() {
           </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-xs text-stone-500">
-          <div>{isArabic ? 'انقر فوق أي خلية فارغة لحجز موعد · اسحب الموعد لإعادة الجدولة' : 'Click empty cell to book · Drag appointment to reschedule · Hashed = unavailable'}</div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {Object.entries(STATUS_FLOW).slice(0, 6).map(([k, s]) => (
-              <LegendDot key={k} label={s.label} colorClass={s.dot} />
-            ))}
+        {/* Legend strip — above grid */}
+        <div style={{marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {Object.entries(STATUS_CFG).map(([k,cfg])=>{
+              const [bg,fg]=cfg.chip;
+              return(
+                <span key={k} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,fontWeight:600,padding:'3px 9px',borderRadius:20,background:bg,color:fg}}>
+                  <span style={{width:6,height:6,borderRadius:'50%',background:cfg.dot,display:'inline-block',flexShrink:0}}/>
+                  {cfg.label}
+                </span>
+              );
+            })}
           </div>
+          <span style={{fontSize:12,color:'#4E6860',fontWeight:500}}>Click slot to book · Drag to reschedule · <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>⌘</span> Hashed = unavailable</span>
         </div>
       </main>
 
-      {bookingModal && (
-        <BookingModal
-          isArabic={isArabic}
-          doctor={DOCTORS.find(d => d.id === bookingModal.doctorId)}
-          slot={bookingModal.slot}
-          date={date}
-          patients={patients}
-          onClose={() => setBookingModal(null)}
-          onConfirm={addAppointment}
-          onAddPatient={addPatient}
-          onUpdatePatient={updatePatient}
-        />
-      )}
-
-      {detailModal && (
-        <AppointmentDetail
-          isArabic={isArabic}
-          appointment={detailModal}
-          patient={patients.find(p => p.id === detailModal.patientId)}
-          onClose={() => setDetailModal(null)}
-          onUpdate={(patch) => { updateAppointment(detailModal.id, patch); setDetailModal({ ...detailModal, ...patch }); }}
-          onViewFile={(patient) => { setDetailModal(null); setFileViewer(patient); }}
-        />
-      )}
-
-      {showSchedules && <DoctorScheduleModal onClose={() => setShowSchedules(false)} />}
-      {fileViewer && <PatientFileViewer patient={fileViewer} onUpdate={updatePatient} onClose={() => setFileViewer(null)} />}
+      {/* ── MODALS ── */}
+      {bookingModal&&<BookingModal isAr={isAr} doctor={DOCTORS.find(d=>d.id===bookingModal.doctorId)} slot={bookingModal.slot} date={date} patients={patients} onClose={()=>setBookingModal(null)} onConfirm={addAppt} onAddPatient={addPatient} onUpdatePatient={updatePatient}/>}
+      {detailModal&&<AppointmentDetail isAr={isAr} appointment={detailModal} patient={patients.find(p=>p.id===detailModal.patientId)} onClose={()=>setDetailModal(null)} onUpdate={patch=>{updateAppt(detailModal.id,patch);setDetailModal({...detailModal,...patch});}} onViewFile={p=>{setDetailModal(null);setFileViewer(p);}}/>}
+      {showSchedules&&<DoctorScheduleModal onClose={()=>setShowSched(false)}/>}
+      {fileViewer&&<PatientFileViewer patient={fileViewer} onUpdate={updatePatient} onClose={()=>setFileViewer(null)}/>}
     </div>
   );
 }
 
-// =====================================================================
-// SUB-COMPONENTS
-// =====================================================================
-function Stat({ label, value, accent }) {
-  const color = accent === 'emerald' ? 'text-emerald-700'
-              : accent === 'amber'   ? 'text-amber-700'
-              : accent === 'teal'    ? 'text-teal-700'
-              : 'text-stone-900';
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <span className={`text-base font-semibold mono ${color}`}>{value}</span>
-      <span className="text-xs text-stone-500">{label}</span>
+// ─── Modal shell ──────────────────────────────────────────────────────────────
+function Modal({ children, onClose, width=600 }) {
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(15,31,26,.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:24}}>
+      <div style={{width:'100%',maxWidth:width,maxHeight:'90vh',overflowY:'auto',background:'#fff',borderRadius:16,boxShadow:'0 20px 60px rgba(15,31,26,.25)',position:'relative'}} onClick={e=>e.stopPropagation()}>
+        {children}
+      </div>
     </div>
   );
 }
-
-function LegendDot({ label, colorClass }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className={`w-1.5 h-1.5 rounded-full ${colorClass}`} />
-      <span>{label}</span>
+function ModalHeader({ title, sub, onClose }) {
+  return(
+    <div style={{padding:'18px 24px',borderBottom:'1px solid #EEF2F0',display:'flex',alignItems:'flex-start',justifyContent:'space-between',position:'sticky',top:0,background:'#fff',zIndex:1}}>
+      <div><div style={{fontSize:15,fontWeight:800,color:'#111814',letterSpacing:'-.3px'}}>{title}</div>{sub&&<div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>{sub}</div>}</div>
+      <button onClick={onClose} style={{width:44,height: 44,borderRadius:'50%',background:'#F5F8F7',border:'1px solid #DCE4E0',display:'flex',alignItems:'center',justifyContent:'center',color:'#6A8880',cursor:'pointer'}}><X size={14}/></button>
     </div>
   );
 }
+function FormField({ label, error, children }) {
+  return(
+    <div>
+      <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840',marginBottom:5}}>{label}</div>
+      {children}
+      {error&&<div style={{fontSize:12,color:'#C04030',marginTop:4,fontWeight:600}}>{error}</div>}
+    </div>
+  );
+}
+function Grid2({ children }) { return <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>{children}</div>; }
+function SectionLabel({ children }) { return <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840',marginBottom:8}}>{children}</div>; }
 
-// ---- Date picker popover (NEW: feedback item 1) ---------------------
+// ─── Date picker popover ──────────────────────────────────────────────────────
 function DatePickerPopover({ value, onSelect, onClose }) {
-  const [viewMonth, setViewMonth] = useState(new Date(value.getFullYear(), value.getMonth(), 1));
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
-  const year = viewMonth.getFullYear();
-  const month = viewMonth.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  // Sunday = 0, build a 6x7 grid starting from Sunday (GCC week)
-  const cells = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const isSameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
-  return (
-    <div ref={ref} className="absolute top-full mt-1 left-1/2 -translate-x-1/2 z-50 bg-white border border-stone-200 rounded-lg shadow-lg p-3 w-72">
-      <div className="flex items-center justify-between mb-2">
-        <button onClick={() => setViewMonth(new Date(year, month - 1, 1))} className="p-1 hover:bg-stone-100 rounded">
-          <ChevronLeft className="w-3.5 h-3.5" />
-        </button>
-        <div className="text-sm font-semibold">{viewMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</div>
-        <button onClick={() => setViewMonth(new Date(year, month + 1, 1))} className="p-1 hover:bg-stone-100 rounded">
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+  const [view, setView] = useState(new Date(value.getFullYear(), value.getMonth(), 1));
+  const yr=view.getFullYear(), mo=view.getMonth();
+  const daysInMonth=new Date(yr,mo+1,0).getDate();
+  const startDay=(new Date(yr,mo,1).getDay()+6)%7;
+  const cells=Array.from({length:Math.ceil((startDay+daysInMonth)/7)*7},(_,i)=>{ const d=i-startDay+1; return d>=1&&d<=daysInMonth?new Date(yr,mo,d):null; });
+  return(
+    <div style={{position:'absolute',top:'calc(100% + 8px)',left:0,zIndex:200,background:'#fff',borderRadius:12,border:'1px solid #DCE4E0',boxShadow:'0 8px 24px rgba(15,31,26,.14)',padding:16,width:260}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <button onClick={()=>setView(new Date(yr,mo-1,1))} style={{background:'none',border:'none',cursor:'pointer',color:'#5A7870',padding:4}}><ChevronLeft size={15}/></button>
+        <span style={{fontSize:13,fontWeight:700,color:'#111814'}}>{view.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</span>
+        <button onClick={()=>setView(new Date(yr,mo+1,1))} style={{background:'none',border:'none',cursor:'pointer',color:'#5A7870',padding:4}}><ChevronRight size={15}/></button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5 mb-1">
-        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-          <div key={d} className="text-[10px] text-stone-500 text-center py-1 font-medium">{d}</div>
-        ))}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:6}}>
+        {['M','T','W','T','F','S','S'].map((d,i)=><div key={i} style={{fontSize:12,fontWeight:700,textAlign:'center',color:'#4E6860',padding:'2px 0'}}>{d}</div>)}
       </div>
-      <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((d, i) => {
-          if (d === null) return <div key={i} />;
-          const cellDate = new Date(year, month, d);
-          const isToday = isSameDay(cellDate, today);
-          const isSelected = isSameDay(cellDate, value);
-          const isFriday = cellDate.getDay() === 5;
-          return (
-            <button
-              key={i}
-              onClick={() => onSelect(cellDate)}
-              className={`text-xs py-1.5 rounded hover:bg-stone-200 ${
-                isSelected ? 'bg-stone-900 text-white hover:bg-stone-800' :
-                isToday    ? 'bg-stone-100 font-semibold' :
-                isFriday   ? 'text-stone-400' : ''
-              }`}
-            >
-              {d}
-            </button>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
+        {cells.map((d,i)=>{
+          if(!d) return <div key={i}/>;
+          const isToday=d.toDateString()===new Date().toDateString();
+          const isSel=d.toDateString()===value.toDateString();
+          return(
+            <button key={i} onClick={()=>onSelect(d)} style={{padding:'6px 2px',borderRadius:7,fontSize:12,fontWeight:isSel||isToday?700:500,background:isSel?CLINIC_CONFIG.primaryColor:isToday?'#E8F3F0':'transparent',color:isSel?'#fff':isToday?CLINIC_CONFIG.primaryColor:'#2A3830',border:'none',cursor:'pointer'}}>{d.getDate()}</button>
           );
         })}
       </div>
-      <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-500 text-center">
-        Friday is the GCC weekend
-      </div>
+      <button onClick={onClose} style={{marginTop:10,width:'100%',padding:'6px',borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',fontSize:12,fontWeight:600,color:'#5A7870',cursor:'pointer'}}>Close</button>
     </div>
   );
 }
 
-// ---- BOOKING MODAL --------------------------------------------------
-function BookingModal({ doctor, slot, date, patients, onClose, onConfirm, onAddPatient, onUpdatePatient, isArabic }) {
-  const [step, setStep] = useState(1); // 1: patient, 2: procedure, 3: confirm
-  const [searchQ, setSearchQ] = useState('');
+// ─── Booking Modal ────────────────────────────────────────────────────────────
+function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, onAddPatient, onUpdatePatient }) {
+  const [step, setStep] = useState(1);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [searchQ, setSearchQ] = useState('');
   const [newPatient, setNewPatient] = useState(null);
-  const [procedure, setProcedure] = useState(null);
-  const [customProcedureName, setCustomProcedureName] = useState('');
+  const [procedure, setProcedure] = useState('');
+  const [customName, setCustomName] = useState('');
   const [customDur, setCustomDur] = useState(30);
   const [customPrice, setCustomPrice] = useState(0);
-  const [nurseId, setNurseId] = useState(null);
-  const [asstDoctorId, setAsstDoctorId] = useState(null);
-  const [time, setTime] = useState(slot);
+  const [nurseId, setNurseId] = useState('');
+  const [asstDoctorId, setAsstDoctorId] = useState('');
   const [notes, setNotes] = useState('');
-
-  // Always re-resolve selectedPatient against the live patient list so edits made
-  // mid-booking (e.g. updating reception notes) are reflected immediately.
-  const liveSelectedPatient = selectedPatient ? (patients.find(p => p.id === selectedPatient.id) || selectedPatient) : null;
-  const patient = liveSelectedPatient || newPatient;
-
-  const searchResults = useMemo(() => {
-    if (!searchQ) return [];
-    const q = searchQ.toLowerCase().replace(/\s/g, '');
-    return patients.filter(p =>
-      (p.qid && p.qid.includes(q)) ||
-      (p.fileNo && p.fileNo.toLowerCase().includes(q)) ||
-      p.nameEn.toLowerCase().includes(searchQ.toLowerCase()) ||
-      p.phone.replace(/\s/g, '').includes(q)
-    );
-  }, [searchQ, patients]);
-
+  const [time, setTime] = useState(slot);
+  const dc = DOC_COLORS[doctor?.color];
+  const procList = PROCEDURES[doctor?.specialty]||[];
+  const procObj = procedure==='custom'?{name:customName,dur:customDur,price:customPrice,needsNurse:false}:(procList.find(p=>p.name===procedure)||null);
   const handleConfirm = () => {
-    const finalProc = procedure || { name: customProcedureName, dur: customDur, price: customPrice, needsNurse: !!nurseId };
-    onConfirm({
-      doctorId: doctor.id,
-      patientId: patient.id,
-      start: time,
-      dur: finalProc.dur,
-      procedure: finalProc.name,
-      nurseId,
-      asstDoctorId,
-      notes,
-    });
+    if(!selectedPatient||!procObj) return;
+    onConfirm({doctorId:doctor.id,patientId:selectedPatient.id,start:time,dur:procObj.dur,procedure:procObj.name,status:'booked',nurseId:nurseId||null,asstDoctorId:asstDoctorId||null,notes});
   };
+  const results = patients.filter(p=>{ if(!searchQ) return true; const q=searchQ.toLowerCase(); return p.nameEn.toLowerCase().includes(q)||p.qid.includes(q)||(p.fileNo&&p.fileNo.includes(q))||p.phone.includes(q); });
+  const STEP_LABELS = ['Patient','Procedure','Confirm'];
 
-  const canContinue = step === 1 ? !!patient
-                    : step === 2 ? (!!procedure || (customProcedureName && customDur > 0))
-                    : true;
-
-  return (
-    <div className="fixed inset-0 z-50 bg-stone-900/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-stone-200 flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold">{isArabic ? 'حجز موعد جديد' : 'New appointment'}</div>
-            <div className="text-xs text-stone-500 mt-0.5 mono">
-              {doctor.nameEn} · {time} · {fmtShort(date)}
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 hover:bg-stone-100 rounded"><X className="w-4 h-4" /></button>
-        </div>
-
-        {/* Stepper */}
-        <div className="px-6 py-3 border-b border-stone-200 flex items-center gap-2">
-          {['Patient', 'Procedure', 'Confirm'].map((label, i) => (
-            <React.Fragment key={label}>
-              <div className={`flex items-center gap-2 ${step > i + 1 ? 'text-stone-400' : step === i + 1 ? 'text-stone-900' : 'text-stone-400'}`}>
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold ${step === i + 1 ? 'bg-stone-900 text-white' : step > i + 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-500'}`}>
-                  {step > i + 1 ? <CheckCircle2 className="w-3 h-3" /> : i + 1}
-                </div>
-                <span className="text-xs font-medium">{label}</span>
+  return(
+    <Modal onClose={onClose} width={680}>
+      <ModalHeader title={`New booking — ${doctor?.nameEn}`} sub={`${fmtShort(date)} · ${slot}`} onClose={onClose}/>
+      {/* Stepper */}
+      <div style={{padding:'14px 24px 0',display:'flex',alignItems:'center',gap:0,borderBottom:'1px solid #EEF2F0'}}>
+        {STEP_LABELS.map((lbl,i)=>(
+          <React.Fragment key={lbl}>
+            <button onClick={()=>i<step-1&&setStep(i+1)} style={{display:'flex',alignItems:'center',gap:7,background:'transparent',border:'none',padding:'8px 0',cursor:i<step-1?'pointer':'default',marginBottom:-1,borderBottom:`2.5px solid ${step===i+1?CLINIC_CONFIG.primaryColor:'transparent'}`}}>
+              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,background:step>i+1?CLINIC_CONFIG.primaryColor:step===i+1?CLINIC_CONFIG.primaryColor:'#EEF2F0',color:step>=i+1?'#fff':'#6A8880'}}>
+                {step>i+1?<CheckCircle2 size={11}/>:i+1}
               </div>
-              {i < 2 && <div className="flex-1 h-px bg-stone-200" />}
-            </React.Fragment>
-          ))}
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {step === 1 && (
-            <PatientStep
-              searchQ={searchQ}
-              setSearchQ={setSearchQ}
-              results={searchResults}
-              selectedPatient={liveSelectedPatient}
-              setSelectedPatient={(p) => { setSelectedPatient(p); setNewPatient(null); }}
-              newPatient={newPatient}
-              setNewPatient={(p) => { setNewPatient(p); setSelectedPatient(null); }}
-              onAddPatient={onAddPatient}
-              onUpdatePatient={onUpdatePatient}
-            />
-          )}
-          {step === 2 && (
-            <ProcedureStep
-              doctor={doctor}
-              procedure={procedure}
-              setProcedure={setProcedure}
-              customProcedureName={customProcedureName}
-              setCustomProcedureName={setCustomProcedureName}
-              customDur={customDur}
-              setCustomDur={setCustomDur}
-              customPrice={customPrice}
-              setCustomPrice={setCustomPrice}
-              nurseId={nurseId}
-              setNurseId={setNurseId}
-              asstDoctorId={asstDoctorId}
-              setAsstDoctorId={setAsstDoctorId}
-              time={time}
-              setTime={setTime}
-              notes={notes}
-              setNotes={setNotes}
-              patient={patient}
-              onUpdatePatient={onUpdatePatient}
-            />
-          )}
-          {step === 3 && (
-            <ConfirmStep
-              doctor={doctor}
-              time={time}
-              date={date}
-              patient={patient}
-              procedure={procedure || { name: customProcedureName, dur: customDur, price: customPrice }}
-              nurseId={nurseId}
-              asstDoctorId={asstDoctorId}
-              notes={notes}
-            />
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-stone-200 flex items-center justify-between bg-stone-50">
-          <button onClick={() => step > 1 ? setStep(step - 1) : onClose()} className="px-3 py-1.5 text-sm text-stone-600 hover:text-stone-900">
-            {step === 1 ? (isArabic ? 'إلغاء' : 'Cancel') : (isArabic ? 'رجوع' : 'Back')}
-          </button>
-          {step < 3 ? (
-            <button onClick={() => setStep(step + 1)} disabled={!canContinue}
-              className="px-4 py-1.5 text-sm bg-stone-900 text-white rounded-md hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed">
-              {isArabic ? 'متابعة' : 'Continue'}
+              <span style={{fontSize:13,fontWeight:step===i+1?700:500,color:step===i+1?'#111814':'#6A8880'}}>{lbl}</span>
             </button>
-          ) : (
-            <button onClick={handleConfirm} className="px-4 py-1.5 text-sm bg-emerald-700 text-white rounded-md hover:bg-emerald-800 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              {isArabic ? 'تأكيد الحجز' : 'Confirm booking'}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---- PATIENT STEP (with File# search + ID upload) -------------------
-function PatientStep({ searchQ, setSearchQ, results, selectedPatient, setSelectedPatient, newPatient, setNewPatient, onAddPatient, onUpdatePatient }) {
-  const [showNewForm, setShowNewForm] = useState(false);
-  const [form, setForm] = useState({
-    qid: '', nameEn: '', nameAr: '', phone: '+974 ', dob: '',
-    insurer: 'Cash/Card', policy: '',
-    idFront: null, idBack: null, insuranceCard: null,
-    allergies: '', conditions: '', notes: '',
-  });
-
-  const qidValid = !form.qid || validateQID(form.qid);
-  const phoneValid = !form.phone || validateQatarPhone(form.phone);
-  const canSave = form.nameEn && validateQID(form.qid) && validateQatarPhone(form.phone) && form.dob && form.idFront;
-
-  const saveNew = () => {
-    const patient = onAddPatient({
-      ...form,
-      eligible: form.insurer === 'Cash/Card' ? null : 'pending',
-      allergies: form.allergies ? form.allergies.split(',').map(s => s.trim()).filter(Boolean) : [],
-      conditions: form.conditions ? form.conditions.split(',').map(s => s.trim()).filter(Boolean) : [],
-      lastVisit: null,
-    });
-    setNewPatient(patient);
-    setShowNewForm(false);
-  };
-
-  return (
-    <div>
-      <label className="text-xs text-stone-600 font-medium">Search patient</label>
-      <div className="mt-1.5 relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-        <input
-          value={searchQ}
-          onChange={e => { setSearchQ(e.target.value); if (e.target.value) setShowNewForm(false); }}
-          placeholder="File # (YC-2024-0142), QID, name, or phone"
-          className="w-full pl-9 pr-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 mono"
-        />
+            {i<2&&<div style={{flex:1,height:1,background:'#EEF2F0',margin:'0 8px'}}/>}
+          </React.Fragment>
+        ))}
       </div>
 
-      {searchQ && results.length > 0 && (
-        <div className="mt-3 border border-stone-200 rounded-md overflow-hidden">
-          {results.map(p => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedPatient(p)}
-              className={`w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-stone-50 border-b border-stone-100 last:border-b-0 ${selectedPatient?.id === p.id ? 'bg-stone-50' : ''}`}
-            >
-              <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center">
-                <User className="w-4 h-4 text-stone-500" />
+      <div style={{padding:'20px 24px'}}>
+        {/* Step 1: Patient */}
+        {step===1&&(
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <FormField label="Search patient">
+              <div style={{position:'relative'}}>
+                <Search size={14} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'#4E6860'}}/>
+                <input value={searchQ} onChange={e=>{setSearchQ(e.target.value);setNewPatient(null);}} placeholder="Name, QID, file number or phone…" style={{paddingLeft:34}}/>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium flex items-center gap-2">
-                  {p.nameEn}
-                  <span className="text-[10px] mono text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">{p.fileNo}</span>
-                </div>
-                <div className="text-xs text-stone-500 mono">QID {p.qid} · {p.phone}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-stone-600">{p.insurer}</div>
-                <div className="text-[10px] text-stone-400 mono">Last: {p.lastVisit || 'New'}</div>
-              </div>
-              {selectedPatient?.id === p.id && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {searchQ && results.length === 0 && !showNewForm && (
-        <div className="mt-3 text-xs text-stone-700 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-md flex items-center justify-between">
-          <span>No patient found.</span>
-          <button onClick={() => setShowNewForm(true)} className="text-amber-900 font-medium underline flex items-center gap-1">
-            <UserPlus className="w-3 h-3" /> Register new patient
-          </button>
-        </div>
-      )}
-
-      {!showNewForm && !searchQ && (
-        <button onClick={() => setShowNewForm(true)} className="mt-3 w-full px-3 py-2.5 border border-dashed border-stone-300 rounded-md text-sm text-stone-600 hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-2">
-          <UserPlus className="w-3.5 h-3.5" />
-          Register new patient
-        </button>
-      )}
-
-      {showNewForm && (
-        <NewPatientForm
-          form={form} setForm={setForm}
-          qidValid={qidValid} phoneValid={phoneValid}
-          canSave={canSave} onSave={saveNew}
-          onCancel={() => setShowNewForm(false)}
-        />
-      )}
-
-      {selectedPatient && <PatientCard patient={selectedPatient} onUpdate={onUpdatePatient} />}
-      {newPatient && <PatientCard patient={newPatient} isNew />}
-    </div>
-  );
-}
-
-// ---- New patient form with ID + insurance upload (NEW: item 8) ------
-function NewPatientForm({ form, setForm, qidValid, phoneValid, canSave, onSave, onCancel }) {
-  return (
-    <div className="mt-4 p-4 bg-stone-50 border border-stone-200 rounded-md space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
-          <UserPlus className="w-3.5 h-3.5" /> New patient registration
-        </div>
-        <button onClick={onCancel} className="text-xs text-stone-500 hover:text-stone-700">Cancel</button>
-      </div>
-
-      <div className="text-[10px] text-stone-500 -mt-1">
-        File # will be auto-assigned (e.g. YC-2026-0XXX) on save
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="QID (Qatar ID)" value={form.qid}
-          onChange={v => setForm({ ...form, qid: v.replace(/\D/g, '').slice(0, 11) })}
-          placeholder="11 digits" mono error={form.qid && !qidValid ? 'Must be 11 digits' : null} />
-        <Field label="Full name (English)" value={form.nameEn}
-          onChange={v => setForm({ ...form, nameEn: v })} placeholder="e.g. Sara Al-Mannai" />
-        <Field label="Name (Arabic)" value={form.nameAr}
-          onChange={v => setForm({ ...form, nameAr: v })} placeholder="الاسم بالعربية" />
-        <Field label="Phone (+974)" value={form.phone}
-          onChange={v => setForm({ ...form, phone: v })} placeholder="+974 5512 4488" mono
-          error={form.phone && !phoneValid ? 'Format: +974 #### ####' : null} />
-        <Field label="Date of birth" value={form.dob}
-          onChange={v => setForm({ ...form, dob: v })} placeholder="YYYY-MM-DD" type="date" mono />
-        <div>
-          <label className="text-xs text-stone-600 font-medium">Insurer</label>
-          <select value={form.insurer}
-            onChange={e => setForm({ ...form, insurer: e.target.value })}
-            className="mt-1.5 w-full px-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 bg-white">
-            <option>Cash/Card</option>
-            <option>QLM</option>
-            <option>AXA</option>
-            <option>Daman</option>
-            <option>Bupa Arabia</option>
-            <option>Cigna</option>
-            <option>MetLife</option>
-          </select>
-        </div>
-        {form.insurer !== 'Cash/Card' && (
-          <Field label="Policy number" value={form.policy}
-            onChange={v => setForm({ ...form, policy: v })} placeholder="e.g. QLM-447821" mono />
-        )}
-      </div>
-
-      <div>
-        <div className="text-xs font-semibold text-stone-700 mt-2 mb-1.5">Medical information (optional)</div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Known allergies (comma-separated)" value={form.allergies}
-            onChange={v => setForm({ ...form, allergies: v })} placeholder="e.g. Penicillin, Latex" />
-          <Field label="Chronic conditions" value={form.conditions}
-            onChange={v => setForm({ ...form, conditions: v })} placeholder="e.g. Diabetes, Hypertension" />
-        </div>
-        <div className="mt-2">
-          <label className="text-xs text-stone-600 font-medium">Reception notes</label>
-          <textarea value={form.notes}
-            onChange={e => setForm({ ...form, notes: e.target.value })}
-            rows={2} placeholder="Visible to reception and doctors. E.g. prefers afternoons, anxious, ride arranged..."
-            className="mt-1.5 w-full px-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 resize-none" />
-        </div>
-      </div>
-
-      {/* Document upload (NEW: feedback item 8) */}
-      <div>
-        <div className="text-xs font-semibold text-stone-700 mt-2 mb-1.5 flex items-center gap-1.5">
-          <Paperclip className="w-3.5 h-3.5" /> Identity & insurance documents
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <FileUploadField label="QID front" required value={form.idFront} onChange={(v) => setForm({ ...form, idFront: v })} />
-          <FileUploadField label="QID back" value={form.idBack} onChange={(v) => setForm({ ...form, idBack: v })} />
-          <FileUploadField label="Insurance card" value={form.insuranceCard} onChange={(v) => setForm({ ...form, insuranceCard: v })} disabled={form.insurer === 'Cash/Card'} />
-        </div>
-      </div>
-
-      <div className="text-[11px] text-stone-500 leading-relaxed border-t border-stone-200 pt-3">
-        <Shield className="w-3 h-3 inline -mt-0.5 mr-1" />
-        Documents are encrypted at rest. Patient consent for data processing (per Qatar PDPPL) will be collected at check-in.
-        Records retained for 10 years per MOPH guidelines.
-      </div>
-
-      <button onClick={onSave} disabled={!canSave}
-        className="w-full px-3 py-2 text-sm bg-stone-900 text-white rounded-md hover:bg-stone-800 disabled:bg-stone-300 flex items-center justify-center gap-2">
-        <Save className="w-3.5 h-3.5" />
-        Save patient & assign File #
-      </button>
-      {!canSave && (
-        <div className="text-[10px] text-stone-500 -mt-2 text-center">
-          QID, name, DOB, phone, and QID front upload are required.
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---- File upload field (mock for prototype) -------------------------
-function FileUploadField({ label, value, onChange, required, disabled }) {
-  return (
-    <div className={disabled ? 'opacity-50' : ''}>
-      <label className="text-[11px] text-stone-600 font-medium">
-        {label}{required && <span className="text-red-600 ml-0.5">*</span>}
-      </label>
-      {!value ? (
-        <button
-          disabled={disabled}
-          onClick={() => onChange(`${label.toLowerCase().replace(/\s/g, '-')}-${Date.now()}.jpg`)}
-          className="mt-1 w-full h-20 border border-dashed border-stone-300 rounded-md hover:border-stone-500 hover:bg-white flex flex-col items-center justify-center gap-1 text-stone-500 disabled:cursor-not-allowed"
-        >
-          <Upload className="w-4 h-4" />
-          <span className="text-[10px]">Click to upload</span>
-        </button>
-      ) : (
-        <div className="mt-1 w-full h-20 border border-emerald-300 bg-emerald-50 rounded-md flex flex-col items-center justify-center gap-1 text-emerald-800 relative">
-          <FileImage className="w-5 h-5" />
-          <span className="text-[10px] mono truncate px-2 max-w-full">{value.slice(0, 18)}...</span>
-          <button onClick={() => onChange(null)} className="absolute top-0.5 right-0.5 p-0.5 hover:bg-emerald-100 rounded">
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, value, onChange, placeholder, type = 'text', mono, error }) {
-  return (
-    <div>
-      <label className="text-xs text-stone-600 font-medium">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className={`mt-1.5 w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:border-stone-500 ${error ? 'border-red-300' : 'border-stone-300'} ${mono ? 'mono' : ''}`} />
-      {error && <div className="text-[10px] text-red-600 mt-0.5">{error}</div>}
-    </div>
-  );
-}
-
-function PatientCard({ patient, isNew, onUpdate }) {
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [draftNotes, setDraftNotes] = useState(patient.notes || '');
-  useEffect(() => { setDraftNotes(patient.notes || ''); }, [patient.id, patient.notes]);
-  const saveNotes = () => { onUpdate(patient.id, { notes: draftNotes }); setEditingNotes(false); };
-
-  return (
-    <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-md flex items-start gap-3">
-      <CheckCircle2 className="w-5 h-5 text-emerald-700 mt-0.5 flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-
-        {/* Identity */}
-        <div className="text-sm font-medium text-emerald-900 flex items-center gap-2 flex-wrap">
-          {isNew && <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded mr-1.5 align-middle">NEW</span>}
-          {patient.nameEn}
-          <span className="text-[10px] mono text-emerald-700 bg-white border border-emerald-200 px-1.5 py-0.5 rounded">{patient.fileNo}</span>
-        </div>
-        <div className="text-xs text-emerald-800 mono mt-0.5">QID {patient.qid} · {patient.phone}</div>
-
-        {/* Reception notes — right after identity, always */}
-        {onUpdate && (
-          <div className="mt-2 pt-2 border-t border-emerald-200">
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-[10px] font-semibold text-emerald-900 uppercase tracking-wide">
-                Reception notes
-                <span className="ml-1.5 text-[9px] text-emerald-700 font-normal normal-case">(visible to doctors)</span>
-              </div>
-              {!editingNotes && (
-                <button onClick={() => setEditingNotes(true)} className="text-[10px] text-emerald-800 hover:text-emerald-900 flex items-center gap-1">
-                  <Edit3 className="w-3 h-3" />{patient.notes ? 'Edit' : 'Add'}
-                </button>
-              )}
-            </div>
-            {editingNotes ? (
-              <div className="space-y-1.5">
-                <textarea value={draftNotes} onChange={e => setDraftNotes(e.target.value)} rows={2} autoFocus
-                  placeholder="E.g. prefers afternoons, ride arranged, anxious about needles..."
-                  className="w-full px-2 py-1.5 text-xs border border-emerald-300 bg-white rounded focus:outline-none focus:border-emerald-500 resize-none" />
-                <div className="flex gap-1.5 justify-end">
-                  <button onClick={() => { setDraftNotes(patient.notes || ''); setEditingNotes(false); }}
-                    className="px-2 py-0.5 text-[10px] border border-emerald-300 rounded hover:bg-white">Cancel</button>
-                  <button onClick={saveNotes} className="px-2 py-0.5 text-[10px] bg-emerald-700 text-white rounded hover:bg-emerald-800 flex items-center gap-1">
-                    <Save className="w-2.5 h-2.5" /> Save</button>
-                </div>
-              </div>
-            ) : patient.notes ? (
-              <div className="text-xs text-emerald-900 italic">"{patient.notes}"</div>
-            ) : (
-              <div className="text-[11px] text-emerald-700/70 italic">No reception notes yet.</div>
-            )}
-          </div>
-        )}
-
-        {/* Insurance */}
-        {patient.insurer && patient.insurer !== 'Cash/Card' && (
-          <div className="mt-2 flex items-center gap-2">
-            <Shield className="w-3 h-3 text-emerald-700" />
-            <span className="text-xs text-emerald-900">{patient.insurer} · {patient.policy || '—'}</span>
-            {patient.eligible === true && <span className="text-[10px] bg-emerald-700 text-white px-1.5 py-0.5 rounded">Eligible</span>}
-            {patient.eligible === 'pending' && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Verifying...</span>}
-          </div>
-        )}
-
-        {/* Allergies */}
-        {patient.allergies && patient.allergies.length > 0 && (
-          <div className="mt-1.5 text-[11px] text-red-700 flex items-center gap-1">
-            <AlertCircle className="w-3 h-3" />
-            Allergies: {patient.allergies.join(', ')}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---- Procedure step with autocomplete + time + nurse + notes --------
-function ProcedureStep({ doctor, procedure, setProcedure, customProcedureName, setCustomProcedureName, customDur, setCustomDur, customPrice, setCustomPrice, nurseId, setNurseId, asstDoctorId, setAsstDoctorId, time, setTime, notes, setNotes, patient, onUpdatePatient }) {
-  const list = PROCEDURES[doctor.specialty] || [];
-  const isInsured = patient?.insurer && patient.insurer !== 'Cash/Card';
-  const isDental = ['General Dentistry', 'Orthodontics', 'Endodontics', 'Cosmetic Dentistry'].includes(doctor.specialty);
-  const dentalSpecialties = ['General Dentistry', 'Orthodontics', 'Endodontics', 'Cosmetic Dentistry'];
-  const availableAssistants = DOCTORS.filter(d => d.id !== doctor.id && dentalSpecialties.includes(d.specialty));
-  const [showCustom, setShowCustom] = useState(false);
-  const [autocompleteOpen, setAutocompleteOpen] = useState(false);
-  const filteredAuto = ALL_PROCEDURES.filter(p =>
-    p.name.toLowerCase().includes(customProcedureName.toLowerCase()) && customProcedureName.length > 0
-  ).slice(0, 5);
-
-  // Auto-suggest nurse if procedure requires one
-  const needsNurse = procedure?.needsNurse || false;
-
-  const [editingReceptionNotes, setEditingReceptionNotes] = useState(false);
-  const [draftReceptionNotes, setDraftReceptionNotes] = useState(patient?.notes || '');
-
-  const saveReceptionNotes = () => {
-    if (onUpdatePatient && patient) onUpdatePatient(patient.id, { notes: draftReceptionNotes });
-    setEditingReceptionNotes(false);
-  };
-
-  return (
-    <div className="space-y-4">
-
-      {/* Reception notes — patient-level, visible to doctors */}
-      {patient && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-[10px] font-semibold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
-              Reception notes
-              <span className="text-[9px] font-normal text-amber-700 normal-case">· {patient.nameEn} · visible to doctors</span>
-            </div>
-            {!editingReceptionNotes && (
-              <button onClick={() => setEditingReceptionNotes(true)}
-                className="text-[10px] text-amber-800 hover:text-amber-900 flex items-center gap-1">
-                <Edit3 className="w-3 h-3" />
-                {patient.notes ? 'Edit' : 'Add'}
-              </button>
-            )}
-          </div>
-          {editingReceptionNotes ? (
-            <div className="space-y-1.5">
-              <textarea value={draftReceptionNotes}
-                onChange={e => setDraftReceptionNotes(e.target.value)}
-                rows={2}
-                placeholder="E.g. prefers afternoons, ride arranged, anxious about needles..."
-                className="w-full px-2 py-1.5 text-xs border border-amber-300 bg-white rounded focus:outline-none focus:border-amber-500 resize-none"
-                autoFocus
-              />
-              <div className="flex gap-1.5 justify-end">
-                <button onClick={() => { setDraftReceptionNotes(patient.notes || ''); setEditingReceptionNotes(false); }}
-                  className="px-2 py-0.5 text-[10px] border border-amber-300 rounded hover:bg-white">Cancel</button>
-                <button onClick={saveReceptionNotes}
-                  className="px-2 py-0.5 text-[10px] bg-amber-700 text-white rounded hover:bg-amber-800 flex items-center gap-1">
-                  <Save className="w-2.5 h-2.5" /> Save
-                </button>
-              </div>
-            </div>
-          ) : patient.notes ? (
-            <div className="text-xs text-amber-900 italic">"{patient.notes}"</div>
-          ) : (
-            <div className="text-[11px] text-amber-700/70 italic">No reception notes yet.</div>
-          )}
-        </div>
-      )}
-
-      {/* Procedure picker */}
-      <div>
-        <div className="text-xs text-stone-600 mb-2 font-medium">Procedure with {doctor.nameEn}</div>
-        {!showCustom ? (
-          <>
-            <div className="space-y-1.5">
-              {list.map(p => (
-                <button key={p.name}
-                  onClick={() => { setProcedure(p); setNurseId(p.needsNurse && !nurseId ? null : nurseId); }}
-                  className={`w-full px-3 py-2.5 text-left border rounded-md flex items-center justify-between hover:border-stone-400 transition-colors ${procedure?.name === p.name ? 'border-stone-900 bg-stone-50' : 'border-stone-200'}`}>
-                  <div>
-                    <div className="text-sm font-medium flex items-center gap-2">
-                      {p.name}
-                      {p.needsNurse && <span className="text-[9px] bg-violet-100 text-violet-800 px-1 py-0.5 rounded">+ nurse</span>}
+            </FormField>
+            {/* Patient results */}
+            {results.length>0&&(
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {results.map(p=>(
+                  <button key={p.id} onClick={()=>{setSelectedPatient(p);setSearchQ('');setNewPatient(null);}} style={{padding:'11px 14px',borderRadius:10,border:`2px solid ${selectedPatient?.id===p.id?CLINIC_CONFIG.primaryColor:'#DCE4E0'}`,background:selectedPatient?.id===p.id?'#F0FAF6':'#fff',textAlign:'left',cursor:'pointer',transition:'all .13s'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                      <div>
+                        <div style={{fontSize:13.5,fontWeight:700,color:'#111814'}}>{p.nameEn}</div>
+                        <div style={{fontSize:12,color:'#5A7870',fontFamily:"'IBM Plex Mono',monospace",marginTop:2,fontWeight:600}}>{p.fileNo} · {p.qid}</div>
+                        <div style={{fontSize:12,color:'#5A7870',marginTop:1,fontWeight:600}}>{p.phone} · {p.insurer}</div>
+                      </div>
+                      {p.allergies.length>0&&<div style={{display:'flex',alignItems:'center',gap:4,padding:'3px 8px',borderRadius:8,background:'#FEF4F2',border:'1px solid #FECACA'}}>
+                        <AlertTriangle size={11} color="#DC4F38"/>
+                        <span style={{fontSize:12,fontWeight:700,color:'#B02A1E'}}>{p.allergies.join(', ')}</span>
+                      </div>}
                     </div>
-                    <div className="text-xs text-stone-500 mono mt-0.5">{p.dur} min</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium mono">QAR {p.price.toLocaleString()}</div>
-                    {isInsured && doctor.specialty.includes('Dent') && (
-                      <div className="text-[10px] text-emerald-700">Insurance eligible</div>
-                    )}
-                    {isInsured && doctor.specialty.includes('Aesthetic') && (
-                      <div className="text-[10px] text-stone-400">Cosmetic, not covered</div>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-            <button onClick={() => { setShowCustom(true); setProcedure(null); }}
-              className="mt-2 w-full px-3 py-2 text-xs text-stone-600 border border-dashed border-stone-300 rounded-md hover:bg-stone-50 hover:border-stone-400 flex items-center justify-center gap-1.5">
-              <Edit3 className="w-3 h-3" /> Enter custom procedure
-            </button>
-          </>
-        ) : (
-          <div className="p-3 bg-stone-50 border border-stone-200 rounded-md space-y-2 relative">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold text-stone-700">Custom procedure</div>
-              <button onClick={() => setShowCustom(false)} className="text-[11px] text-stone-500 hover:text-stone-900">Back to list</button>
-            </div>
-            <div className="relative">
-              <input
-                value={customProcedureName}
-                onChange={(e) => { setCustomProcedureName(e.target.value); setAutocompleteOpen(true); }}
-                onFocus={() => setAutocompleteOpen(true)}
-                onBlur={() => setTimeout(() => setAutocompleteOpen(false), 200)}
-                placeholder="Start typing -- e.g. 'Sclerotherapy', 'PRP'..."
-                className="w-full px-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500"
-              />
-              {autocompleteOpen && filteredAuto.length > 0 && (
-                <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-md shadow-lg z-20 max-h-40 overflow-y-auto">
-                  {filteredAuto.map(p => (
-                    <button key={p.name}
-                      onClick={() => {
-                        setCustomProcedureName(p.name);
-                        setCustomDur(p.dur);
-                        setCustomPrice(p.price);
-                        setAutocompleteOpen(false);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-stone-50 flex justify-between items-center">
-                      <span>{p.name}</span>
-                      <span className="text-[10px] text-stone-400 mono">{p.dur}m · QAR {p.price}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-stone-600 font-medium">Duration (min)</label>
-                <input type="number" min="15" step="15" value={customDur}
-                  onChange={(e) => setCustomDur(parseInt(e.target.value) || 30)}
-                  className="mt-1 w-full px-3 py-1.5 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 mono" />
-              </div>
-              <div>
-                <label className="text-[10px] text-stone-600 font-medium">Price (QAR)</label>
-                <input type="number" min="0" value={customPrice}
-                  onChange={(e) => setCustomPrice(parseInt(e.target.value) || 0)}
-                  className="mt-1 w-full px-3 py-1.5 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 mono" />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Time editor (NEW: item 2 -- time editable inline) */}
-      <div>
-        <label className="text-xs text-stone-600 font-medium flex items-center gap-1.5">
-          <Clock className="w-3 h-3" /> Time
-        </label>
-        <select value={time} onChange={e => setTime(e.target.value)}
-          className="mt-1.5 w-full px-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 bg-white mono">
-          {TIME_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-
-      {/* Assistant doctor picker (dental procedures only) */}
-      {isDental && (
-        <div>
-          <label className="text-xs text-stone-600 font-medium flex items-center gap-1.5">
-            <Stethoscope className="w-3 h-3" /> Assistant doctor
-            <span className="text-[10px] text-stone-400 font-normal">(optional, dental procedures)</span>
-          </label>
-          <select value={asstDoctorId || ''}
-            onChange={(e) => setAsstDoctorId(e.target.value || null)}
-            className="mt-1.5 w-full px-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 bg-white">
-            <option value="">— No assistant —</option>
-            {availableAssistants.map(d => (
-              <option key={d.id} value={d.id}>{d.nameEn} ({d.specialty})</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Nurse picker (NEW: feedback item 12) */}
-      <div>
-        <label className="text-xs text-stone-600 font-medium flex items-center gap-1.5">
-          <Stethoscope className="w-3 h-3" /> Assigned nurse
-          {needsNurse && <span className="text-[9px] bg-violet-100 text-violet-800 px-1 py-0.5 rounded">recommended</span>}
-        </label>
-        <select value={nurseId || ''}
-          onChange={(e) => setNurseId(e.target.value || null)}
-          className={`mt-1.5 w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:border-stone-500 bg-white ${needsNurse && !nurseId ? 'border-amber-400' : 'border-stone-300'}`}>
-          <option value="">— No nurse —</option>
-          {NURSES.map(n => (
-            <option key={n.id} value={n.id}>{n.name} ({n.specialty})</option>
-          ))}
-        </select>
-        {needsNurse && !nurseId && (
-          <div className="text-[10px] text-amber-700 mt-1 flex items-center gap-1">
-            <AlertCircle className="w-2.5 h-2.5" /> This procedure usually has a nurse assist.
-          </div>
-        )}
-      </div>
-
-      {/* Notes (NEW: feedback item 5) */}
-      <div>
-        <label className="text-xs text-stone-600 font-medium">Notes / chief complaint</label>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-          placeholder="e.g. Patient complaining of upper-left molar pain since Friday. Anxious -- discuss anesthesia."
-          className="mt-1.5 w-full px-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 resize-none" />
-      </div>
-    </div>
-  );
-}
-
-// ---- Confirm step ---------------------------------------------------
-function ConfirmStep({ doctor, time, date, patient, procedure, nurseId, asstDoctorId, notes }) {
-  const isInsured = patient?.insurer && patient.insurer !== 'Cash/Card';
-  const isDental = doctor.specialty.includes('Dent') || doctor.specialty === 'Orthodontics' || doctor.specialty === 'Endodontics';
-  const insuranceCovers = isInsured && isDental;
-  const nurse = nurseId ? NURSES.find(n => n.id === nurseId) : null;
-  const asstDoctor = asstDoctorId ? DOCTORS.find(d => d.id === asstDoctorId) : null;
-
-  return (
-    <div className="space-y-4">
-      <Row label="Patient" value={patient.nameEn} sub={`File ${patient.fileNo} · QID ${patient.qid}`} />
-      <Row label="Doctor" value={doctor.nameEn} sub={doctor.specialty} />
-      {asstDoctor && <Row label="Assistant" value={asstDoctor.nameEn} sub={asstDoctor.specialty} />}
-      {nurse && <Row label="Nurse" value={nurse.name} sub={`${nurse.specialty}`} />}
-      <Row label="When" value={fmt(date)} sub={`${time} · ${procedure.dur} minutes`} />
-      <Row label="Procedure" value={procedure.name} sub={`QAR ${(procedure.price || 0).toLocaleString()}`} />
-      {notes && <Row label="Notes" value={notes} />}
-
-      <div className="border-t border-stone-200 pt-4">
-        <div className="text-xs font-semibold text-stone-700 mb-2">Payment path</div>
-        {insuranceCovers ? (
-          <div className="p-3 bg-sky-50 border border-sky-200 rounded-md">
-            <div className="flex items-center gap-2 text-sm font-medium text-sky-900">
-              <Shield className="w-4 h-4" />
-              Insurance claim -- {patient.insurer}
-            </div>
-            <div className="text-xs text-sky-800 mt-1">
-              Pre-authorization will be submitted automatically. Patient may need to pay co-pay at check-out.
-            </div>
-          </div>
-        ) : (
-          <div className="p-3 bg-stone-50 border border-stone-200 rounded-md">
-            <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
-              <CreditCard className="w-4 h-4" />
-              Direct payment -- {patient.insurer || 'Cash/Card'}
-            </div>
-            <div className="text-xs text-stone-600 mt-1">
-              {isInsured && !isDental ? 'This aesthetic procedure is not covered. Patient will be billed directly.' : 'Patient will be billed at check-out.'}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="text-[11px] text-stone-500 border-t border-stone-200 pt-3 leading-relaxed">
-        Booking confirmation will be sent to <span className="mono">{patient.phone}</span> via SMS in Arabic and English.
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, value, sub }) {
-  return (
-    <div className="flex items-start gap-4">
-      <div className="text-xs text-stone-500 w-20 pt-0.5">{label}</div>
-      <div className="flex-1">
-        <div className="text-sm font-medium">{value}</div>
-        {sub && <div className="text-xs text-stone-500 mt-0.5">{sub}</div>}
-      </div>
-    </div>
-  );
-}
-
-// ---- APPOINTMENT DETAIL with inline editing (NEW: item 2) -----------
-function AppointmentDetail({ appointment, patient, onClose, onUpdate, onViewFile, isArabic }) {
-  const [editing, setEditing] = useState(false);
-  const [editProc, setEditProc] = useState(appointment.procedure);
-  const [editTime, setEditTime] = useState(appointment.start);
-  const [editDur, setEditDur] = useState(appointment.dur);
-  const [editNotes, setEditNotes] = useState(appointment.notes || '');
-  const [editNurse, setEditNurse] = useState(appointment.nurseId);
-  const [editAsstDoctor, setEditAsstDoctor] = useState(appointment.asstDoctorId);
-
-  const doctor = DOCTORS.find(d => d.id === appointment.doctorId);
-  const status = STATUS_FLOW[appointment.status];
-  const nurse = appointment.nurseId ? NURSES.find(n => n.id === appointment.nurseId) : null;
-  const asstDoctor = appointment.asstDoctorId ? DOCTORS.find(d => d.id === appointment.asstDoctorId) : null;
-  const isDentalSpec = ['General Dentistry', 'Orthodontics', 'Endodontics', 'Cosmetic Dentistry'].includes(doctor?.specialty);
-  const dentalAssistants = DOCTORS.filter(d => d.id !== doctor?.id && ['General Dentistry', 'Orthodontics', 'Endodontics', 'Cosmetic Dentistry'].includes(d.specialty));
-
-  const saveEdits = () => {
-    onUpdate({ procedure: editProc, start: editTime, dur: editDur, notes: editNotes, nurseId: editNurse, asstDoctorId: editAsstDoctor });
-    setEditing(false);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-stone-900/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden max-h-[92vh] flex flex-col">
-        <div className="px-5 py-4 border-b border-stone-200 flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold">{isArabic ? 'تفاصيل الموعد' : 'Appointment details'}</div>
-            <div className="text-xs text-stone-500 mt-0.5 mono">#{appointment.id}</div>
-          </div>
-          <button onClick={onClose} className="p-1 hover:bg-stone-100 rounded"><X className="w-4 h-4" /></button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {/* Patient block with View file button */}
-          <div className="p-3 bg-stone-50 border border-stone-200 rounded-md">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium flex items-center gap-2 flex-wrap">
-                  {patient?.nameEn}
-                  <span className="text-[10px] mono text-stone-500 bg-white border border-stone-200 px-1.5 py-0.5 rounded">{patient?.fileNo}</span>
-                </div>
-                <div className="text-xs text-stone-500 mono mt-0.5">QID {patient?.qid}</div>
-                <div className="text-xs text-stone-500 mt-0.5">{patient?.phone}</div>
-                {patient?.allergies && patient.allergies.length > 0 && (
-                  <div className="mt-1.5 text-[11px] text-red-700 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {patient.allergies.join(', ')}
-                  </div>
-                )}
-              </div>
-              <button onClick={() => onViewFile(patient)}
-                className="px-2.5 py-1.5 text-[11px] border border-stone-300 rounded-md hover:bg-white flex items-center gap-1.5 flex-shrink-0">
-                <Eye className="w-3 h-3" /> View file
-              </button>
-            </div>
-          </div>
-
-          {/* Status picker (NEW: feedback item 4) */}
-          <div>
-            <label className="text-xs text-stone-600 font-medium">Status</label>
-            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-              {Object.entries(STATUS_FLOW).map(([key, s]) => (
-                <button key={key}
-                  onClick={() => onUpdate({ status: key })}
-                  className={`px-2.5 py-1.5 text-xs rounded border flex items-center gap-1.5 transition-colors ${
-                    appointment.status === key ? s.chip + ' font-semibold' : 'border-stone-200 text-stone-600 hover:bg-stone-50'
-                  }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Editable fields */}
-          {!editing ? (
-            <div className="space-y-2.5">
-              <Row label="Doctor" value={doctor?.nameEn} sub={doctor?.specialty} />
-              <Row label="Time" value={appointment.start} sub={`${appointment.dur} minutes`} />
-              <Row label="Procedure" value={appointment.procedure} />
-              {asstDoctor && <Row label="Assistant" value={asstDoctor.nameEn} sub={asstDoctor.specialty} />}
-              {nurse && <Row label="Nurse" value={nurse.name} />}
-              {appointment.notes && <Row label="Notes" value={appointment.notes} />}
-              <button onClick={() => setEditing(true)}
-                className="mt-2 w-full px-3 py-1.5 text-xs border border-stone-300 rounded-md hover:bg-stone-50 flex items-center justify-center gap-1.5">
-                <Edit3 className="w-3 h-3" /> Edit appointment
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
-              <div className="text-xs font-semibold text-amber-900 flex items-center gap-1.5">
-                <Edit3 className="w-3 h-3" /> Editing
-              </div>
-              <Field label="Procedure" value={editProc} onChange={setEditProc} />
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-stone-600 font-medium">Time</label>
-                  <select value={editTime} onChange={(e) => setEditTime(e.target.value)}
-                    className="mt-1 w-full px-3 py-1.5 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 bg-white mono">
-                    {TIME_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] text-stone-600 font-medium">Duration (min)</label>
-                  <input type="number" min="15" step="15" value={editDur}
-                    onChange={(e) => setEditDur(parseInt(e.target.value) || 30)}
-                    className="mt-1 w-full px-3 py-1.5 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 mono" />
-                </div>
-              </div>
-              {isDentalSpec && (
-                <div>
-                  <label className="text-[10px] text-stone-600 font-medium">Assistant doctor</label>
-                  <select value={editAsstDoctor || ''} onChange={(e) => setEditAsstDoctor(e.target.value || null)}
-                    className="mt-1 w-full px-3 py-1.5 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 bg-white">
-                    <option value="">— No assistant —</option>
-                    {dentalAssistants.map(d => <option key={d.id} value={d.id}>{d.nameEn}</option>)}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className="text-[10px] text-stone-600 font-medium">Nurse</label>
-                <select value={editNurse || ''} onChange={(e) => setEditNurse(e.target.value || null)}
-                  className="mt-1 w-full px-3 py-1.5 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 bg-white">
-                  <option value="">— No nurse —</option>
-                  {NURSES.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-stone-600 font-medium">Notes</label>
-                <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2}
-                  className="mt-1 w-full px-3 py-1.5 text-sm border border-stone-300 rounded-md focus:outline-none focus:border-stone-500 resize-none" />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setEditing(false)} className="flex-1 px-3 py-1.5 text-xs border border-stone-300 rounded-md hover:bg-white">Cancel</button>
-                <button onClick={saveEdits} className="flex-1 px-3 py-1.5 text-xs bg-stone-900 text-white rounded-md hover:bg-stone-800 flex items-center justify-center gap-1.5">
-                  <Save className="w-3 h-3" /> Save changes
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="px-5 py-3 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
-          <button onClick={() => onUpdate({ status: 'cancelled' })} className="text-xs text-red-600 hover:underline">Cancel appointment</button>
-          <div className="flex gap-2">
-            <button className="px-3 py-1.5 text-xs border border-stone-300 rounded-md hover:bg-white flex items-center gap-1.5">
-              <Phone className="w-3 h-3" /> Call
-            </button>
-            {appointment.status === 'booked' || appointment.status === 'confirmed' ? (
-              <button onClick={() => onUpdate({ status: 'arrived' })} className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3 h-3" /> Check in (arrived)
-              </button>
-            ) : (
-              <button onClick={() => {
-                const next = appointment.status === 'arrived' ? 'in-progress'
-                           : appointment.status === 'in-progress' ? 'treatment-done'
-                           : appointment.status === 'treatment-done' ? 'payment-done'
-                           : 'payment-done';
-                onUpdate({ status: next });
-              }} className="px-3 py-1.5 text-xs bg-stone-900 text-white rounded-md hover:bg-stone-800 flex items-center gap-1.5">
-                <ChevronRight className="w-3 h-3" /> Next step
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---- PATIENT FILE VIEWER (NEW: feedback item 11) --------------------
-// Read-only view for receptionists -- show full history, no edit capability.
-function PatientFileViewer({ patient, onUpdate, onClose }) {
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [draftNotes, setDraftNotes] = useState(patient.notes || '');
-
-  const saveNotes = () => {
-    onUpdate(patient.id, { notes: draftNotes });
-    setEditingNotes(false);
-  };
-
-  const cancelEdit = () => {
-    setDraftNotes(patient.notes || '');
-    setEditingNotes(false);
-  };
-  return (
-    <div className="fixed inset-0 z-50 bg-stone-900/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-stone-200 flex items-center justify-between bg-stone-50">
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold flex items-center gap-2 flex-wrap">
-              <Eye className="w-4 h-4 text-stone-500" />
-              Patient file
-              <span className="text-[10px] mono bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded">CLINICAL: READ-ONLY</span>
-            </div>
-            <div className="text-xs text-stone-500 mt-0.5">
-              Reception can view clinical history but only edit reception notes
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 hover:bg-stone-100 rounded"><X className="w-4 h-4" /></button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {/* Identity */}
-          <div className="px-5 py-4 border-b border-stone-100">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center">
-                <User className="w-6 h-6 text-stone-500" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="text-base font-semibold">{patient.nameEn}</div>
-                  <div className="text-sm text-stone-500" dir="rtl">{patient.nameAr}</div>
-                  <span className="text-[10px] mono text-stone-700 bg-stone-100 px-1.5 py-0.5 rounded">{patient.fileNo}</span>
-                </div>
-                <div className="text-xs text-stone-500 mono mt-0.5">
-                  QID {patient.qid} · DOB {patient.dob} · {patient.phone}
-                </div>
-                {patient.insurer && (
-                  <div className="text-xs text-stone-600 mt-0.5 flex items-center gap-1">
-                    <Shield className="w-3 h-3" /> {patient.insurer} {patient.policy && `· ${patient.policy}`}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Reception notes — right after identity */}
-          <div className="px-5 py-3 border-b border-stone-100">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Reception notes</div>
-              {!editingNotes && (
-                <button onClick={() => setEditingNotes(true)}
-                  className="text-[10px] text-stone-600 hover:text-stone-900 flex items-center gap-1">
-                  <Edit3 className="w-3 h-3" />
-                  {patient.notes ? 'Edit' : 'Add notes'}
-                </button>
-              )}
-            </div>
-            {editingNotes ? (
-              <div className="space-y-2">
-                <textarea value={draftNotes} onChange={e => setDraftNotes(e.target.value)} rows={3} autoFocus
-                  placeholder="Visible to reception and doctors. E.g. prefers afternoons, ride arranged, anxious patient..."
-                  className="w-full px-2.5 py-2 text-xs border border-amber-300 bg-amber-50/50 rounded focus:outline-none focus:border-amber-500 resize-none" />
-                <div className="flex gap-2 justify-end">
-                  <button onClick={cancelEdit} className="px-3 py-1 text-[11px] border border-stone-300 rounded hover:bg-stone-50">Cancel</button>
-                  <button onClick={saveNotes} className="px-3 py-1 text-[11px] bg-stone-900 text-white rounded hover:bg-stone-800 flex items-center gap-1">
-                    <Save className="w-3 h-3" /> Save notes
+                    {p.notes&&<div style={{fontSize:12,color:'#4E6860',marginTop:5,fontStyle:'italic',fontWeight:600}}>{p.notes}</div>}
                   </button>
-                </div>
-              </div>
-            ) : patient.notes ? (
-              <div className="text-xs text-stone-700 bg-amber-50 border border-amber-200 rounded p-2 italic">{patient.notes}</div>
-            ) : (
-              <div className="text-xs text-stone-400 italic px-2 py-1.5 border border-dashed border-stone-200 rounded">
-                No reception notes yet. Click "Add notes" to record anything reception or doctors should know.
-              </div>
-            )}
-          </div>
-
-          {/* Allergies & conditions */}
-          {(patient.allergies?.length > 0 || patient.conditions?.length > 0) && (
-            <div className="px-5 py-3 border-b border-stone-100 grid grid-cols-2 gap-4">
-              {patient.allergies?.length > 0 && (
-                <div>
-                  <div className="text-[10px] font-semibold text-red-700 uppercase tracking-wide mb-1.5">Allergies</div>
-                  <div className="space-y-1">
-                    {patient.allergies.map(a => (
-                      <div key={a} className="text-xs text-red-900 bg-red-50 border border-red-200 px-2 py-0.5 rounded">{a}</div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {patient.conditions?.length > 0 && (
-                <div>
-                  <div className="text-[10px] font-semibold text-stone-700 uppercase tracking-wide mb-1.5">Conditions</div>
-                  <div className="space-y-1">
-                    {patient.conditions.map(c => <div key={c} className="text-xs text-stone-700">{c}</div>)}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Encounter history */}
-          <div className="px-5 py-3 border-b border-stone-100">
-            <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Encounter history</div>
-            {(!patient.encounterHistory || patient.encounterHistory.length === 0) ? (
-              <div className="text-xs text-stone-400 italic">No previous encounters</div>
-            ) : (
-              <div className="space-y-2">
-                {patient.encounterHistory.map((e, i) => (
-                  <div key={i} className="p-2.5 bg-stone-50 border border-stone-200 rounded">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="text-sm font-medium">{e.procedure}</div>
-                      <div className="text-[10px] mono text-stone-500">{e.date}</div>
-                    </div>
-                    <div className="text-xs text-stone-500 mt-0.5">{e.doctor}</div>
-                    {e.notes && <div className="text-xs text-stone-600 mt-1 italic">{e.notes}</div>}
-                  </div>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Documents */}
-          <div className="px-5 py-3 border-b border-stone-100">
-            <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Documents on file</div>
-            <div className="grid grid-cols-3 gap-2">
-              <DocumentChip label="QID front" filename={patient.idFront} />
-              <DocumentChip label="QID back"  filename={patient.idBack} />
-              <DocumentChip label="Insurance" filename={patient.insuranceCard} />
+            {searchQ&&results.length===0&&(
+              <div style={{padding:'14px',borderRadius:10,border:'1px solid #DCE4E0',background:'#F5F8F7',textAlign:'center',fontSize:13,color:'#5A7870',fontWeight:600}}>
+                No patient found — <button onClick={()=>setNewPatient({nameEn:'',nameAr:'',qid:'',phone:'',dob:'',insurer:'',policy:''})} style={{color:CLINIC_CONFIG.primaryColor,fontWeight:700,background:'none',border:'none',cursor:'pointer'}}>register new patient</button>
+              </div>
+            )}
+            {newPatient&&<NewPatientForm form={newPatient} setForm={setNewPatient} onSave={p=>{const np=onAddPatient(p);setSelectedPatient(np);setNewPatient(null);}} onCancel={()=>setNewPatient(null)}/>}
+            {selectedPatient&&!newPatient&&(
+              <div style={{padding:'12px 14px',borderRadius:10,background:'#F0FAF6',border:'1px solid #B8DDD6',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <span style={{fontSize:13,fontWeight:700,color:'#0A6040',display:'flex',alignItems:'center',gap:6}}><CheckCircle2 size={14}/>Selected: {selectedPatient.nameEn}</span>
+                <button onClick={()=>setSelectedPatient(null)} style={{background:'none',border:'none',color:'#4E6860',cursor:'pointer'}}><X size={14}/></button>
+              </div>
+            )}
+            <div style={{display:'flex',justifyContent:'flex-end',paddingTop:4}}>
+              <PrimaryBtn onClick={()=>setStep(2)} disabled={!selectedPatient}>Next: Procedure →</PrimaryBtn>
             </div>
           </div>
+        )}
 
-        </div>
-
-        <div className="px-5 py-3 border-t border-stone-200 bg-stone-50 text-[10px] text-stone-500 flex items-center gap-1.5">
-          <Shield className="w-3 h-3" />
-          Read access logged · Audit entry created at {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DocumentChip({ label, filename }) {
-  if (!filename) {
-    return (
-      <div className="px-2 py-1.5 border border-dashed border-stone-300 rounded text-center text-[10px] text-stone-400">
-        {label}: not uploaded
-      </div>
-    );
-  }
-  return (
-    <div className="px-2 py-1.5 border border-stone-200 bg-stone-50 rounded text-[10px] flex items-center gap-1.5">
-      <FileImage className="w-3 h-3 text-stone-500 flex-shrink-0" />
-      <div className="min-w-0">
-        <div className="font-medium text-stone-700">{label}</div>
-        <div className="text-stone-500 mono truncate">{filename}</div>
-      </div>
-    </div>
-  );
-}
-
-// ---- DOCTOR SCHEDULE MANAGER (NEW: feedback item 10) ----------------
-function DoctorScheduleModal({ onClose }) {
-  return (
-    <div className="fixed inset-0 z-50 bg-stone-900/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-stone-200 flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold flex items-center gap-2">
-              <Settings className="w-4 h-4" /> Doctor schedules
-            </div>
-            <div className="text-xs text-stone-500 mt-0.5">Working hours, off days, vacations, recurring breaks</div>
-          </div>
-          <button onClick={onClose} className="p-1 hover:bg-stone-100 rounded"><X className="w-4 h-4" /></button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          {DOCTORS.map(doc => {
-            const sched = DOCTOR_SCHEDULES[doc.id];
-            const colors = COLOR_MAP[doc.color];
-            return (
-              <div key={doc.id} className={`p-3 border ${colors.border} ${colors.bg} rounded-md`}>
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <div className={`text-sm font-semibold ${colors.text}`}>{doc.nameEn}</div>
-                    <div className="text-xs text-stone-500">{doc.specialty} · {doc.qchp}</div>
-                  </div>
-                  <button className="text-[11px] text-stone-600 hover:text-stone-900 flex items-center gap-1">
-                    <Edit3 className="w-3 h-3" /> Edit
+        {/* Step 2: Procedure */}
+        {step===2&&(
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <FormField label="Procedure">
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {procList.map(p=>(
+                  <button key={p.name} onClick={()=>{setProcedure(p.name);setTime(slot);}} style={{padding:'10px 14px',borderRadius:9,border:`2px solid ${procedure===p.name?CLINIC_CONFIG.primaryColor:'#DCE4E0'}`,background:procedure===p.name?'#F0FAF6':'#fff',textAlign:'left',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',transition:'all .13s'}}>
+                    <div><span style={{fontSize:13,fontWeight:700,color:'#111814'}}>{p.name}</span><span style={{marginLeft:10,fontSize:12,color:'#5A7870',fontWeight:600}}>{p.dur}min</span></div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:13,fontWeight:700,color:CLINIC_CONFIG.primaryColor}}>QAR {p.price.toLocaleString()}</span>
+                      {p.needsNurse&&<span style={{fontSize:12,fontWeight:700,padding:'2px 7px',borderRadius:20,background:'#EDE9FE',color:'#4C1D95'}}>+ nurse</span>}
+                    </div>
                   </button>
-                </div>
+                ))}
+                <button onClick={()=>setProcedure('custom')} style={{padding:'10px 14px',borderRadius:9,border:`2px dashed ${procedure==='custom'?CLINIC_CONFIG.primaryColor:'#C8D4CF'}`,background:procedure==='custom'?'#F0FAF6':'transparent',textAlign:'left',cursor:'pointer',fontSize:13,fontWeight:600,color:procedure==='custom'?CLINIC_CONFIG.primaryColor:'#5A7870',display:'flex',alignItems:'center',gap:6}}>
+                  <Plus size={14}/> Custom procedure
+                </button>
+              </div>
+            </FormField>
+            {procedure==='custom'&&(
+              <div style={{padding:'14px',background:'#F5F8F7',borderRadius:10,border:'1px solid #DCE4E0',display:'flex',flexDirection:'column',gap:10}}>
+                <Grid2>
+                  <FormField label="Procedure name"><input value={customName} onChange={e=>setCustomName(e.target.value)} placeholder="e.g. Special bleaching"/></FormField>
+                  <FormField label="Duration (min)"><input type="number" value={customDur} onChange={e=>setCustomDur(parseInt(e.target.value)||30)} style={{fontFamily:"'IBM Plex Mono',monospace"}}/></FormField>
+                  <FormField label="Price (QAR)"><input type="number" value={customPrice} onChange={e=>setCustomPrice(parseInt(e.target.value)||0)} style={{fontFamily:"'IBM Plex Mono',monospace"}}/></FormField>
+                </Grid2>
+              </div>
+            )}
+            {procedure&&procedure!=='custom'&&(
+              <Grid2>
+                <FormField label="Start time"><input value={time} onChange={e=>setTime(e.target.value)} type="time" style={{fontFamily:"'IBM Plex Mono',monospace"}}/></FormField>
+                <FormField label="Nurse (optional)">
+                  <select value={nurseId} onChange={e=>setNurseId(e.target.value)}>
+                    <option value="">— No nurse —</option>
+                    {NURSES.map(n=><option key={n.id} value={n.id}>{n.name}</option>)}
+                  </select>
+                </FormField>
+                <FormField label="Assistant doctor (optional)">
+                  <select value={asstDoctorId} onChange={e=>setAsstDoctorId(e.target.value)}>
+                    <option value="">— None —</option>
+                    {DOCTORS.filter(d=>d.id!==doctor?.id).map(d=><option key={d.id} value={d.id}>{d.nameEn}</option>)}
+                  </select>
+                </FormField>
+              </Grid2>
+            )}
+            <FormField label="Appointment notes (optional)">
+              <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} placeholder="Any instructions for the doctor or reception…" style={{resize:'none'}}/>
+            </FormField>
+            <div style={{display:'flex',justifyContent:'space-between',paddingTop:4}}>
+              <GhostBtn onClick={()=>setStep(1)}><ChevronLeft size={13}/>Back</GhostBtn>
+              <PrimaryBtn onClick={()=>setStep(3)} disabled={!procedure||(procedure==='custom'&&!customName)}>Review booking →</PrimaryBtn>
+            </div>
+          </div>
+        )}
 
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wide font-semibold text-stone-600 mb-1 flex items-center gap-1">
-                      <Clock className="w-2.5 h-2.5" /> Working hours
-                    </div>
-                    <div className="mono">{sched.workStart} -- {sched.workEnd}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wide font-semibold text-stone-600 mb-1">Weekly off</div>
-                    <div className="flex gap-1 flex-wrap">
-                      {sched.offDays.map(d => (
-                        <span key={d} className="text-[10px] bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded capitalize">{d}</span>
-                      ))}
-                    </div>
-                  </div>
-                  {sched.breaks.length > 0 && (
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wide font-semibold text-stone-600 mb-1 flex items-center gap-1">
-                        <Coffee className="w-2.5 h-2.5" /> Daily breaks
-                      </div>
-                      {sched.breaks.map((b, i) => (
-                        <div key={i} className="mono text-stone-700">{b.start}--{b.end} · {b.label}</div>
-                      ))}
-                    </div>
-                  )}
-                  {sched.vacations.length > 0 && (
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wide font-semibold text-stone-600 mb-1 flex items-center gap-1">
-                        <Plane className="w-2.5 h-2.5" /> Upcoming vacations
-                      </div>
-                      {sched.vacations.map((v, i) => (
-                        <div key={i} className="text-stone-700">
-                          <span className="mono">{v.start} → {v.end}</span>
-                          <span className="text-stone-500 ml-1">({v.reason})</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+        {/* Step 3: Confirm */}
+        {step===3&&selectedPatient&&procObj&&(
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{padding:'14px 18px',background:'#F5F8F7',borderRadius:12,border:'1px solid #DCE4E0',display:'flex',flexDirection:'column',gap:8}}>
+              <SectionLabel>Booking summary</SectionLabel>
+              {[
+                ['Doctor',   doctor?.nameEn],
+                ['Patient',  `${selectedPatient.nameEn} — ${selectedPatient.fileNo}`],
+                ['Date/time',`${fmtShort(date)} at ${time}`],
+                ['Procedure',`${procObj.name} · ${procObj.dur}min`],
+                ['Price',    `QAR ${procObj.price.toLocaleString()}`],
+                nurseId&&['Nurse', NURSES.find(n=>n.id===nurseId)?.name||''],
+                asstDoctorId&&['Assistant', DOCTORS.find(d=>d.id===asstDoctorId)?.nameEn||''],
+                notes&&['Notes', notes],
+              ].filter(Boolean).map(([l,v])=>(
+                <div key={l} style={{display:'flex',gap:16}}>
+                  <span style={{fontSize:12.5,fontWeight:700,color:'#5A7870',width:90,flexShrink:0}}>{l}</span>
+                  <span style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{v}</span>
+                </div>
+              ))}
+            </div>
+            {selectedPatient.allergies.length>0&&(
+              <div style={{padding:'10px 14px',background:'#FEF4F2',border:'1px solid #FECACA',borderRadius:9,display:'flex',alignItems:'flex-start',gap:8}}>
+                <AlertTriangle size={14} color="#DC4F38" style={{flexShrink:0,marginTop:1}}/>
+                <div>
+                  <div style={{fontSize:12.5,fontWeight:700,color:'#B02A1E'}}>Allergy alert</div>
+                  <div style={{fontSize:12,fontWeight:600,color:'#B02A1E',marginTop:2}}>{selectedPatient.allergies.join(' · ')}</div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            )}
+            {selectedPatient.notes&&(
+              <div style={{padding:'10px 14px',background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:9,fontSize:12.5,fontWeight:600,color:'#78400A'}}>
+                Note: {selectedPatient.notes}
+              </div>
+            )}
+            <div style={{display:'flex',justifyContent:'space-between',paddingTop:4}}>
+              <GhostBtn onClick={()=>setStep(2)}><ChevronLeft size={13}/>Back</GhostBtn>
+              <PrimaryBtn onClick={handleConfirm}><CheckCircle2 size={14}/>Confirm booking</PrimaryBtn>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
 
-        <div className="px-5 py-3 border-t border-stone-200 bg-stone-50 text-[11px] text-stone-500 flex items-center justify-between">
-          <span>Blocked time slots appear hashed in the calendar grid.</span>
-          <button onClick={onClose} className="px-3 py-1.5 text-xs bg-stone-900 text-white rounded-md hover:bg-stone-800">Done</button>
-        </div>
+// ─── New Patient Form ─────────────────────────────────────────────────────────
+function NewPatientForm({ form, setForm, onSave, onCancel }) {
+  const qidOk    = validateQID(form.qid||'');
+  const phoneOk  = validateQatarPhone(form.phone||'');
+  const canSave  = form.nameEn&&qidOk&&phoneOk&&form.dob;
+  return(
+    <div style={{padding:'16px',background:'#F5F8F7',borderRadius:12,border:'1px solid #DCE4E0',display:'flex',flexDirection:'column',gap:12}}>
+      <SectionLabel>New patient registration</SectionLabel>
+      <Grid2>
+        <FormField label="Full name (English)" error={!form.nameEn&&'Required'}><input value={form.nameEn} onChange={e=>setForm({...form,nameEn:e.target.value})} placeholder="First Last"/></FormField>
+        <FormField label="Full name (Arabic)"><input value={form.nameAr} onChange={e=>setForm({...form,nameAr:e.target.value})} placeholder="الاسم بالعربي" dir="rtl"/></FormField>
+        <FormField label="Qatar ID (11 digits)" error={form.qid&&!qidOk?'Must be 11 digits':undefined}><input value={form.qid} onChange={e=>setForm({...form,qid:e.target.value})} placeholder="28XXXXXXXXX" className="mono"/></FormField>
+        <FormField label="Mobile" error={form.phone&&!phoneOk?'Format: +974 XXXX XXXX':undefined}><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+974 5XXX XXXX"/></FormField>
+        <FormField label="Date of birth"><input type="date" value={form.dob} onChange={e=>setForm({...form,dob:e.target.value})}/></FormField>
+        <FormField label="Insurer">
+          <select value={form.insurer||''} onChange={e=>setForm({...form,insurer:e.target.value})}>
+            <option value="">None / Cash</option>
+            {['QLM','AXA','Daman','Allianz','MedNet','Other'].map(i=><option key={i}>{i}</option>)}
+          </select>
+        </FormField>
+        {form.insurer&&<FormField label="Policy number"><input value={form.policy||''} onChange={e=>setForm({...form,policy:e.target.value})} placeholder="Policy #"/></FormField>}
+      </Grid2>
+      <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+        <GhostBtn onClick={onCancel} style={{padding:'7px 14px',fontSize:12}}>Cancel</GhostBtn>
+        <PrimaryBtn onClick={()=>onSave(form)} disabled={!canSave} style={{padding:'7px 14px',fontSize:12}}><Save size={12}/>Register patient</PrimaryBtn>
       </div>
     </div>
+  );
+}
+
+// ─── Appointment Detail ───────────────────────────────────────────────────────
+function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onViewFile }) {
+  const [status, setStatus] = useState(appointment.status);
+  const [notes,  setNotes]  = useState(appointment.notes||'');
+  const doc = DOCTORS.find(d=>d.id===appointment.doctorId);
+  const nurse = NURSES.find(n=>n.id===appointment.nurseId);
+  const dc = DOC_COLORS[doc?.color];
+  const STATUSES = Object.entries(STATUS_CFG);
+  return(
+    <Modal onClose={onClose} width={520}>
+      <ModalHeader title={appointment.procedure} sub={`${doc?.nameEn} · ${appointment.start} · ${appointment.dur}min`} onClose={onClose}/>
+      <div style={{padding:'18px 24px',display:'flex',flexDirection:'column',gap:14}}>
+        {/* Patient strip */}
+        <div style={{padding:'12px 14px',background:'#F5F8F7',borderRadius:10,border:'1px solid #DCE4E0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <div style={{fontSize:13.5,fontWeight:700,color:'#111814'}}>{patient?.nameEn}</div>
+            <div style={{fontSize:12,color:'#5A7870',marginTop:2,fontWeight:600,fontFamily:"'IBM Plex Mono',monospace"}}>{patient?.fileNo} · {patient?.qid}</div>
+            {patient?.allergies?.length>0&&<div style={{display:'flex',alignItems:'center',gap:5,marginTop:4,fontSize:12,fontWeight:700,color:'#B02A1E'}}><AlertTriangle size={11}/>Allergies: {patient.allergies.join(', ')}</div>}
+          </div>
+          <button onClick={()=>patient&&onViewFile(patient)} style={{fontSize:12,fontWeight:600,color:CLINIC_CONFIG.primaryColor,background:'#F0FAF6',border:'1px solid #B8DDD6',padding:'5px 10px',borderRadius:7,display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
+            <FileText size={12}/>View file
+          </button>
+        </div>
+
+        {/* Status */}
+        <div>
+          <SectionLabel>Update status</SectionLabel>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+            {STATUSES.map(([k,s])=>{
+              const [bg,fg]=s.chip;
+              return(
+                <button key={k} onClick={()=>setStatus(k)} style={{padding:'7px 6px',borderRadius:8,border:`2px solid ${status===k?CLINIC_CONFIG.primaryColor:'#DCE4E0'}`,background:status===k?'#F0FAF6':bg,cursor:'pointer',fontSize:12,fontWeight:700,color:status===k?CLINIC_CONFIG.primaryColor:fg,transition:'all .13s'}}>
+                  {isAr?s.labelAr:s.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Care team */}
+        {(nurse||appointment.asstDoctorId)&&(
+          <div style={{padding:'10px 12px',background:'#F5F8F7',borderRadius:8,border:'1px solid #DCE4E0'}}>
+            <SectionLabel>Care team</SectionLabel>
+            <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+              {doc&&<div style={{fontSize:12.5,fontWeight:600,color:'#3D5850',display:'flex',alignItems:'center',gap:5}}><div style={{width:8,height:8,borderRadius:'50%',background:dc?.left}}/>{doc.nameEn}</div>}
+              {appointment.asstDoctorId&&<div style={{fontSize:12.5,fontWeight:600,color:'#3D5850'}}>{DOCTORS.find(d=>d.id===appointment.asstDoctorId)?.nameEn} (asst.)</div>}
+              {nurse&&<div style={{fontSize:12.5,fontWeight:600,color:'#3D5850'}}>{nurse.name}</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
+        <FormField label="Appointment notes">
+          <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3} style={{resize:'none'}}/>
+        </FormField>
+
+        {patient?.notes&&<div style={{padding:'9px 12px',background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:8,fontSize:12.5,fontWeight:600,color:'#78400A'}}>Patient note: {patient.notes}</div>}
+
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:4}}>
+          <GhostBtn onClick={onClose}>Discard</GhostBtn>
+          <PrimaryBtn onClick={()=>{ onUpdate({status,notes}); onClose(); }}><Save size={13}/>Save changes</PrimaryBtn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Patient File Viewer ──────────────────────────────────────────────────────
+function PatientFileViewer({ patient, onUpdate, onClose }) {
+  const [notes, setNotes] = useState(patient.notes||'');
+  const [saved, setSaved] = useState(false);
+  const saveNotes = () => { onUpdate(patient.id,{notes}); setSaved(true); setTimeout(()=>setSaved(false),2000); };
+  return(
+    <Modal onClose={onClose} width={700}>
+      <ModalHeader title={patient.nameEn} sub={`${patient.fileNo} · QID ${patient.qid}`} onClose={onClose}/>
+      <div style={{padding:'20px 24px',display:'flex',flexDirection:'column',gap:16}}>
+        {/* Identity */}
+        <div>
+          <SectionLabel>Patient details</SectionLabel>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {[['Arabic name',patient.nameAr],['Date of birth',patient.dob],['Phone',patient.phone],['Insurance',patient.insurer+(patient.policy?` / ${patient.policy}`:'')],['Last visit',patient.lastVisit||'—'],['File number',patient.fileNo]].map(([l,v])=>(
+              <div key={l} style={{padding:'8px 12px',background:'#F5F8F7',borderRadius:8,border:'1px solid #DCE4E0'}}>
+                <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#6A8880',marginBottom:3}}>{l}</div>
+                <div style={{fontSize:13,fontWeight:600,color:'#111814',fontFamily:l==='File number'||l==='Date of birth'?"'IBM Plex Mono',monospace":'inherit'}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Alerts */}
+        {patient.allergies.length>0&&(
+          <div style={{padding:'12px 14px',background:'#FEF4F2',border:'1px solid #FECACA',borderRadius:10,display:'flex',gap:10}}>
+            <AlertTriangle size={16} color="#DC4F38" style={{flexShrink:0,marginTop:1}}/>
+            <div><div style={{fontSize:12.5,fontWeight:700,color:'#B02A1E',marginBottom:3}}>Allergies</div>{patient.allergies.map(a=><div key={a} style={{fontSize:12.5,fontWeight:600,color:'#B02A1E',marginBottom:1}}>· {a}</div>)}</div>
+          </div>
+        )}
+        {patient.conditions?.length>0&&(
+          <div><SectionLabel>Medical conditions</SectionLabel>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {patient.conditions.map(c=><span key={c} style={{padding:'4px 10px',borderRadius:8,border:'1px solid #DCE4E0',background:'#F5F8F7',fontSize:12.5,fontWeight:600,color:'#3D5850'}}>{c}</span>)}
+            </div>
+          </div>
+        )}
+
+        {/* Encounter history */}
+        {patient.encounterHistory?.length>0&&(
+          <div>
+            <SectionLabel>Encounter history</SectionLabel>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {patient.encounterHistory.map((e,i)=>(
+                <div key={i} className="trow" style={{padding:'10px 14px',borderRadius:8,border:'1px solid #EEF2F0',background:'#fff',display:'flex',gap:14,alignItems:'flex-start'}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#5A7870',width:80,flexShrink:0}}>{e.date}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{e.procedure}</div>
+                    <div style={{fontSize:12,color:'#5A7870',marginTop:1,fontWeight:600}}>{e.doctor}</div>
+                    {e.notes&&<div style={{fontSize:12,color:'#4E6860',marginTop:2,fontStyle:'italic',fontWeight:600}}>{e.notes}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Reception notes */}
+        <div>
+          <SectionLabel>Reception notes</SectionLabel>
+          <textarea value={notes} onChange={e=>{setNotes(e.target.value);setSaved(false);}} rows={3} style={{resize:'none'}}/>
+          <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+            <PrimaryBtn onClick={saveNotes} disabled={notes===patient.notes&&!saved} style={{padding:'7px 14px',fontSize:12,background:saved?'#0A6040':undefined}}>
+              {saved?<><CheckCircle2 size={12}/>Saved</>:<><Save size={12}/>Save notes</>}
+            </PrimaryBtn>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Doctor Schedule Modal ────────────────────────────────────────────────────
+function DoctorScheduleModal({ onClose }) {
+  return(
+    <Modal onClose={onClose} width={640}>
+      <ModalHeader title="Doctor schedules" sub="Working hours, breaks, off-days, vacations" onClose={onClose}/>
+      <div style={{padding:'20px 24px',display:'flex',flexDirection:'column',gap:12}}>
+        {DOCTORS.map(doc=>{
+          const s=DOCTOR_SCHEDULES[doc.id];
+          const dc=DOC_COLORS[doc.color];
+          return(
+            <div key={doc.id} style={{padding:'12px 16px',borderRadius:10,border:'1px solid #DCE4E0',background:'#fff',borderLeft:`3px solid ${dc.left}`}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                <div style={{width:44,height: 44,borderRadius:'50%',background:dc.initBg,color:dc.initFg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>
+                  {doc.nameEn.split(' ').filter(w=>!w.startsWith('Dr.')).map(w=>w[0]).slice(0,2).join('')}
+                </div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{doc.nameEn}</div>
+                  <div style={{fontSize:12,fontWeight:600,color:'#5A7870'}}>{doc.specialty}</div>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:12.5,fontWeight:600,color:'#3D5850'}}>
+                <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{s.workStart}–{s.workEnd}</span>
+                {s.offDays.length>0&&<span style={{color:'#C05820'}}>Off: {s.offDays.join(', ')}</span>}
+                {s.breaks.length>0&&<span>Break: {s.breaks.map(b=>`${b.start}–${b.end} ${b.label}`).join(', ')}</span>}
+                {s.vacations.length>0&&s.vacations.map(v=><span key={v.start} style={{color:'#8B5CF6'}}>Vacation: {v.start} to {v.end} ({v.reason})</span>)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Modal>
   );
 }
