@@ -325,10 +325,141 @@ function SoapField({ letter, label, value, onChange }) {
   );
 }
 
+// ─── Odontogram — recreated from the original prototype ──────────────────────
+// Single tooth path repeated for all 32 teeth. Lower arch flipped vertically.
+// FDI numbering. Status: decay | filling | crown | missing | healthy.
+const ODONTO_STATUS_COLOR = {
+  decay:   '#fca5a5',
+  filling: '#93c5fd',
+  crown:   '#fcd34d',
+  missing: '#d6d3d1',
+};
+
+function ToothStatusPicker({ num, currentStatus, onSet }) {
+  const STATUSES = [
+    { id: 'healthy', label: 'Healthy', color: '#FFFFFF',  border: '#A8A29E' },
+    { id: 'decay',   label: 'Decay',   color: '#fca5a5',  border: '#DC4F38' },
+    { id: 'filling', label: 'Filling', color: '#93c5fd',  border: '#3B82F6' },
+    { id: 'crown',   label: 'Crown',   color: '#fcd34d',  border: '#D97706' },
+    { id: 'missing', label: 'Missing', color: '#d6d3d1',  border: '#78716C' },
+  ];
+  const quadrant = (() => {
+    if (num >= 11 && num <= 18) return 'Upper right';
+    if (num >= 21 && num <= 28) return 'Upper left';
+    if (num >= 31 && num <= 38) return 'Lower left';
+    if (num >= 41 && num <= 48) return 'Lower right';
+    return '';
+  })();
+  return (
+    <div style={{marginTop:12,padding:'12px 14px',background:'#fff',border:'1px solid #DCE4E0',borderRadius:10}}>
+      <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+        <span style={{fontSize:13,fontWeight:700,color:'#111814'}}>Tooth #{num}</span>
+        <span style={{fontSize:11.5,fontWeight:600,color:'#5A7870'}}>{quadrant}</span>
+        <span style={{marginLeft:'auto',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#5A7870'}}>Set status</span>
+      </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+        {STATUSES.map(st => {
+          const active = st.id === currentStatus;
+          return (
+            <button
+              key={st.id}
+              onClick={() => onSet(st.id)}
+              style={{
+                display:'flex',alignItems:'center',gap:7,
+                padding:'6px 11px',borderRadius:8,
+                border:`1.5px solid ${active ? st.border : '#DCE4E0'}`,
+                background: active ? '#fff' : '#F8FAF9',
+                fontSize:12,fontWeight:active?700:600,
+                color: active ? '#111814' : '#3D5850',
+                cursor:'pointer',transition:'all .13s'
+              }}
+            >
+              <span style={{width:12,height:12,borderRadius:3,background:st.color,border:`1px solid ${st.border}`,display:'inline-block',flexShrink:0}}/>
+              {st.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Tooth({ num, findings, selected, onSelect, fill, divider, flipped }) {
+  return (
+    <>
+      {divider && <div style={{width:8}}/>}
+      <button onClick={()=>onSelect(num)} style={{display:'flex',flexDirection:'column',alignItems:'center',background:'transparent',border:'none',padding:0,cursor:'pointer'}}>
+        <div style={{fontSize:9,color:'#6A8880',fontFamily:"'IBM Plex Mono',monospace",fontWeight:600,marginBottom:1}}>{num}</div>
+        <svg width="22" height="28" viewBox="0 0 20 26" className="tooth-svg" style={{transform:flipped?'scaleY(-1)':'none',transition:'filter .13s'}}>
+          <path
+            d="M3,2 Q3,0 5,0 L15,0 Q17,0 17,2 L18,12 Q18,18 16,22 Q14,26 12,24 L8,24 Q6,26 4,22 Q2,18 2,12 Z"
+            fill={fill}
+            stroke={selected ? '#0C6B5A' : '#A8A29E'}
+            strokeWidth={selected ? 1.8 : 0.8}
+          />
+        </svg>
+      </button>
+    </>
+  );
+}
+
+function LegendDot({ color, label, border }) {
+  return (
+    <span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11.5,color:'#3D5850',fontWeight:600}}>
+      <span style={{width:11,height:11,borderRadius:3,background:color,border:border?'1px solid #A8A29E':'none',display:'inline-block',flexShrink:0}}/>
+      {label}
+    </span>
+  );
+}
+
+function Odontogram({ findings = {}, selected, onSelect = () => {} }) {
+  const upper = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
+  const lower = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+  const fillFor = num => ODONTO_STATUS_COLOR[findings[num]?.status] || '#FFFFFF';
+  return (
+    <div style={{background:'#F8FAF9',borderRadius:8,padding:'12px 14px'}}>
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+        <div style={{fontSize:9,color:'#9CA3AF',fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,letterSpacing:'.06em'}}>UPPER</div>
+        <div style={{display:'flex',gap:2}}>
+          {upper.map((t,i)=>(
+            <Tooth key={t} num={t} findings={findings[t]} selected={selected===t} onSelect={onSelect} fill={fillFor(t)} divider={i===7}/>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:2}}>
+          {lower.map((t,i)=>(
+            <Tooth key={t} num={t} findings={findings[t]} selected={selected===t} onSelect={onSelect} fill={fillFor(t)} divider={i===7} flipped/>
+          ))}
+        </div>
+        <div style={{fontSize:9,color:'#9CA3AF',fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,letterSpacing:'.06em'}}>LOWER</div>
+      </div>
+      {/* Legend */}
+      <div style={{display:'flex',alignItems:'center',gap:14,marginTop:10,paddingTop:8,borderTop:'1px solid #DCE4E0',flexWrap:'wrap'}}>
+        <LegendDot color="#fca5a5" label="Decay"/>
+        <LegendDot color="#93c5fd" label="Filling"/>
+        <LegendDot color="#fcd34d" label="Crown"/>
+        <LegendDot color="#d6d3d1" label="Missing"/>
+        <LegendDot color="#FFFFFF" label="Healthy" border/>
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Dental Encounter ─────────────────────────────────────────────────────────
 function DentalEncounter({ apt }) {
   const [soap, setSoap] = useState({s:'Sensitivity to cold on upper-right back tooth, started 4 days ago.',o:'',a:'',p:''});
   const update = k => v => setSoap(p=>({...p,[k]:v}));
+  // Odontogram state: tooth status + selected tooth (used to edit status)
+  const [findings, setFindings] = useState({16:{status:'decay'}, 17:{status:'filling'}, 36:{status:'filling'}});
+  const [selectedTooth, setSelectedTooth] = useState(16);
+  const setToothStatus = (num, status) => {
+    setFindings(prev => {
+      const next = { ...prev };
+      if (status === 'healthy') delete next[num];
+      else next[num] = { status };
+      return next;
+    });
+  };
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={card}>
@@ -342,31 +473,19 @@ function DentalEncounter({ apt }) {
         </div>
       </div>
       <div style={card}>
-        <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Odontogram</div></div>
-        <div style={{padding:'14px 18px',overflowX:'auto'}}>
-          <svg viewBox="0 0 420 110" style={{width:'100%',minWidth:360}}>
-            {/* Upper arch labels */}
-            {[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28].map((n,i)=>(
-              <text key={n} x={10+i*25} y={15} fontSize="8" textAnchor="middle" fill="#4E6860" fontFamily="IBM Plex Mono,monospace">{n}</text>
-            ))}
-            {/* Upper teeth */}
-            {[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28].map((n,i)=>(
-              <rect key={n} x={2+i*25} y={20} width={18} height={18} rx="3" fill={n===16?'#FDE68A':n===17?'#BBF7D0':'#EEF2F0'} stroke={n===16?'#F59E0B':'#C8D4CF'} strokeWidth="1.5"/>
-            ))}
-            {/* Lower teeth */}
-            {[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38].map((n,i)=>(
-              <rect key={n} x={2+i*25} y={48} width={18} height={18} rx="3" fill={n===36?'#BBF7D0':'#EEF2F0'} stroke={n===36?'#0C6B5A':'#C8D4CF'} strokeWidth="1.5"/>
-            ))}
-            {/* Lower arch labels */}
-            {[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38].map((n,i)=>(
-              <text key={n} x={10+i*25} y={80} fontSize="8" textAnchor="middle" fill="#4E6860" fontFamily="IBM Plex Mono,monospace">{n}</text>
-            ))}
-            {/* Legend */}
-            <rect x={5}  y={92} width={10} height={8} rx="2" fill="#FDE68A" stroke="#F59E0B" strokeWidth="1"/>
-            <text x={18} y={100} fontSize="8" fill="#5A7870" fontFamily="Manrope,sans-serif">Needs treatment</text>
-            <rect x={90} y={92} width={10} height={8} rx="2" fill="#BBF7D0" stroke="#0C6B5A" strokeWidth="1"/>
-            <text x={103} y={100} fontSize="8" fill="#5A7870" fontFamily="Manrope,sans-serif">Treated today</text>
-          </svg>
+        <div style={cardHd}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700}}>Odontogram</div>
+            <div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>FDI notation · Click a tooth to flag treatment</div>
+          </div>
+        </div>
+        <div style={{padding:'18px 20px'}}>
+          <Odontogram findings={findings} selected={selectedTooth} onSelect={setSelectedTooth}/>
+          <ToothStatusPicker
+            num={selectedTooth}
+            currentStatus={findings[selectedTooth]?.status || 'healthy'}
+            onSet={status => setToothStatus(selectedTooth, status)}
+          />
         </div>
       </div>
     </div>
