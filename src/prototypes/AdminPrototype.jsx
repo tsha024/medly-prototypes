@@ -185,7 +185,7 @@ export default function AdminPrototype() {
 
       {/* ── HEADER ── */}
       <header style={{ background: CLINIC_CONFIG.headerBg, borderBottom: '1px solid rgba(255,255,255,.07)' }}>
-        <div style={{ padding: '0 24px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '0 24px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {CLINIC_CONFIG.logoUrl
               ? <img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{ height: 34 }} />
@@ -222,7 +222,7 @@ export default function AdminPrototype() {
         <div style={{ display: 'flex', padding: '0 24px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
           {[['dashboard','Dashboard'],['reports','Reports'],['daily','Daily report'],['settings','Settings']].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
-              padding: '11px 18px', fontSize: 13, fontWeight: tab === id ? 700 : 500,
+              padding: '9px 18px', fontSize: 13, fontWeight: tab === id ? 700 : 500,
               color: tab === id ? '#fff' : '#5A8A7A',
               background: 'transparent', border: 'none',
               borderBottom: `2.5px solid ${tab === id ? CLINIC_CONFIG.primaryColor : 'transparent'}`,
@@ -246,7 +246,7 @@ export default function AdminPrototype() {
 
       {/* ── TABS ── */}
       {tab === 'dashboard' && (
-        <main style={{ display: 'grid', gridTemplateColumns: '1fr 336px', gap: 16, padding: '16px 24px' }}>
+        <main style={{ display: 'grid', gridTemplateColumns: '1fr 336px', gap: 16, padding: '14px 24px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Card title="Revenue trend" sub="6 months · Booked vs Collected · Dental & Aesthetic">
               <RevenueChartSVG data={REVENUE_DATA} />
@@ -282,26 +282,26 @@ function KPITile({ label, value, prev, currency, unit, sub, inverted, last }) {
   const up   = pct > 0;
   const good = inverted ? !up : up;
   return (
-    <div style={{ padding: '14px 22px', borderRight: last ? 'none' : '1px solid #E8EDEA' }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#2E4840', marginBottom: 6 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-1px', color: '#111814', lineHeight: 1 }}>
+    <div style={{ padding: '10px 20px', borderRight: last ? 'none' : '1px solid #E8EDEA' }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#4E6860', marginBottom: 3 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.7px', color: '#111814', lineHeight: 1 }}>
           {Number(value).toLocaleString()}
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#607870', marginLeft: 3 }}>{currency ? 'QAR' : unit}</span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: '#607870', marginLeft: 3 }}>{currency ? 'QAR' : unit}</span>
         </div>
         {pct !== null && (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 2,
-            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+            fontSize: 10.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20,
             background: good ? '#D4F1E4' : '#FDDDD9',
             color: good ? '#0A6040' : '#B02A1E',
           }}>
-            {up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+            {up ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
             {Math.abs(pct)}%
           </span>
         )}
       </div>
-      {sub && <div style={{ fontSize: 12, color: '#607870', marginTop: 4, fontWeight: 600 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 11.5, color: '#607870', marginTop: 2, fontWeight: 600 }}>{sub}</div>}
     </div>
   );
 }
@@ -324,7 +324,7 @@ function Card({ title, sub, children, action }) {
 
 // ─── Revenue chart (SVG) ──────────────────────────────────────────────────────
 function RevenueChartSVG({ data }) {
-  const W = 580, H = 190, PL = 48, PR = 12, PT = 10, PB = 24;
+  const W = 820, H = 200, PL = 48, PR = 12, PT = 14, PB = 28;
   const cW = W - PL - PR, cH = H - PT - PB;
   const maxV = Math.max(...data.map(d => d.booked)) * 1.05;
   const cx = i => PL + (i + 0.5) * (cW / data.length);
@@ -333,15 +333,15 @@ function RevenueChartSVG({ data }) {
   const grids = [0, 0.25, 0.5, 0.75, 1];
   const collectLine = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${cx(i).toFixed(1)},${cy(d.collected).toFixed(1)}`).join(' ');
   return (
-    <div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible' }}>
+    <div style={{ maxWidth: '100%' }}>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', maxHeight: 220, display: 'block' }}>
         {grids.map(g => {
           const y = (PT + cH * (1 - g)).toFixed(1);
           const val = Math.round(maxV * g);
           return (
             <g key={g}>
               <line x1={PL} y1={y} x2={W - PR} y2={y} stroke="#EEF2F0" strokeWidth="1" />
-              <text x={PL - 6} y={parseFloat(y) + 3.5} textAnchor="end" fontSize="11.5" fontWeight="600" fill="#2E4840" fontFamily="Manrope,sans-serif">{val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}</text>
+              <text x={PL - 6} y={parseFloat(y) + 3.5} textAnchor="end" fontSize="11" fontWeight="600" fill="#4E6860" fontFamily="Manrope,sans-serif">{val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}</text>
             </g>
           );
         })}
@@ -365,10 +365,10 @@ function RevenueChartSVG({ data }) {
           <circle key={i} cx={cx(i)} cy={cy(d.collected)} r="4" fill="#fff" stroke={CLINIC_CONFIG.primaryColor} strokeWidth="2.5" />
         ))}
         {data.map((d, i) => (
-          <text key={i} x={cx(i)} y={H - 4} textAnchor="middle" fontSize="10" fontWeight="700" fill="#2E4840" fontFamily="Manrope,sans-serif">{d.month}</text>
+          <text key={i} x={cx(i)} y={H - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill="#2E4840" fontFamily="Manrope,sans-serif">{d.month}</text>
         ))}
       </svg>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 4, paddingTop: 12, borderTop: '1px solid #EEF2F0', fontSize:12, color: '#4E6860' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 2, paddingTop: 10, borderTop: '1px solid #EEF2F0', fontSize: 11.5, color: '#4E6860' }}>
         {[['#3B82F6','Dental'],['#FB7185','Aesthetic'],['#E8EDEA','Booked (gap)']].map(([c, l]) => (
           <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 10, height: 10, borderRadius: 2, background: c, display: 'inline-block' }} />
