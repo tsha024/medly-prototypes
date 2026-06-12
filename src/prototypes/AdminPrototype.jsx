@@ -185,7 +185,7 @@ export default function AdminPrototype() {
 
       {/* ── HEADER ── */}
       <header style={{ background: CLINIC_CONFIG.headerBg, borderBottom: '1px solid rgba(255,255,255,.07)' }}>
-        <div style={{ padding: '0 24px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '0 24px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {CLINIC_CONFIG.logoUrl
               ? <img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{ height: 34 }} />
@@ -222,7 +222,7 @@ export default function AdminPrototype() {
         <div style={{ display: 'flex', padding: '0 24px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
           {[['dashboard','Dashboard'],['reports','Reports'],['daily','Daily report'],['settings','Settings']].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
-              padding: '9px 18px', fontSize: 13, fontWeight: tab === id ? 700 : 500,
+              padding: '11px 18px', fontSize: 13, fontWeight: tab === id ? 700 : 500,
               color: tab === id ? '#fff' : '#5A8A7A',
               background: 'transparent', border: 'none',
               borderBottom: `2.5px solid ${tab === id ? CLINIC_CONFIG.primaryColor : 'transparent'}`,
@@ -246,7 +246,7 @@ export default function AdminPrototype() {
 
       {/* ── TABS ── */}
       {tab === 'dashboard' && (
-        <main style={{ display: 'grid', gridTemplateColumns: '1fr 336px', gap: 16, padding: '14px 24px' }}>
+        <main style={{ display: 'grid', gridTemplateColumns: '1fr 336px', gap: 16, padding: '16px 24px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Card title="Revenue trend" sub="6 months · Booked vs Collected · Dental & Aesthetic">
               <RevenueChartSVG data={REVENUE_DATA} />
@@ -282,26 +282,26 @@ function KPITile({ label, value, prev, currency, unit, sub, inverted, last }) {
   const up   = pct > 0;
   const good = inverted ? !up : up;
   return (
-    <div style={{ padding: '10px 20px', borderRight: last ? 'none' : '1px solid #E8EDEA' }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#4E6860', marginBottom: 3 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.7px', color: '#111814', lineHeight: 1 }}>
+    <div style={{ padding: '14px 22px', borderRight: last ? 'none' : '1px solid #E8EDEA' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#2E4840', marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-1px', color: '#111814', lineHeight: 1 }}>
           {Number(value).toLocaleString()}
-          <span style={{ fontSize: 12, fontWeight: 500, color: '#607870', marginLeft: 3 }}>{currency ? 'QAR' : unit}</span>
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#607870', marginLeft: 3 }}>{currency ? 'QAR' : unit}</span>
         </div>
         {pct !== null && (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 2,
-            fontSize: 10.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20,
+            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
             background: good ? '#D4F1E4' : '#FDDDD9',
             color: good ? '#0A6040' : '#B02A1E',
           }}>
-            {up ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
+            {up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
             {Math.abs(pct)}%
           </span>
         )}
       </div>
-      {sub && <div style={{ fontSize: 11.5, color: '#607870', marginTop: 2, fontWeight: 600 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 12, color: '#607870', marginTop: 4, fontWeight: 600 }}>{sub}</div>}
     </div>
   );
 }
