@@ -137,12 +137,210 @@ export default function DoctorPortalPrototype() {
       {viewingEnc?(
         <PastEncounterView enc={viewingEnc} onBack={()=>setViewingEnc(null)}/>
       ):(
-        <div style={{display:'grid',gridTemplateColumns:'240px 1fr 260px',gap:14,padding:'14px 20px'}}>
-          <HistoryColumn history={ENCOUNTER_HISTORY} mode={mode} onView={setViewingEnc}/>
-          <main>{isDental?<DentalEncounter apt={TODAYS_APT.dental}/>:<AestheticEncounter apt={TODAYS_APT.aesthetic}/>}</main>
-          <ActionsColumn mode={mode} apt={TODAYS_APT[mode]}/>
-        </div>
+        <EncounterPanel mode={mode} isDental={isDental} onView={setViewingEnc}/>
       )}
+    </div>
+  );
+}
+
+// ─── Encounter Panel — 3-tab layout replacing the old 3-column grid ─────────────
+function EncounterPanel({ mode, isDental, onView }) {
+  const [tab, setTab] = useState('soap');
+  const apt = TODAYS_APT[mode];
+
+  const TABS = [
+    { id: 'history',   label: 'History' },
+    { id: 'soap',      label: 'SOAP' },
+    { id: 'treatment', label: 'Treatment' },
+  ];
+
+  return (
+    <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px 20px' }}>
+      {/* Tab bar */}
+      <div style={{ display: 'flex', borderBottom: '2px solid #DCE4E0', marginBottom: 18 }}>
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              padding: '10px 24px',
+              fontSize: 13.5,
+              fontWeight: tab === t.id ? 700 : 500,
+              border: 'none',
+              borderBottom: `2.5px solid ${tab === t.id ? CLINIC_CONFIG.primaryColor : 'transparent'}`,
+              marginBottom: -2,
+              background: 'transparent',
+              color: tab === t.id ? CLINIC_CONFIG.primaryColor : '#5A7870',
+              cursor: 'pointer',
+              transition: 'color .13s',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'history'   && <HistoryTab history={ENCOUNTER_HISTORY} mode={mode} onView={onView} />}
+      {tab === 'soap'      && (isDental ? <DentalEncounter apt={apt} /> : <AestheticSoapTab apt={apt} />)}
+      {tab === 'treatment' && <TreatmentTab mode={mode} apt={apt} isDental={isDental} />}
+    </div>
+  );
+}
+
+// ─── History Tab ───────────────────────────────────────────────────────────────
+function HistoryTab({ history, mode, onView }) {
+  const [filter, setFilter] = useState('all');
+  const [expanded, setExpanded] = useState(null);
+  const filtered = filter === 'all' ? history : history.filter(e => e.kind === filter);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Current medications */}
+      <div style={card}>
+        <div style={cardHd}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>Current medications</div>
+        </div>
+        <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {PATIENT.medications.map(m => (
+            <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Pill size={13} color="#4E6860" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#2A3830' }}>{m}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Encounter timeline */}
+      <div style={card}>
+        <div style={{ ...cardHd, alignItems: 'center' }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>Encounter history</div>
+          <div style={{ display: 'flex', borderRadius: 7, overflow: 'hidden', border: '1px solid #DCE4E0' }}>
+            {['all', 'dental', 'aesthetic'].map(f => (
+              <button key={f} onClick={() => setFilter(f)} style={{ padding: '4px 10px', fontSize: 12, fontWeight: 600, border: 'none', background: filter === f ? CLINIC_CONFIG.primaryColor : '#fff', color: filter === f ? '#fff' : '#4A6860', cursor: 'pointer', textTransform: 'capitalize' }}>{f}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ padding: '14px 18px' }}>
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 5, top: 6, bottom: 0, width: 1, background: '#DCE4E0' }} />
+            {filtered.map(e => {
+              const isExp = expanded === e.id;
+              return (
+                <div key={e.id} style={{ marginBottom: 14, paddingLeft: 22, position: 'relative' }}>
+                  <div style={{ position: 'absolute', left: 0, top: 4, width: 11, height: 11, borderRadius: '50%', border: '2px solid #fff', background: e.kind === 'dental' ? '#3B82F6' : '#FB7185' }} />
+                  <button className="enc-row" onClick={() => setExpanded(isExp ? null : e.id)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '4px 0', cursor: 'pointer', borderRadius: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#5A7870' }}>{e.date}</span>
+                      <ChevronDown size={13} color="#5A7870" style={{ transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }} />
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111814', marginTop: 2, lineHeight: 1.3 }}>{e.procedure}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#5A7870', marginTop: 1 }}>{e.doctor}</div>
+                    {!isExp && <div style={{ fontSize: 12, fontWeight: 500, color: '#6A8880', marginTop: 3, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.notes}</div>}
+                  </button>
+                  {isExp && (
+                    <div style={{ marginTop: 8, padding: '12px 14px', background: '#F5F8F7', borderRadius: 9, border: '1px solid #DCE4E0' }}>
+                      <div style={{ ...SEC, marginBottom: 6 }}>Rx Done</div>
+                      {e.rxDone.map((r, i) => <div key={i} style={{ fontSize: 13, fontWeight: 500, color: '#2A3830', marginBottom: 3 }}>· {r.item}</div>)}
+                      <div style={{ ...SEC, marginTop: 10, marginBottom: 6 }}>Notes</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#2A3830', fontStyle: 'italic' }}>{e.notes}</div>
+                      {e.rxMeds.length > 0 && (<><div style={{ ...SEC, marginTop: 10, marginBottom: 6 }}>Medications</div>{e.rxMeds.map((m, i) => <div key={i} style={{ fontSize: 13, fontWeight: 600, color: '#2A3830', marginBottom: 3 }}>{m}</div>)}</>)}
+                      {e.plan.length > 0 && (<><div style={{ ...SEC, marginTop: 10, marginBottom: 6 }}>Plan</div>{e.plan.map((p, i) => <div key={i} style={{ fontSize: 13, fontWeight: 600, color: '#2A3830', marginBottom: 3 }}>{i + 1}. {p}</div>)}</>)}
+                      <button onClick={() => onView(e)} style={{ marginTop: 12, width: '100%', padding: '8px', borderRadius: 8, border: '1px solid #DCE4E0', background: '#fff', fontSize: 13, fontWeight: 600, color: '#2A4840', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer' }}>
+                        <ExternalLink size={12} /> Open full encounter
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Aesthetic SOAP Tab (minimal, mirrors DentalEncounter SOAP section) ────────
+function AestheticSoapTab({ apt }) {
+  const [soap, setSoap] = useState({ s: 'Wants to refresh Botox from November and discuss tear-trough filler.', o: '', a: '', p: '' });
+  const update = k => v => setSoap(p => ({ ...p, [k]: v }));
+  return (
+    <div style={card}>
+      <div style={cardHd}><div><div style={{ fontSize: 14, fontWeight: 700 }}>SOAP note</div><div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>{apt.procedure} · {apt.time}</div></div></div>
+      <div style={cardBd}>
+        <SoapField letter="S" label="Subjective"  value={soap.s} onChange={update('s')} />
+        <SoapField letter="O" label="Objective"   value={soap.o} onChange={update('o')} />
+        <SoapField letter="A" label="Assessment"  value={soap.a} onChange={update('a')} />
+        <SoapField letter="P" label="Plan"        value={soap.p} onChange={update('p')} />
+        <PrimaryBtn style={{ marginTop: 4 }}><Save size={13} />Save notes</PrimaryBtn>
+      </div>
+    </div>
+  );
+}
+
+// ─── Treatment Tab — odontogram/injection map + Rx + actions ──────────────────
+function TreatmentTab({ mode, apt, isDental }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Insurance banner */}
+      <div style={{ padding: '11px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+        <Shield size={15} color="#1D4ED8" style={{ flexShrink: 0, marginTop: 1 }} />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#1E40AF' }}>{mode === 'dental' ? 'QLM — Dental covered' : 'QLM — Aesthetic excluded'}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#3B5FA0', marginTop: 2 }}>{mode === 'dental' ? 'Pre-auth approved. Co-pay QAR 60.' : 'Cosmetic procedure — patient pays direct.'}</div>
+          {mode === 'dental' && <div style={{ fontSize: 12, color: '#6080B0', marginTop: 2, fontWeight: 600 }}>Auth #QLM-PA-118822</div>}
+        </div>
+      </div>
+
+      {/* Odontogram / injection map */}
+      {isDental ? <DentalTreatmentCard /> : <AestheticMapCard apt={apt} />}
+
+      {/* Rx Done + Rx Med + Plan + Finish */}
+      <ActionsColumn mode={mode} apt={apt} />
+    </div>
+  );
+}
+
+// ─── Dental treatment card (odontogram only) ───────────────────────────────────
+function DentalTreatmentCard() {
+  const [findings, setFindings] = useState({ 16: { status: 'decay' }, 17: { status: 'filling' }, 36: { status: 'filling' } });
+  const [selectedTooth, setSelectedTooth] = useState(16);
+  const setToothStatus = (num, status) => {
+    setFindings(prev => {
+      const next = { ...prev };
+      if (status === 'healthy') delete next[num];
+      else next[num] = { status };
+      return next;
+    });
+  };
+  return (
+    <div style={card}>
+      <div style={cardHd}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>Odontogram</div>
+          <div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>FDI notation · Click a tooth to flag treatment</div>
+        </div>
+      </div>
+      <div style={{ padding: '18px 20px' }}>
+        <Odontogram findings={findings} selected={selectedTooth} onSelect={setSelectedTooth} />
+        <ToothStatusPicker
+          num={selectedTooth}
+          currentStatus={findings[selectedTooth]?.status || 'healthy'}
+          onSet={status => setToothStatus(selectedTooth, status)}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Aesthetic map card (injection map only) ───────────────────────────────────
+function AestheticMapCard({ apt }) {
+  const [injSites, setInjSites] = useState([{ x: 150, y: 80, label: 'Glabellar 8U' }, { x: 100, y: 60, label: 'Frontalis L 4U' }, { x: 200, y: 60, label: 'Frontalis R 4U' }]);
+  return (
+    <div style={card}>
+      <div style={cardHd}><div style={{ fontSize: 14, fontWeight: 700 }}>Injection map</div></div>
+      <div style={{ padding: '14px 18px' }}>
+        <AestheticEncounter apt={apt} injSites={injSites} setInjSites={setInjSites} mapOnly />
+      </div>
     </div>
   );
 }
@@ -445,70 +643,28 @@ function Odontogram({ findings = {}, selected, onSelect = () => {} }) {
 }
 
 
-// ─── Dental Encounter ─────────────────────────────────────────────────────────
+// ─── Dental Encounter (SOAP tab only) ─────────────────────────────────────────
 function DentalEncounter({ apt }) {
   const [soap, setSoap] = useState({s:'Sensitivity to cold on upper-right back tooth, started 4 days ago.',o:'',a:'',p:''});
   const update = k => v => setSoap(p=>({...p,[k]:v}));
-  // Odontogram state: tooth status + selected tooth (used to edit status)
-  const [findings, setFindings] = useState({16:{status:'decay'}, 17:{status:'filling'}, 36:{status:'filling'}});
-  const [selectedTooth, setSelectedTooth] = useState(16);
-  const setToothStatus = (num, status) => {
-    setFindings(prev => {
-      const next = { ...prev };
-      if (status === 'healthy') delete next[num];
-      else next[num] = { status };
-      return next;
-    });
-  };
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:14}}>
-      <div style={card}>
-        <div style={cardHd}><div><div style={{fontSize:14,fontWeight:700}}>SOAP note</div><div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>{apt.procedure} · {apt.time}</div></div></div>
-        <div style={cardBd}>
-          <SoapField letter="S" label="Subjective"  value={soap.s} onChange={update('s')}/>
-          <SoapField letter="O" label="Objective"   value={soap.o} onChange={update('o')}/>
-          <SoapField letter="A" label="Assessment"  value={soap.a} onChange={update('a')}/>
-          <SoapField letter="P" label="Plan"        value={soap.p} onChange={update('p')}/>
-          <PrimaryBtn style={{marginTop:4}}><Save size={13}/>Save notes</PrimaryBtn>
-        </div>
-      </div>
-      <div style={card}>
-        <div style={cardHd}>
-          <div>
-            <div style={{fontSize:14,fontWeight:700}}>Odontogram</div>
-            <div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>FDI notation · Click a tooth to flag treatment</div>
-          </div>
-        </div>
-        <div style={{padding:'18px 20px'}}>
-          <Odontogram findings={findings} selected={selectedTooth} onSelect={setSelectedTooth}/>
-          <ToothStatusPicker
-            num={selectedTooth}
-            currentStatus={findings[selectedTooth]?.status || 'healthy'}
-            onSet={status => setToothStatus(selectedTooth, status)}
-          />
-        </div>
+    <div style={card}>
+      <div style={cardHd}><div><div style={{fontSize:14,fontWeight:700}}>SOAP note</div><div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>{apt.procedure} · {apt.time}</div></div></div>
+      <div style={cardBd}>
+        <SoapField letter="S" label="Subjective"  value={soap.s} onChange={update('s')}/>
+        <SoapField letter="O" label="Objective"   value={soap.o} onChange={update('o')}/>
+        <SoapField letter="A" label="Assessment"  value={soap.a} onChange={update('a')}/>
+        <SoapField letter="P" label="Plan"        value={soap.p} onChange={update('p')}/>
+        <PrimaryBtn style={{marginTop:4}}><Save size={13}/>Save notes</PrimaryBtn>
       </div>
     </div>
   );
 }
 
 // ─── Aesthetic Encounter ──────────────────────────────────────────────────────
-function AestheticEncounter({ apt }) {
-  const [soap, setSoap] = useState({s:'Wants to refresh Botox from November and discuss tear-trough filler.',o:'',a:'',p:''});
-  const update = k => v => setSoap(p=>({...p,[k]:v}));
+function AestheticEncounter({ apt, mapOnly = false }) {
   const [injSites, setInjSites] = useState([{x:150,y:80,label:'Glabellar 8U'},{x:100,y:60,label:'Frontalis L 4U'},{x:200,y:60,label:'Frontalis R 4U'}]);
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:14}}>
-      <div style={card}>
-        <div style={cardHd}><div><div style={{fontSize:14,fontWeight:700}}>SOAP note</div><div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>{apt.procedure} · {apt.time}</div></div></div>
-        <div style={cardBd}>
-          <SoapField letter="S" label="Subjective" value={soap.s} onChange={update('s')}/>
-          <SoapField letter="O" label="Objective"  value={soap.o} onChange={update('o')}/>
-          <SoapField letter="A" label="Assessment" value={soap.a} onChange={update('a')}/>
-          <SoapField letter="P" label="Plan"       value={soap.p} onChange={update('p')}/>
-          <PrimaryBtn style={{marginTop:4}}><Save size={13}/>Save notes</PrimaryBtn>
-        </div>
-      </div>
       <div style={card}>
         <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Injection map — Face</div></div>
         <div style={{padding:'14px 18px'}}>
@@ -538,7 +694,6 @@ function AestheticEncounter({ apt }) {
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
