@@ -133,7 +133,7 @@ const slotToMin          = slot => { const [h,m]=slot.split(':').map(Number); re
 function isSlotBlocked(doctorId, date, slot) {
   const s=DOCTOR_SCHEDULES[doctorId]; if(!s) return false;
   if(s.offDays.includes(dayOfWeek(date))) return true;
-  const ds=date.toISOString().slice(0,10);
+  const ds=fmtISO(date);
   if(s.vacations.some(v=>ds>=v.start&&ds<=v.end)) return true;
   const sm=slotToMin(slot);
   if(sm<slotToMin(s.workStart)||sm>=slotToMin(s.workEnd)) return true;
@@ -141,12 +141,12 @@ function isSlotBlocked(doctorId, date, slot) {
 }
 function blockedReason(doctorId, date, slot) {
   const s=DOCTOR_SCHEDULES[doctorId]; if(!s) return null;
-  if(s.offDays.includes(dayOfWeek(date))) return `Off ${dayOfWeek(date)}`;
-  const ds=date.toISOString().slice(0,10);
+  if(s.offDays.includes(dayOfWeek(date))) return `Off on ${dayOfWeek(date).charAt(0).toUpperCase()+dayOfWeek(date).slice(1)}`;
+  const ds=fmtISO(date);
   for(const v of s.vacations) if(ds>=v.start&&ds<=v.end) return v.reason;
   const sm=slotToMin(slot);
-  if(sm<slotToMin(s.workStart)) return `Before shift (${s.workStart})`;
-  if(sm>=slotToMin(s.workEnd))  return `After shift (${s.workEnd})`;
+  if(sm<slotToMin(s.workStart)) return `Before shift (starts ${s.workStart})`;
+  if(sm>=slotToMin(s.workEnd))  return `After shift (ends ${s.workEnd})`;
   for(const b of s.breaks) if(sm>=slotToMin(b.start)&&sm<slotToMin(b.end)) return b.label;
   return null;
 }
@@ -982,7 +982,12 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
     };
     onConfirm(payload);
   };
-  const results = patients.filter(p=>{ if(!searchQ) return true; const q=searchQ.toLowerCase(); return p.nameEn.toLowerCase().includes(q)||p.qid.includes(q)||(p.fileNo&&p.fileNo.includes(q))||p.phone.includes(q); });
+  // Availability check — only applies when a doctor is selected.
+  // Nurse-led visits skip this (no nurse schedule data in the prototype yet).
+  const checkingId = primaryProviderType==='doctor' ? primaryProviderId : null;
+  const unavailable = checkingId ? isSlotBlocked(checkingId, selectedDate, time) : false;
+  const unavailReason = checkingId ? blockedReason(checkingId, selectedDate, time) : null;
+  const results = patients.filter(p=>{ if(!searchQ) return true; const q=searchQ.toLowerCase(); return p.nameEn.toLowerCase().includes(q)||(p.qid||'').includes(q)||(p.fileNo&&p.fileNo.includes(q))||p.phone.includes(q); });
   const STEP_LABELS = ['Patient','Procedure','Provider','Confirm'];
 
   return(
@@ -1017,6 +1022,15 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
           <div style={{flex:'1 1 100%',fontSize:12,fontWeight:600,color:'#3D5850',padding:'4px 0'}}>
             <span style={{color:'#5A7870'}}>Booking:</span> {procObj.name} · {procObj.dur}min
             {procObj.nurseOnly && <span style={{marginLeft:8,fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,background:'#EDE9FE',color:'#4C1D95'}}>Nurse-led</span>}
+          </div>
+        )}
+        {unavailable && unavailReason && (
+          <div style={{flex:'1 1 100%',padding:'9px 12px',background:'#FEF4F2',border:'1.5px solid #FECACA',borderRadius:9,display:'flex',alignItems:'flex-start',gap:8}}>
+            <AlertTriangle size={14} color="#DC4F38" style={{flexShrink:0,marginTop:1}}/>
+            <div>
+              <div style={{fontSize:12.5,fontWeight:700,color:'#B02A1E'}}>{effectiveDoctor?.nameEn} is not available at this slot</div>
+              <div style={{fontSize:12,fontWeight:600,color:'#B02A1E',marginTop:2}}>{unavailReason} · Change date, time, or doctor to book.</div>
+            </div>
           </div>
         )}
       </div>
@@ -1163,7 +1177,7 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
 
             <div style={{display:'flex',justifyContent:'space-between',paddingTop:4}}>
               <GhostBtn onClick={()=>setStep(2)}><ChevronLeft size={13}/>Back</GhostBtn>
-              <PrimaryBtn onClick={()=>setStep(4)} disabled={!primaryProviderId}>Review booking →</PrimaryBtn>
+              <PrimaryBtn onClick={()=>setStep(4)} disabled={!primaryProviderId||unavailable}>Review booking →</PrimaryBtn>
             </div>
           </div>
         )}
@@ -1205,7 +1219,7 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
             )}
             <div style={{display:'flex',justifyContent:'space-between',paddingTop:4}}>
               <GhostBtn onClick={()=>setStep(3)}><ChevronLeft size={13}/>Back</GhostBtn>
-              <PrimaryBtn onClick={handleConfirm}><CheckCircle2 size={14}/>Confirm booking</PrimaryBtn>
+              <PrimaryBtn onClick={handleConfirm} disabled={unavailable}><CheckCircle2 size={14}/>Confirm booking</PrimaryBtn>
             </div>
           </div>
         )}
@@ -1286,6 +1300,11 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
   const [aptTime,     setAptTime]    = useState(appointment.start);
   const [aptDoctorId, setAptDoctorId]= useState(appointment.doctorId);
   const effectiveDoc = DOCTORS.find(d=>d.id===aptDoctorId);
+  // Availability check for reschedules — only applies if this is a doctor appointment
+  const reschedUnavail = aptDoctorId && appointment.providerType!=='nurse'
+    ? isSlotBlocked(aptDoctorId, aptDate, aptTime) : false;
+  const reschedReason  = aptDoctorId && appointment.providerType!=='nurse'
+    ? blockedReason(aptDoctorId, aptDate, aptTime) : null;
   const doc   = DOCTORS.find(d=>d.id===appointment.doctorId);
   const nurse = NURSES.find(n=>n.id===appointment.nurseId);
   const dc = DOC_COLORS[effectiveDoc?.color||doc?.color];
@@ -1356,6 +1375,15 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
               </select>
             </FormField>
           </div>
+          {reschedUnavail && reschedReason && (
+            <div style={{marginTop:8,padding:'9px 12px',background:'#FEF4F2',border:'1.5px solid #FECACA',borderRadius:9,display:'flex',alignItems:'flex-start',gap:8}}>
+              <AlertTriangle size={14} color="#DC4F38" style={{flexShrink:0,marginTop:1}}/>
+              <div>
+                <div style={{fontSize:12.5,fontWeight:700,color:'#B02A1E'}}>{effectiveDoc?.nameEn} is not available at this slot</div>
+                <div style={{fontSize:12,fontWeight:600,color:'#B02A1E',marginTop:2}}>{reschedReason} · Change date, time, or doctor to save.</div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Departure-date warning for international patients */}
@@ -1380,7 +1408,7 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
 
         <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:4}}>
           <GhostBtn onClick={onClose}>Discard</GhostBtn>
-          <PrimaryBtn onClick={()=>{ onUpdate({status,notes,start:aptTime,date:aptDate,doctorId:aptDoctorId}); onClose(); }}><Save size={13}/>Save changes</PrimaryBtn>
+          <PrimaryBtn onClick={()=>{ onUpdate({status,notes,start:aptTime,date:aptDate,doctorId:aptDoctorId}); onClose(); }} disabled={reschedUnavail}><Save size={13}/>Save changes</PrimaryBtn>
         </div>
       </div>
     </Modal>
