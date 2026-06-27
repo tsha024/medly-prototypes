@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ChevronLeft, Shield, CreditCard, Banknote, Smartphone, Receipt,
   CheckCircle2, AlertCircle, FileText, Send, X, Plus, Calendar,
@@ -20,6 +20,26 @@ function MedlyLogo({ size = 34 }) {
       <circle cx="27" cy="24" r="0.7" fill="#fff"/>
     </svg>
   );
+}
+
+import { useCharges, chargesForQid } from './chargeStore';
+
+// Map a doctor-posted charge to a checkout line item. Insurance charges keep the
+// insurer split (coveragePct = 100 − copay%); cash charges bake the discount into
+// the price the patient pays.
+function chargeToItem(ch) {
+  const dental = !/aesthetic/i.test(ch.specialty || '');
+  const base = { id:'dc-'+ch.id, fromDoctor:true, code:ch.code||'—', specialty:dental?'dental':'aesthetic', doctor:ch.postedBy||'Doctor' };
+  if (ch.payMode === 'insurance') {
+    return { ...base, label:ch.treatment, price:ch.insurancePrice, insurable:true, coveragePct:Math.max(0,100-(ch.copayPct||0)), authNumber:null };
+  }
+  return { ...base, label:ch.treatment + (ch.discount ? ` (−${ch.discount}% cash)` : ''), price:ch.patientPays, insurable:false, coveragePct:0 };
+}
+function recomputeEnc(items, paid) {
+  const total = items.reduce((s,i)=>s+i.price,0);
+  const insured = items.filter(i=>i.insurable).reduce((s,i)=>s+Math.round(i.price*i.coveragePct/100),0);
+  const patientDue = total - insured;
+  return { totalAmount:total, patientDue, balance:patientDue-(paid||0) };
 }
 
 const PATIENT = {
@@ -103,6 +123,17 @@ export default function CheckoutPrototype() {
   const [itemOverrides, setItemOverrides] = useState({});
   const [discounts,     setDiscounts]     = useState({});
   const [splitsByEnc,   setSplitsByEnc]   = useState({});
+
+  const charges = useCharges();
+  useEffect(() => {
+    const live = chargesForQid(PATIENT.qid).map(chargeToItem);
+    setEncounters(prev => prev.map(e => {
+      if (e.id !== 'enc1') return e;
+      const baseItems = e.items.filter(i => !i.fromDoctor);
+      const items = [...baseItems, ...live];
+      return { ...e, items, ...recomputeEnc(items, e.paid) };
+    }));
+  }, [charges]);
 
   const encounter = encounters.find(e=>e.id===selectedEncId);
   const items = useMemo(()=>{ if(!encounter) return []; const ov=itemOverrides[selectedEncId]||{}; return encounter.items.map(i=>({ ...i, covered: ov[i.id]!==undefined?ov[i.id]:i.insurable })); },[encounter,itemOverrides,selectedEncId]);
@@ -283,7 +314,7 @@ function ReviewStep({ encounter, items, toggleCoverage, discount, setDiscount, s
                 <div key={item.id} style={{padding:'12px 14px',border:`1px solid ${item.covered?'#B8DDD6':'#DCE4E0'}`,borderRadius:10,background:item.covered?'#F0FAF6':'#fff'}}>
                   <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13.5,fontWeight:600,color:'#111814'}}>{item.label}</div>
+                      <div style={{fontSize:13.5,fontWeight:600,color:'#111814',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>{item.label}{item.fromDoctor&&<span style={{fontSize:10.5,fontWeight:700,padding:'1px 7px',borderRadius:10,background:'#F0FAF6',color:'#0C6B5A',border:'1px solid #B8DDD6'}}>from doctor</span>}</div>
                       <div style={{fontSize:12,color:'#3D5850',marginTop:2,fontWeight:600}}>{item.doctor} · <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{item.code}</span></div>
                     </div>
                     <div style={{textAlign:'right',flexShrink:0}}>

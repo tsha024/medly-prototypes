@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
 import { useTreatments, insurerPricing, priceBreakdown } from './treatmentStore';
+import { addCharge } from './chargeStore';
 
 const CLINIC_CONFIG = {
   name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
@@ -1136,22 +1137,38 @@ function AestheticSoapTab({ apt }) {
 }
 
 // ─── Treatment Tab — odontogram/injection map + Rx + actions ──────────────────
-function TreatmentChargeCard({ insurer, mode }) {
+function TreatmentChargeCard({ patient, mode }) {
+  const insurer = patient.insurer;
   const all = useTreatments();
   const active = all.filter(t => t.active);
   const [selId, setSelId]       = useState('');
   const [payMode, setPayMode]   = useState('insurance');
   const [cashPrice, setCashPrice] = useState(0);
   const [discount, setDiscount]   = useState(0);
+  const [posted, setPosted]     = useState(null);
 
   const tx  = active.find(t => t.id === selId) || null;
   const ins = tx ? insurerPricing(tx, insurer) : null;
   const bd  = tx ? priceBreakdown(tx, insurer, { payMode, cashPrice, discount }) : null;
 
   const onSelect = id => {
-    setSelId(id);
+    setSelId(id); setPosted(null);
     const t = active.find(x => x.id === id);
     if (t) { setCashPrice(t.cashPrice); setDiscount(t.discount || 0); setPayMode(insurerPricing(t, insurer) ? 'insurance' : 'cash'); }
+  };
+
+  const postToCheckout = () => {
+    if (!tx || !bd) return;
+    addCharge({
+      qid: patient.qid, patientName: patient.nameEn, date: TODAY,
+      treatment: tx.name, code: tx.code || '', specialty: tx.specialty,
+      payMode: bd.mode, grossPrice: bd.gross,
+      insurer, insurancePrice: bd.insurancePrice || 0, copayPct: bd.copayPct || 0,
+      cashPrice: bd.cashPrice || 0, discount: bd.discount || 0,
+      patientPays: bd.patientPays, insurerPays: bd.insurerPays || 0,
+      postedBy: CURRENT_DOCTOR.name,
+    });
+    setPosted({ treatment: tx.name, patientPays: bd.patientPays });
   };
 
   // group active treatments by specialty for the dropdown
@@ -1233,6 +1250,18 @@ function TreatmentChargeCard({ insurer, mode }) {
                 </>
               )}
             </div>
+
+            {/* Post to checkout */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' }}>
+              {posted ? (
+                <div style={{ display:'flex', alignItems:'center', gap:7, fontSize:12.5, fontWeight:700, color:'#0A6040' }}>
+                  <CheckCircle2 size={15}/> Sent to checkout &#xB7; {posted.treatment} &#xB7; QAR {posted.patientPays.toLocaleString()}
+                </div>
+              ) : (
+                <div style={{ fontSize:11.5, fontWeight:600, color:'#8AA8A0' }}>Posts this treatment &amp; price to the patient&#x2019;s checkout bill.</div>
+              )}
+              <PrimaryBtn onClick={postToCheckout}><Receipt size={13}/>{posted?'Post again':'Post to checkout'}</PrimaryBtn>
+            </div>
           </>
         )}
       </div>
@@ -1257,7 +1286,7 @@ function TreatmentTab({ mode, apt, isDental }) {
       {isDental ? <DentalTreatmentCard /> : <AestheticMapCard />}
 
       {/* Treatment & charge — dropdown + pricing from the shared Admin price list */}
-      <TreatmentChargeCard insurer={PATIENT.insurer} mode={mode} />
+      <TreatmentChargeCard patient={PATIENT} mode={mode} />
 
       {/* Rx Done + Rx Med + Plan + Finish */}
       <ActionsColumn mode={mode} apt={apt} />
