@@ -108,26 +108,30 @@ const MY_SCHEDULE = [
 ];
 
 const PROCEDURE_REPORT = [
-  { id:'pr1',  date:'2026-06-25', patientName:'Aisha Al-Kuwari',     procedure:'Root canal — #16 prep',      code:'D3310', amount:900,  kind:'dental', insurer:'QLM'     },
-  { id:'pr2',  date:'2026-06-25', patientName:'Fatima Hassan',       procedure:'Extraction #28',              code:'D7210', amount:350,  kind:'dental', insurer:'Daman'   },
-  { id:'pr3',  date:'2026-06-25', patientName:'Khalid Al-Mansouri',  procedure:'Filling #14 + #15',           code:'D2390', amount:820,  kind:'dental', insurer:'MedNet'  },
-  { id:'pr4',  date:'2026-06-25', patientName:'Sara Al-Jaber',       procedure:'Crown impression #26',        code:'D2752', amount:1400, kind:'dental', insurer:'QLM'     },
-  { id:'pr5',  date:'2026-06-24', patientName:'Mohammed Al-Rashidi', procedure:'Composite fillings #11, #12', code:'D2391', amount:1100, kind:'dental', insurer:'AXA'     },
-  { id:'pr6',  date:'2026-06-24', patientName:'Nora Al-Thani',       procedure:'Cleaning + fluoride',         code:'D1110', amount:420,  kind:'dental', insurer:'QLM'     },
-  { id:'pr7',  date:'2026-06-24', patientName:'Aisha Al-Kuwari',     procedure:'Bitewing X-rays',             code:'D0274', amount:220,  kind:'dental', insurer:'QLM'     },
-  { id:'pr8',  date:'2026-06-24', patientName:'Ali Hassan Al-Marri', procedure:'Emergency consultation',      code:'D9110', amount:200,  kind:'dental', insurer:'Allianz' },
-  { id:'pr9',  date:'2026-06-23', patientName:'Fatima Hassan',       procedure:'Consultation + OPG X-ray',   code:'D0330', amount:380,  kind:'dental', insurer:'Daman'   },
-  { id:'pr10', date:'2026-06-23', patientName:'Khalid Al-Mansouri',  procedure:'Routine check',               code:'D0120', amount:180,  kind:'dental', insurer:'MedNet'  },
-  { id:'pr11', date:'2026-06-20', patientName:'Mohammed Al-Rashidi', procedure:'Scaling & polish',            code:'D1110', amount:380,  kind:'dental', insurer:'AXA'     },
-  { id:'pr12', date:'2026-06-20', patientName:'Sara Al-Jaber',       procedure:'Crown seat #25',              code:'D2752', amount:1400, kind:'dental', insurer:'QLM'     },
-  { id:'pr13', date:'2026-06-18', patientName:'Nora Al-Thani',       procedure:'Composite filling #36',       code:'D2391', amount:600,  kind:'dental', insurer:'QLM'     },
-  { id:'pr14', date:'2026-06-18', patientName:'Ali Hassan Al-Marri', procedure:'Routine check + X-rays',      code:'D0120', amount:300,  kind:'dental', insurer:'Allianz' },
-  { id:'pr15', date:'2026-06-15', patientName:'Aisha Al-Kuwari',     procedure:'Cleaning + polish',           code:'D1110', amount:380,  kind:'dental', insurer:'QLM'     },
-  { id:'pr16', date:'2026-06-12', patientName:'Fatima Hassan',       procedure:'Composite filling #21',       code:'D2391', amount:550,  kind:'dental', insurer:'Daman'   },
-  { id:'pr17', date:'2026-06-10', patientName:'Mohammed Al-Rashidi', procedure:'Emergency — abscess drainage', code:'D9110', amount:250, kind:'dental', insurer:'AXA'     },
-  { id:'pr18', date:'2026-06-08', patientName:'Khalid Al-Mansouri',  procedure:'Root canal — #36',            code:'D3330', amount:1100, kind:'dental', insurer:'MedNet'  },
-  { id:'pr19', date:'2026-06-05', patientName:'Sara Al-Jaber',       procedure:'Crown prep #25',              code:'D2750', amount:1200, kind:'dental', insurer:'QLM'     },
-  { id:'pr20', date:'2026-06-02', patientName:'Ali Hassan Al-Marri', procedure:'Denture reline',              code:'D5730', amount:800,  kind:'dental', insurer:'Allianz' },
+  // Each row = one treatment type on one tooth (teeth bundled in a visit are split out).
+  // `treatment` is the normalized type; `teeth` is the tooth number(s) it was done on.
+  { id:'pr1',  date:'2026-06-25', patientName:'Aisha Al-Kuwari',     treatment:'Root canal',       teeth:['16'], note:'prep',       code:'D3310', amount:900,  kind:'dental', insurer:'QLM'     },
+  { id:'pr2',  date:'2026-06-25', patientName:'Fatima Hassan',       treatment:'Extraction',       teeth:['28'], note:'',           code:'D7210', amount:350,  kind:'dental', insurer:'Daman'   },
+  { id:'pr3',  date:'2026-06-25', patientName:'Khalid Al-Mansouri',  treatment:'Composite filling', teeth:['14'], note:'',           code:'D2391', amount:410,  kind:'dental', insurer:'MedNet'  },
+  { id:'pr4',  date:'2026-06-25', patientName:'Khalid Al-Mansouri',  treatment:'Composite filling', teeth:['15'], note:'',           code:'D2391', amount:410,  kind:'dental', insurer:'MedNet'  },
+  { id:'pr5',  date:'2026-06-25', patientName:'Sara Al-Jaber',       treatment:'Crown',            teeth:['26'], note:'impression', code:'D2752', amount:1400, kind:'dental', insurer:'QLM'     },
+  { id:'pr6',  date:'2026-06-24', patientName:'Mohammed Al-Rashidi', treatment:'Composite filling', teeth:['11'], note:'',           code:'D2391', amount:550,  kind:'dental', insurer:'AXA'     },
+  { id:'pr7',  date:'2026-06-24', patientName:'Mohammed Al-Rashidi', treatment:'Composite filling', teeth:['12'], note:'',           code:'D2391', amount:550,  kind:'dental', insurer:'AXA'     },
+  { id:'pr8',  date:'2026-06-24', patientName:'Nora Al-Thani',       treatment:'Cleaning',         teeth:[],     note:'+ fluoride', code:'D1110', amount:420,  kind:'dental', insurer:'QLM'     },
+  { id:'pr9',  date:'2026-06-24', patientName:'Aisha Al-Kuwari',     treatment:'X-rays',           teeth:[],     note:'bitewing',   code:'D0274', amount:220,  kind:'dental', insurer:'QLM'     },
+  { id:'pr10', date:'2026-06-24', patientName:'Ali Hassan Al-Marri', treatment:'Consultation',     teeth:[],     note:'emergency',  code:'D9110', amount:200,  kind:'dental', insurer:'Allianz' },
+  { id:'pr11', date:'2026-06-23', patientName:'Fatima Hassan',       treatment:'Consultation',     teeth:[],     note:'+ OPG',      code:'D0330', amount:380,  kind:'dental', insurer:'Daman'   },
+  { id:'pr12', date:'2026-06-23', patientName:'Khalid Al-Mansouri',  treatment:'Routine check',    teeth:[],     note:'',           code:'D0120', amount:180,  kind:'dental', insurer:'MedNet'  },
+  { id:'pr13', date:'2026-06-20', patientName:'Mohammed Al-Rashidi', treatment:'Scaling & polish', teeth:[],     note:'',           code:'D1110', amount:380,  kind:'dental', insurer:'AXA'     },
+  { id:'pr14', date:'2026-06-20', patientName:'Sara Al-Jaber',       treatment:'Crown',            teeth:['25'], note:'seat',       code:'D2752', amount:1400, kind:'dental', insurer:'QLM'     },
+  { id:'pr15', date:'2026-06-18', patientName:'Nora Al-Thani',       treatment:'Composite filling', teeth:['36'], note:'',           code:'D2391', amount:600,  kind:'dental', insurer:'QLM'     },
+  { id:'pr16', date:'2026-06-18', patientName:'Ali Hassan Al-Marri', treatment:'Routine check',    teeth:[],     note:'+ X-rays',   code:'D0120', amount:300,  kind:'dental', insurer:'Allianz' },
+  { id:'pr17', date:'2026-06-15', patientName:'Aisha Al-Kuwari',     treatment:'Cleaning',         teeth:[],     note:'+ polish',   code:'D1110', amount:380,  kind:'dental', insurer:'QLM'     },
+  { id:'pr18', date:'2026-06-12', patientName:'Fatima Hassan',       treatment:'Composite filling', teeth:['21'], note:'',           code:'D2391', amount:550,  kind:'dental', insurer:'Daman'   },
+  { id:'pr19', date:'2026-06-10', patientName:'Mohammed Al-Rashidi', treatment:'Abscess drainage', teeth:[],     note:'emergency',  code:'D9110', amount:250,  kind:'dental', insurer:'AXA'     },
+  { id:'pr20', date:'2026-06-08', patientName:'Khalid Al-Mansouri',  treatment:'Root canal',       teeth:['36'], note:'',           code:'D3330', amount:1100, kind:'dental', insurer:'MedNet'  },
+  { id:'pr21', date:'2026-06-05', patientName:'Sara Al-Jaber',       treatment:'Crown',            teeth:['25'], note:'prep',       code:'D2750', amount:1200, kind:'dental', insurer:'QLM'     },
+  { id:'pr22', date:'2026-06-02', patientName:'Ali Hassan Al-Marri', treatment:'Denture reline',   teeth:[],     note:'',           code:'D5730', amount:800,  kind:'dental', insurer:'Allianz' },
 ];
 
 const fmtDate      = d => new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
@@ -400,15 +404,30 @@ function RangeReportTab() {
   const filtered = PROCEDURE_REPORT.filter(p=>
     p.date>=from && p.date<=to &&
     (kindFilter==='all'||p.kind===kindFilter) &&
-    (txFilter==='all'||p.procedure===txFilter)
+    (txFilter==='all'||p.treatment===txFilter)
   );
 
   const totalRev = filtered.reduce((s,p)=>s+p.amount,0);
   const avgRev   = filtered.length?Math.round(totalRev/filtered.length):0;
-  const uniqueTx = [...new Set(PROCEDURE_REPORT.map(p=>p.procedure))].sort();
+  const uniqueTx = [...new Set(PROCEDURE_REPORT.map(p=>p.treatment))].sort();
+
+  // group by treatment type
+  const gmap = {};
+  filtered.forEach(p=>{ (gmap[p.treatment] = gmap[p.treatment]||[]).push(p); });
+  const groups = Object.keys(gmap).map(name=>{
+    const rows = gmap[name].slice().sort((a,b)=>b.date.localeCompare(a.date));
+    return {
+      name, rows,
+      revenue: rows.reduce((s,p)=>s+p.amount,0),
+      teeth:   rows.reduce((n,p)=>n+(p.teeth?p.teeth.length:0),0),
+    };
+  }).sort((a,b)=>b.revenue-a.revenue);
+
+  const COLS = '88px 1fr 86px 64px 96px 76px';
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      {/* Filter bar */}
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
         <div style={{display:'flex',borderRadius:8,overflow:'hidden',border:'1px solid #DCE4E0'}}>
           {[['today','Today'],['7d','Last 7d'],['month','This month'],['custom','Custom']].map(([k,lbl])=>(
@@ -420,12 +439,13 @@ function RangeReportTab() {
             <button key={k} onClick={()=>setKind(k)} style={{padding:'6px 12px',fontSize:12.5,fontWeight:kindFilter===k?700:500,border:'none',background:kindFilter===k?'#EFF6FF':'#fff',color:kindFilter===k?'#1D4ED8':'#4A6860',cursor:'pointer'}}>{lbl}</button>
           ))}
         </div>
-        <select value={txFilter} onChange={e=>setTx(e.target.value)} style={{flex:1,maxWidth:260,fontSize:12.5,padding:'6px 12px',width:'auto'}}>
+        <select value={txFilter} onChange={e=>setTx(e.target.value)} style={{flex:1,maxWidth:240,fontSize:12.5,padding:'6px 12px',width:'auto'}}>
           <option value="all">All treatments</option>
           {uniqueTx.map(t=><option key={t} value={t}>{t}</option>)}
         </select>
       </div>
 
+      {/* Custom date range */}
       {period==='custom'&&(
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:'#F5F8F7',borderRadius:10,border:'1px solid #DCE4E0',flexWrap:'wrap'}}>
           <span style={{fontSize:12.5,fontWeight:600,color:'#3D5850'}}>From</span>
@@ -435,36 +455,64 @@ function RangeReportTab() {
         </div>
       )}
 
+      {/* KPIs */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
-        {[['Procedures',filtered.length,'#111814'],['Total revenue','QAR '+totalRev.toLocaleString(),'#0C6B5A'],['Avg per procedure','QAR '+avgRev.toLocaleString(),'#1D4ED8']].map(([l,v,c])=>(
+        {[['Procedures',filtered.length,'#111814'],['Total revenue','QAR '+totalRev.toLocaleString(),'#0C6B5A'],['Treatment types',groups.length,'#1D4ED8']].map(([l,v,col])=>(
           <div key={l} style={{padding:'12px 16px',background:'#fff',borderRadius:12,border:'1px solid #DCE4E0'}}>
-            <div style={{fontSize:20,fontWeight:800,color:c,letterSpacing:'-0.5px'}}>{v}</div>
+            <div style={{fontSize:20,fontWeight:800,color:col,letterSpacing:'-0.5px'}}>{v}</div>
             <div style={{fontSize:11.5,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em',marginTop:3}}>{l}</div>
           </div>
         ))}
       </div>
 
-      <div style={{...card,overflow:'hidden'}}>
-        <div style={{display:'grid',gridTemplateColumns:'90px 1fr 1fr 68px 100px 80px',padding:'8px 18px',background:'#F8FAF9',borderBottom:'1px solid #EEF2F0'}}>
-          {['Date','Patient','Procedure','Code','Amount','Insurer'].map(h=>(
-            <div key={h} style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840'}}>{h}</div>
-          ))}
-        </div>
-        {filtered.length===0?(
-          <div style={{padding:'48px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No procedures in this period</div>
-        ):(
-          filtered.map((p,i)=>(
-            <div key={p.id} style={{display:'grid',gridTemplateColumns:'90px 1fr 1fr 68px 100px 80px',padding:'10px 18px',borderBottom:i<filtered.length-1?'1px solid #EEF2F0':'none',alignItems:'center'}}>
-              <div style={{fontSize:12,fontWeight:600,color:'#5A7870',fontFamily:"'IBM Plex Mono',monospace"}}>{fmtDateShort(p.date)}</div>
-              <div style={{fontSize:13,fontWeight:600,color:'#111814',paddingRight:10,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.patientName}</div>
-              <div style={{fontSize:12.5,fontWeight:500,color:'#3D5850',paddingRight:10,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.procedure}</div>
-              <div style={{fontSize:12,fontWeight:600,color:'#4E6860',fontFamily:"'IBM Plex Mono',monospace"}}>{p.code}</div>
-              <div style={{fontSize:13,fontWeight:800,color:'#111814',letterSpacing:'-0.3px'}}>QAR {p.amount.toLocaleString()}</div>
-              <div style={{fontSize:12,fontWeight:600,color:'#5A7870'}}>{p.insurer}</div>
+      {/* Grouped table */}
+      {groups.length===0?(
+        <div style={{...card,padding:'48px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No procedures in this period</div>
+      ):(
+        groups.map(g=>(
+          <div key={g.name} style={{...card,overflow:'hidden'}}>
+            {/* Group header */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 18px',background:'#F3F7F5',borderBottom:'1px solid #E3EBE7'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:13.5,fontWeight:800,color:'#111814',letterSpacing:'-.2px'}}>{g.name}</span>
+                <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:10,background:'#fff',border:'1px solid #DCE4E0',color:'#5A7870'}}>{g.rows.length} {g.rows.length===1?'procedure':'procedures'}</span>
+                {g.teeth>0&&<span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:10,background:'#EFF6FF',color:'#1D4ED8'}}>{g.teeth} {g.teeth===1?'tooth':'teeth'}</span>}
+              </div>
+              <span style={{fontSize:13.5,fontWeight:800,color:'#0C6B5A',letterSpacing:'-0.3px'}}>QAR {g.revenue.toLocaleString()}</span>
             </div>
-          ))
-        )}
-      </div>
+            {/* Column headers */}
+            <div style={{display:'grid',gridTemplateColumns:COLS,padding:'7px 18px',background:'#F8FAF9',borderBottom:'1px solid #EEF2F0'}}>
+              {['Date','Patient','Tooth','Code','Amount','Insurer'].map(h=>(
+                <div key={h} style={{fontSize:10.5,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840'}}>{h}</div>
+              ))}
+            </div>
+            {/* Rows */}
+            {g.rows.map((p,i)=>(
+              <div key={p.id} style={{display:'grid',gridTemplateColumns:COLS,padding:'10px 18px',borderBottom:i<g.rows.length-1?'1px solid #EEF2F0':'none',alignItems:'center'}}>
+                <div style={{fontSize:12,fontWeight:600,color:'#5A7870',fontFamily:"'IBM Plex Mono',monospace"}}>{fmtDateShort(p.date)}</div>
+                <div style={{fontSize:13,fontWeight:600,color:'#111814',paddingRight:8,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {p.patientName}
+                  {p.note&&<span style={{fontSize:11,fontWeight:600,color:'#8AA8A0',marginLeft:6}}>{p.note}</span>}
+                </div>
+                <div>
+                  {p.teeth&&p.teeth.length>0?(
+                    <span style={{display:'inline-flex',gap:3,flexWrap:'wrap'}}>
+                      {p.teeth.map(t=>(
+                        <span key={t} style={{fontSize:11.5,fontWeight:600,padding:'1px 6px',borderRadius:5,background:'#EEF3F1',color:'#2E4840',fontFamily:"'IBM Plex Mono',monospace"}}>#{t}</span>
+                      ))}
+                    </span>
+                  ):(
+                    <span style={{fontSize:12,color:'#C8D4CF'}}>&#x2014;</span>
+                  )}
+                </div>
+                <div style={{fontSize:12,fontWeight:600,color:'#4E6860',fontFamily:"'IBM Plex Mono',monospace"}}>{p.code}</div>
+                <div style={{fontSize:13,fontWeight:800,color:'#111814',letterSpacing:'-0.3px'}}>QAR {p.amount.toLocaleString()}</div>
+                <div style={{fontSize:12,fontWeight:600,color:'#5A7870'}}>{p.insurer}</div>
+              </div>
+            ))}
+          </div>
+        ))
+      )}
     </div>
   );
 }
