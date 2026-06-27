@@ -78,6 +78,9 @@ const PAYMENT_METHODS = [
   { id:'cash',  label:'Cash (QAR)',        icon:Banknote  },
   { id:'apple', label:'Apple Pay',         icon:Smartphone},
   { id:'naps',  label:'NAPS transfer',     icon:Building2 },
+  // Buy-now-pay-later providers — used when paymentType is 'installments'.
+  { id:'tabby',  label:'Tabby',  icon:Calendar, bnpl:true, brand:'#3FCF8E', tagline:'Pay later · split in up to 4 · interest-free' },
+  { id:'tamara', label:'Tamara', icon:Calendar, bnpl:true, brand:'#7B61FF', tagline:'Pay later · split in up to 4 · interest-free' },
 ];
 
 const STATUS_CFG = {
@@ -102,7 +105,7 @@ function Chip({ label, color }) {
   return <span style={{ fontSize:12, fontWeight:700, padding:'3px 9px', borderRadius:20, background:bg, color:fg }}>{label}</span>;
 }
 function MethodBadge({ method }) {
-  const MAP = { card:['#EFF6FF','#1D4ED8'], cash:['#ECFDF5','#065F46'], apple:['#F8FAFC','#334155'], naps:['#F5F3FF','#5B21B6'], Insurance:['#FFFBEB','#92400E'] };
+  const MAP = { card:['#EFF6FF','#1D4ED8'], cash:['#ECFDF5','#065F46'], apple:['#F8FAFC','#334155'], naps:['#F5F3FF','#5B21B6'], tabby:['#E7FBF2','#0A6B4E'], tamara:['#F1ECFF','#5B21B6'], Insurance:['#FFFBEB','#92400E'] };
   const [bg,fg] = MAP[method] || ['#EEF2F0','#4A6860'];
   return <span style={{ fontSize:12, fontWeight:600, padding:'2px 8px', borderRadius:20, background:bg, color:fg }}>{methodLabel(method)}</span>;
 }
@@ -403,11 +406,15 @@ function PaymentStep({ encounter, balance, paidSoFar, remaining, splits, setSpli
   const [tempAmt,      setTempAmt]      = useState('');
   const [downAmt,      setDownAmt]      = useState('');
   const [instPlan,     setInstPlan]     = useState({count:3,frequency:'monthly',firstDate:'2026-06-01'});
+  const [bnpl,         setBnpl]         = useState('tabby');
   const [refundEnc,    setRefundEnc]    = useState(paidEncounters[0]?.id||'');
   const [refundAmt,    setRefundAmt]    = useState('');
   const [refundReason, setRefundReason] = useState('');
   const fullySettled = remaining<=.01||paymentType==='downpayment'||paymentType==='installments';
   const perInst = instPlan.count>0?Math.ceil(balance/instPlan.count):0;
+  useEffect(() => {
+    setMethod(prev => paymentType==='installments' ? bnpl : ((prev==='tabby'||prev==='tamara') ? 'card' : prev));
+  }, [paymentType, bnpl]);
   const refEnc = paidEncounters.find(e=>e.id===refundEnc);
   const canComplete = paymentType==='refund'?(refundAmt&&refundReason):paymentType==='downpayment'?!!downAmt:paymentType==='installments'?!!instPlan.firstDate:fullySettled;
   const handleComplete = () => {
@@ -434,11 +441,11 @@ function PaymentStep({ encounter, balance, paidSoFar, remaining, splits, setSpli
             </div>
 
             {/* Method picker */}
-            {paymentType!=='refund'&&(
+            {paymentType!=='refund'&&paymentType!=='installments'&&(
               <div style={{marginBottom:20}}>
                 <div style={secStyle}>Payment method</div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-                  {PAYMENT_METHODS.map(m=>{ const Icon=m.icon; return (
+                  {PAYMENT_METHODS.filter(m=>!m.bnpl).map(m=>{ const Icon=m.icon; return (
                     <button key={m.id} onClick={()=>setMethod(m.id)} style={{padding:'10px 8px',borderRadius:9,border:`2px solid ${method===m.id?CLINIC_CONFIG.primaryColor:'#DCE4E0'}`,background:method===m.id?'#F0FAF6':'#fff',display:'flex',flexDirection:'column',alignItems:'center',gap:5,cursor:'pointer',transition:'all .13s'}}>
                       <Icon size={16} color={method===m.id?CLINIC_CONFIG.primaryColor:'#4A6860'}/>
                       <span style={{fontSize:12,fontWeight:600,color:method===m.id?CLINIC_CONFIG.primaryColor:'#3D5850',textAlign:'center',lineHeight:1.3}}>{m.label}</span>
@@ -495,7 +502,22 @@ function PaymentStep({ encounter, balance, paidSoFar, remaining, splits, setSpli
             {/* Installments */}
             {paymentType==='installments'&&(
               <div style={{display:'flex',flexDirection:'column',gap:12}}>
-                <div style={{padding:'10px 14px',background:'#EFF6FF',borderRadius:9,border:'1px solid #BFDBFE',fontSize:12.5,fontWeight:600,color:'#1E40AF'}}>First instalment collected now. Remaining tracked for future visits.</div>
+                <div>
+                  <div style={secStyle}>Pay-later provider (third-party)</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                    {PAYMENT_METHODS.filter(m=>m.bnpl).map(m=>{ const on=bnpl===m.id; return (
+                      <button key={m.id} onClick={()=>{setBnpl(m.id);setMethod(m.id);}} style={{padding:'11px 12px',borderRadius:10,border:`2px solid ${on?CLINIC_CONFIG.primaryColor:'#DCE4E0'}`,background:on?'#F0FAF6':'#fff',display:'flex',alignItems:'center',gap:9,cursor:'pointer',textAlign:'left'}}>
+                        <div style={{width:30,height:30,borderRadius:8,background:m.brand,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Calendar size={15} color="#fff"/></div>
+                        <div style={{minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:800,color:on?CLINIC_CONFIG.primaryColor:'#111814'}}>{m.label}</div>
+                          <div style={{fontSize:11,fontWeight:600,color:'#5A7870',lineHeight:1.3}}>{m.tagline}</div>
+                        </div>
+                        {on&&<CheckCircle2 size={16} color={CLINIC_CONFIG.primaryColor} style={{marginLeft:'auto',flexShrink:0}}/>}
+                      </button>
+                    );})}
+                  </div>
+                </div>
+                <div style={{padding:'10px 14px',background:'#F0FAF6',borderRadius:9,border:'1px solid #B8DDD6',fontSize:12.5,fontWeight:600,color:'#0A6040'}}>Clinic is paid in full now by {methodLabel(bnpl)}; the patient repays {methodLabel(bnpl)} in {instPlan.count} interest-free instalments of QAR {perInst.toLocaleString()}.</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                   <div>
                     <div style={secStyle}>Number of instalments</div>
