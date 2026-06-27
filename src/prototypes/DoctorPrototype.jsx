@@ -1646,11 +1646,11 @@ function RxDonePanel({ mode, apt }) {
   const active = all.filter(t => t.active);
   const DEFAULTS = mode==='dental'
     ? [
-        {id:'d1',label:'Composite filling — tooth #16',tooth:'16',code:'D2391',specialty:'General Dentistry',grossPrice:600,cashPrice:550,insurancePrice:600,copayPct:20,payMode:'insurance'},
-        {id:'d2',label:'Bitewing X-rays (4 films)',tooth:'',code:'D0274',specialty:'General Dentistry',grossPrice:220,cashPrice:200,insurancePrice:220,copayPct:20,payMode:'insurance'},
+        {id:'d1',name:'Composite filling',tooth:'16',code:'D2391',specialty:'General Dentistry',grossPrice:600,cashPrice:550,insurancePrice:600,copayPct:20,payMode:'insurance'},
+        {id:'d2',name:'Bitewing X-rays',tooth:'',code:'D0274',specialty:'General Dentistry',grossPrice:220,cashPrice:200,insurancePrice:220,copayPct:20,payMode:'insurance'},
       ]
     : [
-        {id:'a1',label:'Botox 20U — glabellar',tooth:'',code:'M0023',specialty:'Aesthetic Medicine',grossPrice:1800,cashPrice:1800,insurancePrice:null,copayPct:0,payMode:'cash'},
+        {id:'a1',name:'Botox 20U — glabellar',tooth:'',code:'M0023',specialty:'Aesthetic Medicine',grossPrice:1800,cashPrice:1800,insurancePrice:null,copayPct:0,payMode:'cash'},
       ];
   const [items, setItems] = useState(DEFAULTS.map(i=>({...i,editPrice: i.payMode==='insurance'?i.insurancePrice:i.cashPrice})));
   const [showAdd, setShowAdd]   = useState(false);
@@ -1669,6 +1669,9 @@ function RxDonePanel({ mode, apt }) {
   const selDental = selTx && !/aesthetic/i.test(selTx.specialty || '');
   const [tooth, setTooth] = useState('');
 
+  const lblOf = it => it.tooth ? `${it.name} — #${it.tooth}` : it.name;
+  const isDentalItem = it => !/aesthetic/i.test(it.specialty||'');
+  const setItemTooth = (id, t) => { setItems(p=>p.map(i=>i.id===id?{...i,tooth:t}:i)); dirty(); };
   const itemPatient = it => it.payMode==='insurance' ? Math.round(it.editPrice*(it.copayPct||0)/100) : it.editPrice;
   const billed         = items.reduce((s,i)=>s+i.editPrice,0);
   const patientSubtotal= items.reduce((s,i)=>s+itemPatient(i),0);
@@ -1680,9 +1683,8 @@ function RxDonePanel({ mode, apt }) {
   const addFromCatalog = () => {
     const t = active.find(x => x.id === selTxId); if(!t) return;
     const dental = !/aesthetic/i.test(t.specialty || '');
-    const label = (dental && tooth) ? `${t.name} — #${tooth}` : t.name;
     const cov = insurerPricing(t, insurer);
-    const base = { id:`r${Date.now()}`, txId:t.id, label, tooth:(dental?tooth:''), code:t.code||'', specialty:t.specialty, grossPrice:t.grossPrice, cashPrice:t.cashPrice, insurancePrice:cov?cov.insurancePrice:null, copayPct:cov?cov.copayPct:0 };
+    const base = { id:`r${Date.now()}`, txId:t.id, name:t.name, tooth:(dental?tooth:''), code:t.code||'', specialty:t.specialty, grossPrice:t.grossPrice, cashPrice:t.cashPrice, insurancePrice:cov?cov.insurancePrice:null, copayPct:cov?cov.copayPct:0 };
     const it = { ...base, payMode: cov?'insurance':'cash', editPrice: cov?cov.insurancePrice:t.cashPrice };
     setItems(prev=>[...prev, it]); setSelTxId(''); setTooth(''); setShowAdd(false); dirty();
   };
@@ -1690,9 +1692,9 @@ function RxDonePanel({ mode, apt }) {
   const postToCheckout = () => {
     const recs = items.map(it => it.payMode==='insurance'
       ? (()=>{ const pPays=Math.round(it.editPrice*(it.copayPct||0)/100);
-          return { qid:PATIENT.qid, patientName:PATIENT.nameEn, date:TODAY, treatment:it.label, code:it.code, specialty:it.specialty||'', payMode:'insurance', grossPrice:it.grossPrice||it.editPrice, insurer, insurancePrice:it.editPrice, copayPct:it.copayPct||0, patientPays:pPays, insurerPays:it.editPrice-pPays, postedBy:CURRENT_DOCTOR.name }; })()
+          return { qid:PATIENT.qid, patientName:PATIENT.nameEn, date:TODAY, treatment:lblOf(it), code:it.code, specialty:it.specialty||'', payMode:'insurance', grossPrice:it.grossPrice||it.editPrice, insurer, insurancePrice:it.editPrice, copayPct:it.copayPct||0, patientPays:pPays, insurerPays:it.editPrice-pPays, postedBy:CURRENT_DOCTOR.name }; })()
       : (()=>{ const pPays=Math.round(it.editPrice*(1-discPct/100));
-          return { qid:PATIENT.qid, patientName:PATIENT.nameEn, date:TODAY, treatment:it.label, code:it.code, specialty:it.specialty||'', payMode:'cash', grossPrice:it.grossPrice||it.editPrice, cashPrice:it.editPrice, discount:discPct, patientPays:pPays, insurerPays:0, postedBy:CURRENT_DOCTOR.name }; })());
+          return { qid:PATIENT.qid, patientName:PATIENT.nameEn, date:TODAY, treatment:lblOf(it), code:it.code, specialty:it.specialty||'', payMode:'cash', grossPrice:it.grossPrice||it.editPrice, cashPrice:it.editPrice, discount:discPct, patientPays:pPays, insurerPays:0, postedBy:CURRENT_DOCTOR.name }; })());
     setChargesForQid(PATIENT.qid, recs); setPosted(true);
   };
 
@@ -1704,7 +1706,7 @@ function RxDonePanel({ mode, apt }) {
           <div key={item.id} style={{padding:'9px 11px',border:'1px solid #DCE4E0',borderRadius:9,background:'#fff'}}>
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{item.label}</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{lblOf(item)}</div>
                 <div style={{fontSize:12,fontFamily:"'IBM Plex Mono',monospace",color:'#4E6860',marginTop:1,fontWeight:600}}>{item.code}</div>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
@@ -1714,6 +1716,15 @@ function RxDonePanel({ mode, apt }) {
               </div>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6,flexWrap:'wrap'}}>
+              {isDentalItem(item)&&(
+                <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
+                  <span style={{fontSize:11,fontWeight:700,color:'#5A7870'}}>Tooth #</span>
+                  <select value={item.tooth||''} onChange={e=>setItemTooth(item.id,e.target.value)} style={{padding:'2px 6px',fontSize:11,width:'auto'}}>
+                    <option value="">—</option>
+                    {FDI_TEETH.map(n=><option key={n} value={n}>{n}</option>)}
+                  </select>
+                </span>
+              )}
               <div style={{display:'flex',borderRadius:6,overflow:'hidden',border:'1px solid #DCE4E0'}}>
                 {[['insurance','Insurance'],['cash','Cash']].map(([m,lbl])=>{
                   const on=item.payMode===m, disabled=m==='insurance'&&item.insurancePrice==null;

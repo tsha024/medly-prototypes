@@ -5,7 +5,7 @@
 // In production this is an API-backed price book.
 import { useEffect, useState } from 'react';
 
-const KEY = 'medly.treatments.v1';
+const KEY = 'medly.treatments.v2';
 
 export const TREATMENT_INSURERS = ['QLM', 'AXA', 'Daman', 'MedNet', 'Allianz'];
 
@@ -18,9 +18,15 @@ const SEED = [
   { id:'t2',  name:'Cleaning & polish',    code:'D1110', specialty:'General Dentistry', dur:45, needsNurse:true,  active:true,
     grossPrice:400,  cashPrice:360,  discount:0,
     insurers:[ {name:'QLM',insurancePrice:400,copayPct:20}, {name:'AXA',insurancePrice:390,copayPct:20}, {name:'Daman',insurancePrice:380,copayPct:25}, {name:'MedNet',insurancePrice:400,copayPct:30} ] },
-  { id:'t3',  name:'Filling',              code:'D2391', specialty:'General Dentistry', dur:45, needsNurse:true,  active:true,
+  { id:'t3',  name:'Composite filling',    code:'D2391', specialty:'General Dentistry', dur:45, needsNurse:true,  active:true,
     grossPrice:600,  cashPrice:550,  discount:0,
     insurers:[ {name:'QLM',insurancePrice:600,copayPct:20}, {name:'AXA',insurancePrice:580,copayPct:20}, {name:'Daman',insurancePrice:560,copayPct:25}, {name:'MedNet',insurancePrice:600,copayPct:30} ] },
+  { id:'t13', name:'Bitewing X-rays',       code:'D0274', specialty:'General Dentistry', dur:15, needsNurse:false, active:true,
+    grossPrice:220,  cashPrice:200,  discount:0,
+    insurers:[ {name:'QLM',insurancePrice:220,copayPct:20}, {name:'AXA',insurancePrice:210,copayPct:20}, {name:'Daman',insurancePrice:200,copayPct:25} ] },
+  { id:'t14', name:'Panoramic X-ray (OPG)', code:'D0330', specialty:'General Dentistry', dur:15, needsNurse:false, active:true,
+    grossPrice:380,  cashPrice:340,  discount:0,
+    insurers:[ {name:'QLM',insurancePrice:380,copayPct:20}, {name:'AXA',insurancePrice:360,copayPct:20}, {name:'Daman',insurancePrice:350,copayPct:25} ] },
   { id:'t4',  name:'Extraction',           code:'D7210', specialty:'General Dentistry', dur:60, needsNurse:true,  active:true,
     grossPrice:800,  cashPrice:720,  discount:0,
     insurers:[ {name:'QLM',insurancePrice:800,copayPct:20}, {name:'AXA',insurancePrice:780,copayPct:20}, {name:'Daman',insurancePrice:760,copayPct:25} ] },
