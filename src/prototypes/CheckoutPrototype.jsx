@@ -35,6 +35,7 @@ function chargeToItem(ch) {
   }
   return { ...base, label:ch.treatment + (ch.discount ? ` (−${ch.discount}% cash)` : ''), price:ch.patientPays, insurable:false, coveragePct:0 };
 }
+function normLabel(s) { return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 function recomputeEnc(items, paid) {
   const total = items.reduce((s,i)=>s+i.price,0);
   const insured = items.filter(i=>i.insurable).reduce((s,i)=>s+Math.round(i.price*i.coveragePct/100),0);
@@ -127,9 +128,11 @@ export default function CheckoutPrototype() {
   const charges = useCharges();
   useEffect(() => {
     const live = chargesForQid(PATIENT.qid).map(chargeToItem);
+    const liveKeys = new Set(live.map(i => normLabel(i.label)));
+    const seed = ALL_ENCOUNTERS.find(x => x.id === 'enc1').items;
     setEncounters(prev => prev.map(e => {
       if (e.id !== 'enc1') return e;
-      const baseItems = e.items.filter(i => !i.fromDoctor);
+      const baseItems = seed.filter(i => !liveKeys.has(normLabel(i.label)));
       const items = [...baseItems, ...live];
       return { ...e, items, ...recomputeEnc(items, e.paid) };
     }));

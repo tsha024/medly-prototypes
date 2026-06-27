@@ -1645,9 +1645,14 @@ function RxDonePanel({ mode, apt }) {
   const all = useTreatments();
   const active = all.filter(t => t.active);
   const DEFAULTS = mode==='dental'
-    ? [{id:'d1',label:'Composite filling — tooth #16',code:'D2391',price:600,specialty:'General Dentistry',payMode:'cash'},{id:'d2',label:'Bitewing X-rays (4 films)',code:'D0274',price:220,specialty:'General Dentistry',payMode:'cash'}]
-    : [{id:'a1',label:'Botox 20U — glabellar + frontalis',code:'M0023',price:1800,specialty:'Aesthetic Medicine',payMode:'cash'}];
-  const [items, setItems] = useState(DEFAULTS.map(i=>({...i,editPrice:i.price})));
+    ? [
+        {id:'d1',label:'Composite filling — tooth #16',tooth:'16',code:'D2391',specialty:'General Dentistry',grossPrice:600,cashPrice:550,insurancePrice:600,copayPct:20,payMode:'insurance'},
+        {id:'d2',label:'Bitewing X-rays (4 films)',tooth:'',code:'D0274',specialty:'General Dentistry',grossPrice:220,cashPrice:200,insurancePrice:220,copayPct:20,payMode:'insurance'},
+      ]
+    : [
+        {id:'a1',label:'Botox 20U — glabellar',tooth:'',code:'M0023',specialty:'Aesthetic Medicine',grossPrice:1800,cashPrice:1800,insurancePrice:null,copayPct:0,payMode:'cash'},
+      ];
+  const [items, setItems] = useState(DEFAULTS.map(i=>({...i,editPrice: i.payMode==='insurance'?i.insurancePrice:i.cashPrice})));
   const [showAdd, setShowAdd]   = useState(false);
   const [selTxId, setSelTxId]   = useState('');
   const [discPct, setDiscPct]   = useState(0);
@@ -1655,6 +1660,7 @@ function RxDonePanel({ mode, apt }) {
   const [showDisc, setShowDisc] = useState(false);
   const [posted, setPosted]     = useState(false);
   const dirty = () => setPosted(false);
+  const setItemMode = (id, m) => { setItems(p=>p.map(i=>{ if(i.id!==id) return i; if(m==='insurance' && i.insurancePrice==null) return i; return {...i, payMode:m, editPrice: m==='insurance'?i.insurancePrice:i.cashPrice}; })); dirty(); };
 
   const specs = [...new Set(active.map(t => t.specialty))];
   const selTx  = active.find(t => t.id === selTxId) || null;
@@ -1676,10 +1682,8 @@ function RxDonePanel({ mode, apt }) {
     const dental = !/aesthetic/i.test(t.specialty || '');
     const label = (dental && tooth) ? `${t.name} — #${tooth}` : t.name;
     const cov = insurerPricing(t, insurer);
-    const base = { id:`r${Date.now()}`, txId:t.id, label, tooth:(dental?tooth:''), code:t.code||'', specialty:t.specialty, grossPrice:t.grossPrice };
-    const it = cov
-      ? { ...base, payMode:'insurance', price:cov.insurancePrice, editPrice:cov.insurancePrice, copayPct:cov.copayPct }
-      : { ...base, payMode:'cash', price:t.cashPrice, editPrice:t.cashPrice };
+    const base = { id:`r${Date.now()}`, txId:t.id, label, tooth:(dental?tooth:''), code:t.code||'', specialty:t.specialty, grossPrice:t.grossPrice, cashPrice:t.cashPrice, insurancePrice:cov?cov.insurancePrice:null, copayPct:cov?cov.copayPct:0 };
+    const it = { ...base, payMode: cov?'insurance':'cash', editPrice: cov?cov.insurancePrice:t.cashPrice };
     setItems(prev=>[...prev, it]); setSelTxId(''); setTooth(''); setShowAdd(false); dirty();
   };
 
@@ -1709,11 +1713,17 @@ function RxDonePanel({ mode, apt }) {
                 <button onClick={()=>{setItems(p=>p.filter(i=>i.id!==item.id));dirty();}} style={{background:'none',border:'none',color:'#C8D4CF',cursor:'pointer',padding:2}}><X size={12}/></button>
               </div>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6,flexWrap:'wrap'}}>
+              <div style={{display:'flex',borderRadius:6,overflow:'hidden',border:'1px solid #DCE4E0'}}>
+                {[['insurance','Insurance'],['cash','Cash']].map(([m,lbl])=>{
+                  const on=item.payMode===m, disabled=m==='insurance'&&item.insurancePrice==null;
+                  return <button key={m} disabled={disabled} onClick={()=>setItemMode(item.id,m)} style={{padding:'3px 10px',fontSize:11,fontWeight:on?700:600,border:'none',background:on?CLINIC_CONFIG.primaryColor:'#fff',color:disabled?'#C8D4CF':(on?'#fff':'#4A6860'),cursor:disabled?'not-allowed':'pointer'}}>{lbl}</button>;
+                })}
+              </div>
               {item.payMode==='insurance'
                 ? <span style={{fontSize:11,fontWeight:700,color:'#0A6040'}}>{insurer} · copay {item.copayPct}% · patient QAR {itemPatient(item).toLocaleString()}</span>
-                : <span style={{fontSize:11,fontWeight:700,color:'#92600A'}}>Cash · patient pays full</span>}
-              {item.editPrice!==item.price&&<span style={{fontSize:11,fontWeight:600,color:'#C05820',display:'flex',alignItems:'center',gap:4}}><Edit3 size={10}/>edited from QAR {item.price.toLocaleString()}</span>}
+                : <span style={{fontSize:11,fontWeight:700,color:'#92600A'}}>patient pays QAR {itemPatient(item).toLocaleString()}</span>}
+              {(()=>{ const baseP=item.payMode==='insurance'?item.insurancePrice:item.cashPrice; return item.editPrice!==baseP ? <span style={{fontSize:11,fontWeight:600,color:'#C05820',display:'flex',alignItems:'center',gap:4}}><Edit3 size={10}/>edited from QAR {(baseP||0).toLocaleString()}</span> : null; })()}
             </div>
           </div>
         ))}
