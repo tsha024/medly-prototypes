@@ -3,7 +3,8 @@ import {
   ChevronLeft, ChevronDown, ChevronRight, Shield, AlertTriangle,
   CheckCircle2, FileText, Plus, Edit3, Save, X, Bell, Pill,
   Stethoscope, Sparkles, Tag, ExternalLink, AlertCircle, Receipt,
-  Calendar, Search, BarChart2, Users
+  Calendar, Search, BarChart2, Users,
+  ShieldCheck, ShieldAlert, Upload, Download, FileSignature, PenLine
 } from 'lucide-react';
 
 const CLINIC_CONFIG = {
@@ -49,8 +50,8 @@ const ENCOUNTER_HISTORY = [
 ];
 
 const TODAYS_APT = {
-  dental:    { doctor:'Dr. Layla Al-Mahmoud', specialty:'General Dentistry', procedure:'Filling — tooth #16', time:'10:30', dur:60, chiefComplaint:'Sensitivity to cold on upper-right back tooth, started 4 days ago.' },
-  aesthetic: { doctor:'Dr. Reem Al-Thani', specialty:'Aesthetic Medicine', procedure:'Botox + dermal filler review', time:'15:30', dur:60, chiefComplaint:'Wants to refresh Botox from November and discuss tear-trough filler.' },
+  dental:    { doctor:'Dr. Layla Al-Mahmoud', specialty:'General Dentistry', procedure:'Filling — tooth #16', consent:'signed', time:'10:30', dur:60, chiefComplaint:'Sensitivity to cold on upper-right back tooth, started 4 days ago.' },
+  aesthetic: { doctor:'Dr. Reem Al-Thani', specialty:'Aesthetic Medicine', procedure:'Botox + dermal filler review', consent:'missing', time:'15:30', dur:60, chiefComplaint:'Wants to refresh Botox from November and discuss tear-trough filler.' },
 };
 
 const DRUG_FAVOURITES = [
@@ -221,23 +222,48 @@ const ALL_PATIENTS = [
     ] },
 ];
 
+// ─── Patient document builder (medical history, consent forms, others) ─────────
+const DOC_TYPE = {
+  medical: { label:'Medical history', bg:'#EFF6FF', color:'#1D4ED8', Icon:FileText },
+  consent: { label:'Consent form',    bg:'#F0FAF6', color:'#0C6B5A', Icon:FileSignature },
+  other:   { label:'Other',           bg:'#FAF5FF', color:'#7C3AED', Icon:FileText },
+};
+
+function buildDocuments(p) {
+  const out = [];
+  out.push({ id:p.id+'-md', type:'medical', name:'Medical history & intake form', date:p.registered, fileType:'PDF', sizeKB:128, uploadedBy:'Reception' });
+  if (p.conditions && p.conditions.length) {
+    const cd = (p.encounters && p.encounters[0]) ? p.encounters[0].date : p.registered;
+    out.push({ id:p.id+'-md2', type:'medical', name:'Medical clearance — '+p.conditions[0], date:cd, fileType:'PDF', sizeKB:96, uploadedBy:(p.encounters&&p.encounters[0])?p.encounters[0].doctor:'Clinic' });
+  }
+  (p.encounters||[]).forEach((e,i)=>{
+    const label = e.treatment + (e.tooth ? ' #'+e.tooth : '');
+    out.push({ id:p.id+'-c'+i, type:'consent', name:'Consent — '+label, treatment:label, date:e.date, fileType:'PDF', sizeKB:84+i, uploadedBy:'Reception', signed:true, signMethod:(i%2===0?'iPad':'DigiSign') });
+    if (/x-ray|check/i.test(e.treatment+' '+(e.note||''))) {
+      out.push({ id:p.id+'-x'+i, type:'other', name:'Radiograph — '+(e.tooth?('#'+e.tooth):'panoramic'), date:e.date, fileType:'JPG', sizeKB:540+i*7, uploadedBy:e.doctor });
+    }
+  });
+  return out;
+}
+ALL_PATIENTS.forEach(p=>{ p.documents = buildDocuments(p); });
+
 const MY_SCHEDULE = [
-  { id:'s1',  date:'2026-06-26', time:'09:00', dur:30, patientId:'p2', patientName:'Mohammed Al-Rashidi', procedure:'Routine check + X-rays',         status:'done',        kind:'dental', fileNo:'YC-2024-0089' },
-  { id:'s2',  date:'2026-06-26', time:'09:45', dur:15, patientId:'p3', patientName:'Fatima Hassan',       procedure:'Post-op review — extraction #28', status:'done',        kind:'dental', fileNo:'YC-2025-0204' },
-  { id:'s3',  date:'2026-06-26', time:'10:30', dur:60, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Filling — tooth #16',             status:'in-progress', kind:'dental', fileNo:'YC-2024-0142' },
-  { id:'s4',  date:'2026-06-26', time:'12:00', dur:45, patientId:'p4', patientName:'Sara Al-Jaber',       procedure:'Crown prep — tooth #26',          status:'booked',      kind:'dental', fileNo:'YC-2023-0318' },
-  { id:'s5',  date:'2026-06-26', time:'13:00', dur:30, patientId:'p5', patientName:'Khalid Al-Mansouri',  procedure:'Emergency — toothache #36',       status:'booked',      kind:'dental', fileNo:'YC-2024-0271' },
-  { id:'s6',  date:'2026-06-26', time:'14:00', dur:60, patientId:'p6', patientName:'Nora Al-Thani',       procedure:'Scaling & root planing',          status:'booked',      kind:'dental', fileNo:'YC-2025-0387' },
-  { id:'s7',  date:'2026-06-26', time:'15:30', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Consultation + treatment plan',   status:'booked',      kind:'dental', fileNo:'YC-2022-0056' },
-  { id:'s8',  date:'2026-06-25', time:'09:00', dur:60, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Root canal — #16 prep',           status:'done',        kind:'dental', fileNo:'YC-2024-0142' },
-  { id:'s9',  date:'2026-06-25', time:'10:30', dur:30, patientId:'p3', patientName:'Fatima Hassan',       procedure:'Extraction #28',                  status:'done',        kind:'dental', fileNo:'YC-2025-0204' },
-  { id:'s10', date:'2026-06-25', time:'11:30', dur:45, patientId:'p5', patientName:'Khalid Al-Mansouri',  procedure:'Filling #14 + #15',               status:'done',        kind:'dental', fileNo:'YC-2024-0271' },
-  { id:'s11', date:'2026-06-25', time:'13:30', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Routine check',                   status:'no-show',     kind:'dental', fileNo:'YC-2022-0056' },
-  { id:'s12', date:'2026-06-25', time:'14:30', dur:60, patientId:'p4', patientName:'Sara Al-Jaber',       procedure:'Crown impression #26',            status:'done',        kind:'dental', fileNo:'YC-2023-0318' },
-  { id:'s13', date:'2026-06-24', time:'09:30', dur:60, patientId:'p2', patientName:'Mohammed Al-Rashidi', procedure:'Composite fillings #11, #12',      status:'done',        kind:'dental', fileNo:'YC-2024-0089' },
-  { id:'s14', date:'2026-06-24', time:'11:00', dur:30, patientId:'p6', patientName:'Nora Al-Thani',       procedure:'Cleaning + fluoride',             status:'done',        kind:'dental', fileNo:'YC-2025-0387' },
-  { id:'s15', date:'2026-06-24', time:'13:00', dur:45, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Bitewing X-rays',                 status:'done',        kind:'dental', fileNo:'YC-2024-0142' },
-  { id:'s16', date:'2026-06-24', time:'15:00', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Emergency — broken crown #36',    status:'done',        kind:'dental', fileNo:'YC-2022-0056' },
+  { id:'s1',  date:'2026-06-26', time:'09:00', dur:30, patientId:'p2', patientName:'Mohammed Al-Rashidi', procedure:'Routine check + X-rays',         status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2024-0089' },
+  { id:'s2',  date:'2026-06-26', time:'09:45', dur:15, patientId:'p3', patientName:'Fatima Hassan',       procedure:'Post-op review — extraction #28', status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2025-0204' },
+  { id:'s3',  date:'2026-06-26', time:'10:30', dur:60, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Filling — tooth #16',             status:'in-progress', consent:'signed',  kind:'dental', fileNo:'YC-2024-0142' },
+  { id:'s4',  date:'2026-06-26', time:'12:00', dur:45, patientId:'p4', patientName:'Sara Al-Jaber',       procedure:'Crown prep — tooth #26',          status:'booked',      consent:'missing', kind:'dental', fileNo:'YC-2023-0318' },
+  { id:'s5',  date:'2026-06-26', time:'13:00', dur:30, patientId:'p5', patientName:'Khalid Al-Mansouri',  procedure:'Emergency — toothache #36',       status:'booked',      consent:'signed',  kind:'dental', fileNo:'YC-2024-0271' },
+  { id:'s6',  date:'2026-06-26', time:'14:00', dur:60, patientId:'p6', patientName:'Nora Al-Thani',       procedure:'Scaling & root planing',          status:'booked',      consent:'pending', kind:'dental', fileNo:'YC-2025-0387' },
+  { id:'s7',  date:'2026-06-26', time:'15:30', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Consultation + treatment plan',   status:'booked',      consent:'missing', kind:'dental', fileNo:'YC-2022-0056' },
+  { id:'s8',  date:'2026-06-25', time:'09:00', dur:60, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Root canal — #16 prep',           status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2024-0142' },
+  { id:'s9',  date:'2026-06-25', time:'10:30', dur:30, patientId:'p3', patientName:'Fatima Hassan',       procedure:'Extraction #28',                  status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2025-0204' },
+  { id:'s10', date:'2026-06-25', time:'11:30', dur:45, patientId:'p5', patientName:'Khalid Al-Mansouri',  procedure:'Filling #14 + #15',               status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2024-0271' },
+  { id:'s11', date:'2026-06-25', time:'13:30', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Routine check',                   status:'no-show',     consent:'signed',  kind:'dental', fileNo:'YC-2022-0056' },
+  { id:'s12', date:'2026-06-25', time:'14:30', dur:60, patientId:'p4', patientName:'Sara Al-Jaber',       procedure:'Crown impression #26',            status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2023-0318' },
+  { id:'s13', date:'2026-06-24', time:'09:30', dur:60, patientId:'p2', patientName:'Mohammed Al-Rashidi', procedure:'Composite fillings #11, #12',      status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2024-0089' },
+  { id:'s14', date:'2026-06-24', time:'11:00', dur:30, patientId:'p6', patientName:'Nora Al-Thani',       procedure:'Cleaning + fluoride',             status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2025-0387' },
+  { id:'s15', date:'2026-06-24', time:'13:00', dur:45, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Bitewing X-rays',                 status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2024-0142' },
+  { id:'s16', date:'2026-06-24', time:'15:00', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Emergency — broken crown #36',    status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2022-0056' },
 ];
 
 const PROCEDURE_REPORT = [
@@ -420,6 +446,11 @@ function ScheduleTab({ onOpenEncounter }) {
     'no-show':     {bg:'#FEF2F2',color:'#991B1B',label:'No-show',     bar:'#FCA5A5'},
     'cancelled':   {bg:'#FFF7ED',color:'#92400E',label:'Cancelled',   bar:'#FCD34D'},
   };
+  const CONSENT = {
+    signed:  {bg:'#D1FAE5',color:'#065F46',short:'Consent',   label:'Consent signed & uploaded',         Icon:ShieldCheck},
+    pending: {bg:'#FEF3C7',color:'#92600A',short:'Pending',   label:'Consent form awaiting signature',   Icon:Shield},
+    missing: {bg:'#FEE2E2',color:'#991B1B',short:'No consent', label:'No consent form — do not begin',    Icon:ShieldAlert},
+  };
   const stats = {total:apts.length,done:apts.filter(a=>a.status==='done').length,rem:apts.filter(a=>['booked','in-progress'].includes(a.status)).length};
   const isToday = date===TODAY;
   return (
@@ -449,6 +480,7 @@ function ScheduleTab({ onOpenEncounter }) {
         ):(
           apts.map((apt,i)=>{
             const st=ST[apt.status]||ST['booked'];
+            const cm=CONSENT[apt.consent]||CONSENT.signed; const CI=cm.Icon;
             return (
               <div key={apt.id} className="apt-row" onClick={()=>onOpenEncounter(apt)}
                 style={{display:'flex',alignItems:'center',gap:14,padding:'13px 18px',borderBottom:i<apts.length-1?'1px solid #EEF2F0':'none',cursor:'pointer'}}>
@@ -462,6 +494,7 @@ function ScheduleTab({ onOpenEncounter }) {
                   <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{apt.procedure}</div>
                 </div>
                 <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',fontFamily:"'IBM Plex Mono',monospace",flexShrink:0}}>{apt.fileNo}</div>
+                <span title={cm.label} style={{display:'inline-flex',alignItems:'center',gap:4,padding:'3px 9px',borderRadius:20,background:cm.bg,color:cm.color,fontSize:11,fontWeight:700,flexShrink:0,whiteSpace:'nowrap'}}><CI size={12}/>{cm.short}</span>
                 <div style={{padding:'3px 10px',borderRadius:20,background:st.bg,color:st.color,fontSize:11.5,fontWeight:700,flexShrink:0,whiteSpace:'nowrap'}}>{st.label}</div>
                 <ChevronRight size={14} color="#C8D4CF" style={{flexShrink:0}}/>
               </div>
@@ -660,7 +693,14 @@ function RangeReportTab() {
 // ─── Patient File View ─────────────────────────────────────────────────────────
 function PatientFileView({ patient, onBack, onOpenEncounter }) {
   const [tab, setTab] = useState('overview');
+  const [docFilter, setDocFilter] = useState('all');
   const todayApt  = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===patient.id);
+  const todayConsentDocs = (todayApt && todayApt.consent && todayApt.consent!=='missing') ? [{
+    id:'doc-today', type:'consent', name:'Consent — '+todayApt.procedure, treatment:todayApt.procedure, date:TODAY, fileType:'PDF', sizeKB:92, uploadedBy:'Reception',
+    signed: todayApt.consent==='signed', signMethod: todayApt.consent==='signed'?'iPad':null,
+  }] : [];
+  const allDocs     = [...todayConsentDocs, ...(patient.documents||[])].sort((a,b)=>b.date.localeCompare(a.date));
+  const docFiltered = docFilter==='all' ? allDocs : allDocs.filter(d=>d.type===docFilter);
   const encs      = (patient.encounters||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
   const pays      = (patient.payments||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
   const initials  = patient.nameEn.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
@@ -671,7 +711,7 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
     pending: {bg:'#FEF3C7',color:'#92600A',label:'Pending'},
     partial: {bg:'#FFEDD5',color:'#9A3412',label:'Partial'},
   };
-  const TABS = [['overview','Overview'],['encounters','Encounters'],['payments','Payments'],['details','Personal']];
+  const TABS = [['overview','Overview'],['encounters','Encounters'],['payments','Payments'],['documents','Documents'],['details','Personal']];
   const Row = ({label,value,mono}) => (
     <div style={{display:'flex',justifyContent:'space-between',gap:16,padding:'9px 0',borderBottom:'1px solid #EEF2F0'}}>
       <span style={{fontSize:12.5,fontWeight:600,color:'#5A7870',flexShrink:0}}>{label}</span>
@@ -711,16 +751,39 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
         </div>
       </div>
 
-      {/* Today CTA */}
-      {todayApt&&(
-        <div style={{padding:'13px 18px',background:'#F0FAF6',border:'1px solid #B8DDD6',borderRadius:12,marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
-          <div>
-            <div style={{fontSize:13.5,fontWeight:700,color:'#0A6040'}}>Today &#xB7; {todayApt.time} &#x2014; {todayApt.procedure}</div>
-            <div style={{fontSize:12,fontWeight:600,color:'#2A6040',marginTop:2,textTransform:'capitalize'}}>{todayApt.status}</div>
+      {/* Today CTA + consent gate */}
+      {todayApt&&(()=>{
+        const cs = todayApt.consent || 'signed';
+        const ok = cs==='signed';
+        return (
+          <div style={{marginBottom:16}}>
+            {!ok&&(
+              <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 16px',background:'#FEF2F2',border:'1px solid #FBC9C2',borderRadius:'12px 12px 0 0',borderBottom:'none'}}>
+                <ShieldAlert size={17} color="#DC2626" style={{flexShrink:0,marginTop:1}}/>
+                <div>
+                  <div style={{fontSize:13,fontWeight:800,color:'#991B1B'}}>{cs==='pending'?'Consent form awaiting signature':'No signed consent form on file'}</div>
+                  <div style={{fontSize:12,fontWeight:600,color:'#B02A1E',marginTop:2,lineHeight:1.45}}>Do not begin treatment until the consent form for &#x201C;{todayApt.procedure}&#x201D; is signed at reception.</div>
+                </div>
+              </div>
+            )}
+            <div style={{padding:'13px 18px',background:ok?'#F0FAF6':'#FFF7F6',border:'1px solid '+(ok?'#B8DDD6':'#FBC9C2'),borderRadius:ok?12:'0 0 12px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div>
+                <div style={{fontSize:13.5,fontWeight:700,color:ok?'#0A6040':'#9A3412'}}>Today &#xB7; {todayApt.time} &#x2014; {todayApt.procedure}</div>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginTop:3}}>
+                  {ok?<ShieldCheck size={13} color="#0A6040"/>:<ShieldAlert size={13} color="#DC2626"/>}
+                  <span style={{fontSize:12,fontWeight:700,color:ok?'#0A6040':'#991B1B'}}>{ok?'Consent signed & uploaded':cs==='pending'?'Consent pending signature':'Consent missing'}</span>
+                  <span style={{fontSize:12,fontWeight:600,color:'#8AA8A0',textTransform:'capitalize'}}>&#xB7; {todayApt.status}</span>
+                </div>
+              </div>
+              {ok?(
+                <PrimaryBtn onClick={()=>onOpenEncounter(todayApt)}><FileText size={13}/>Open encounter</PrimaryBtn>
+              ):(
+                <button onClick={()=>onOpenEncounter(todayApt)} style={{display:'inline-flex',alignItems:'center',gap:7,padding:'9px 16px',borderRadius:9,border:'1px solid #E4A8A0',background:'#fff',color:'#9A3412',fontSize:13,fontWeight:700,cursor:'pointer'}}><AlertTriangle size={13}/>Open anyway</button>
+              )}
+            </div>
           </div>
-          <PrimaryBtn onClick={()=>onOpenEncounter(todayApt)}><FileText size={13}/>Open encounter</PrimaryBtn>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Sub-tabs */}
       <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
@@ -810,6 +873,49 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
         </div>
       )}
 
+      {/* Documents */}
+      {tab==='documents'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <div style={{display:'flex',borderRadius:8,overflow:'hidden',border:'1px solid #DCE4E0'}}>
+              {[['all','All'],['medical','Medical history'],['consent','Consent forms'],['other','Others']].map(([k,lbl])=>{
+                const n = k==='all'?allDocs.length:allDocs.filter(d=>d.type===k).length;
+                return <button key={k} onClick={()=>setDocFilter(k)} style={{padding:'6px 13px',fontSize:12.5,fontWeight:docFilter===k?700:500,border:'none',background:docFilter===k?CLINIC_CONFIG.primaryColor:'#fff',color:docFilter===k?'#fff':'#4A6860',cursor:'pointer',whiteSpace:'nowrap'}}>{lbl} <span style={{opacity:.65,fontWeight:700}}>{n}</span></button>;
+              })}
+            </div>
+            <div style={{flex:1}}/>
+            <button style={{display:'inline-flex',alignItems:'center',gap:7,padding:'7px 14px',borderRadius:8,border:'1px dashed #9BC0B6',background:'#F0FAF6',color:'#0C6B5A',fontSize:12.5,fontWeight:700,cursor:'pointer'}}><Upload size={13}/>Upload document</button>
+          </div>
+          <div style={card}>
+            {docFiltered.length===0?(
+              <div style={{padding:'40px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No documents in this category</div>
+            ):docFiltered.map((d,i)=>{
+              const meta = DOC_TYPE[d.type]||DOC_TYPE.other; const DI=meta.Icon;
+              return (
+                <div key={d.id} style={{display:'flex',alignItems:'center',gap:13,padding:'13px 18px',borderBottom:i<docFiltered.length-1?'1px solid #EEF2F0':'none'}}>
+                  <div style={{width:38,height:38,borderRadius:9,background:meta.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><DI size={17} color={meta.color}/></div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#111814',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.name}</div>
+                    <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',marginTop:2,display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
+                      <span style={{padding:'1px 7px',borderRadius:10,background:meta.bg,color:meta.color,fontWeight:700}}>{meta.label}</span>
+                      <span className="mono">{d.fileType} &#xB7; {d.sizeKB} KB</span>
+                      <span>&#xB7;</span><span>{fmtDateShort(d.date)}</span>
+                      <span>&#xB7;</span><span>{d.uploadedBy}</span>
+                    </div>
+                  </div>
+                  {d.type==='consent'&&(d.signed?(
+                    <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:20,background:'#D1FAE5',color:'#065F46',flexShrink:0,whiteSpace:'nowrap'}}><PenLine size={11}/>Signed &#xB7; {d.signMethod}</span>
+                  ):(
+                    <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:20,background:'#FEF3C7',color:'#92600A',flexShrink:0,whiteSpace:'nowrap'}}><AlertCircle size={11}/>Awaiting signature</span>
+                  ))}
+                  <button title="Download" style={{width:32,height:32,borderRadius:7,border:'1px solid #DCE4E0',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}><Download size={14} color="#5A7870"/></button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Personal details */}
       {tab==='details'&&(
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
@@ -847,6 +953,8 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
 function EncounterPanel({ mode, isDental, onView }) {
   const [tab, setTab] = useState('soap');
   const apt = TODAYS_APT[mode];
+  const consent = apt.consent || 'signed';
+  const cOk = consent==='signed';
 
   const TABS = [
     { id: 'history',   label: 'History' },
@@ -856,6 +964,21 @@ function EncounterPanel({ mode, isDental, onView }) {
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px 20px' }}>
+      {!cOk&&(
+        <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'13px 16px',background:'#FEF2F2',border:'1px solid #FBC9C2',borderRadius:12,marginBottom:16}}>
+          <ShieldAlert size={18} color="#DC2626" style={{flexShrink:0,marginTop:1}}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13.5,fontWeight:800,color:'#991B1B'}}>Consent not signed &#x2014; do not begin treatment</div>
+            <div style={{fontSize:12,fontWeight:600,color:'#B02A1E',marginTop:2,lineHeight:1.45}}>There is no signed consent form for &#x201C;{apt.procedure}&#x201D;. Ask reception to capture the patient&#x2019;s consent before proceeding.</div>
+          </div>
+        </div>
+      )}
+      {cOk&&(
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'9px 14px',background:'#F0FAF6',border:'1px solid #CDE7E0',borderRadius:10,marginBottom:16}}>
+          <ShieldCheck size={15} color="#0A6040"/>
+          <span style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>Consent signed &amp; uploaded for {apt.procedure}</span>
+        </div>
+      )}
       {/* Tab bar */}
       <div style={{ display: 'flex', borderBottom: '2px solid #DCE4E0', marginBottom: 18 }}>
         {TABS.map(t => (
