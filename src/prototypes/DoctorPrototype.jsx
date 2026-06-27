@@ -79,13 +79,146 @@ const CURRENT_DOCTOR = {
 };
 
 const ALL_PATIENTS = [
-  { id:'p1', qid:'28934567812', nameEn:'Aisha Al-Kuwari',     age:37, sex:'F', phone:'+974 5512 4488', lastVisit:'2026-06-26', insurer:'QLM',     fileNo:'YC-2024-0142', bloodType:'O+',  allergies:['Penicillin','Latex'], conditions:['Type 2 diabetes','Hypertension'] },
-  { id:'p2', qid:'29012345671', nameEn:'Mohammed Al-Rashidi', age:44, sex:'M', phone:'+974 5523 1122', lastVisit:'2026-06-25', insurer:'AXA',     fileNo:'YC-2024-0089', bloodType:'A+',  allergies:[], conditions:['Hypertension'] },
-  { id:'p3', qid:'27891234562', nameEn:'Fatima Hassan',       age:29, sex:'F', phone:'+974 5534 8877', lastVisit:'2026-06-25', insurer:'Daman',   fileNo:'YC-2025-0204', bloodType:'B+',  allergies:['Aspirin'], conditions:[] },
-  { id:'p4', qid:'30123456783', nameEn:'Sara Al-Jaber',       age:52, sex:'F', phone:'+974 5545 3344', lastVisit:'2026-06-25', insurer:'QLM',     fileNo:'YC-2023-0318', bloodType:'AB-', allergies:[], conditions:['Osteoporosis'] },
-  { id:'p5', qid:'28765432104', nameEn:'Khalid Al-Mansouri',  age:38, sex:'M', phone:'+974 5556 6655', lastVisit:'2026-06-25', insurer:'MedNet',  fileNo:'YC-2024-0271', bloodType:'O-',  allergies:[], conditions:['Type 1 diabetes'] },
-  { id:'p6', qid:'29876543215', nameEn:'Nora Al-Thani',       age:31, sex:'F', phone:'+974 5567 9900', lastVisit:'2026-06-24', insurer:'QLM',     fileNo:'YC-2025-0387', bloodType:'A-',  allergies:[], conditions:[] },
-  { id:'p7', qid:'27654321096', nameEn:'Ali Hassan Al-Marri', age:55, sex:'M', phone:'+974 5578 1234', lastVisit:'2026-06-24', insurer:'Allianz', fileNo:'YC-2022-0056', bloodType:'B-',  allergies:['Codeine'], conditions:['Hypertension','Ischemic heart disease'] },
+  { id:'p1', qid:'28934567812', nameEn:'Aisha Al-Kuwari',     nameAr:'عائشة الكواري', age:37, sex:'F', dob:'1989-03-14', nationality:'Qatari', marital:'Married', phone:'+974 5512 4488', email:'aisha.kuwari@gmail.com', address:'Al Waab, Doha', insurer:'QLM',     insNo:'QLM-884512', fileNo:'YC-2024-0142', registered:'2024-02-10', bloodType:'O+',  allergies:['Penicillin','Latex'], conditions:['Type 2 diabetes','Hypertension'], lastVisit:'2026-06-26',
+    encounters:[
+      { date:'2026-06-25', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Root canal',        tooth:'16', note:'prep stage', fee:900 },
+      { date:'2026-06-15', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Cleaning + polish',  tooth:'',   note:'',          fee:380 },
+      { date:'2026-04-02', doctor:'Dr. Omar Farouk',      kind:'aesthetic', treatment:'Botox — glabella', tooth:'',  note:'24 units',  fee:1600 },
+    ],
+    payments:[
+      { date:'2026-06-25', invoiceNo:'INV-26418', description:'Root canal #16 (prep)', amount:900,  method:'Insurance + cash', insurerPaid:630, patientPaid:270, status:'paid' },
+      { date:'2026-06-15', invoiceNo:'INV-26201', description:'Cleaning + polish',     amount:380,  method:'Insurance',       insurerPaid:380, patientPaid:0,   status:'paid' },
+      { date:'2026-04-02', invoiceNo:'INV-25677', description:'Botox — glabella',      amount:1600, method:'Cash',            insurerPaid:0,   patientPaid:1600,status:'paid' },
+    ] },
+  { id:'p2', qid:'29012345671', nameEn:'Mohammed Al-Rashidi', nameAr:'محمد الراشدي', age:44, sex:'M', dob:'1982-07-22', nationality:'Qatari', marital:'Married', phone:'+974 5523 1122', email:'m.rashidi@outlook.com', address:'West Bay, Doha', insurer:'AXA',     insNo:'AXA-552310', fileNo:'YC-2024-0089', registered:'2024-01-08', bloodType:'A+',  allergies:[], conditions:['Hypertension'], lastVisit:'2026-06-26',
+    encounters:[
+      { date:'2026-06-24', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Composite filling', tooth:'11', note:'', fee:550 },
+      { date:'2026-06-24', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Composite filling', tooth:'12', note:'', fee:550 },
+      { date:'2026-06-10', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Abscess drainage',   tooth:'',   note:'emergency', fee:250 },
+    ],
+    payments:[
+      { date:'2026-06-24', invoiceNo:'INV-26390', description:'Composite fillings #11, #12', amount:1100, method:'Insurance + cash', insurerPaid:770, patientPaid:330, status:'paid' },
+      { date:'2026-06-10', invoiceNo:'INV-26155', description:'Emergency — abscess drainage', amount:250, method:'Cash', insurerPaid:0, patientPaid:250, status:'paid' },
+    ] },
+  { id:'p3', qid:'27891234562', nameEn:'Fatima Hassan',       nameAr:'فاطمة حسن', age:29, sex:'F', dob:'1997-11-05', nationality:'Egyptian', marital:'Single', phone:'+974 5534 8877', email:'fatima.h@gmail.com', address:'Al Sadd, Doha', insurer:'Daman',   insNo:'DMN-771029', fileNo:'YC-2025-0204', registered:'2025-03-19', bloodType:'B+',  allergies:['Aspirin'], conditions:[], lastVisit:'2026-06-26',
+    encounters:[
+      { date:'2026-06-25', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Extraction',        tooth:'28', note:'', fee:350 },
+      { date:'2026-06-12', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Composite filling', tooth:'21', note:'', fee:550 },
+      { date:'2026-06-23', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Consultation',      tooth:'',   note:'+ OPG', fee:380 },
+    ],
+    payments:[
+      { date:'2026-06-25', invoiceNo:'INV-26412', description:'Extraction #28',          amount:350, method:'Insurance', insurerPaid:280, patientPaid:70, status:'paid' },
+      { date:'2026-06-12', invoiceNo:'INV-26188', description:'Composite filling #21',   amount:550, method:'Insurance', insurerPaid:440, patientPaid:110,status:'pending' },
+    ] },
+  { id:'p4', qid:'30123456783', nameEn:'Sara Al-Jaber',       nameAr:'سارة الجابر', age:52, sex:'F', dob:'1974-01-30', nationality:'Qatari', marital:'Married', phone:'+974 5545 3344', email:'sara.jaber@gmail.com', address:'Al Rayyan, Doha', insurer:'QLM',     insNo:'QLM-330918', fileNo:'YC-2023-0318', registered:'2023-09-11', bloodType:'AB-', allergies:[], conditions:['Osteoporosis'], lastVisit:'2026-06-25',
+    encounters:[
+      { date:'2026-06-25', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Crown', tooth:'26', note:'impression', fee:1400 },
+      { date:'2026-06-20', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Crown', tooth:'25', note:'seat',       fee:1400 },
+      { date:'2026-06-05', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Crown', tooth:'25', note:'prep',       fee:1200 },
+    ],
+    payments:[
+      { date:'2026-06-20', invoiceNo:'INV-26301', description:'Crown #25 (seat)', amount:1400, method:'Insurance + cash', insurerPaid:980, patientPaid:420, status:'paid' },
+      { date:'2026-06-05', invoiceNo:'INV-26044', description:'Crown #25 (prep)', amount:1200, method:'Insurance + cash', insurerPaid:840, patientPaid:360, status:'paid' },
+    ] },
+  { id:'p5', qid:'28765432104', nameEn:'Khalid Al-Mansouri',  nameAr:'خالد المنصوري', age:38, sex:'M', dob:'1988-05-17', nationality:'Qatari', marital:'Married', phone:'+974 5556 6655', email:'k.mansouri@gmail.com', address:'Al Gharrafa, Doha', insurer:'MedNet',  insNo:'MDN-119284', fileNo:'YC-2024-0271', registered:'2024-05-22', bloodType:'O-',  allergies:[], conditions:['Type 1 diabetes'], lastVisit:'2026-06-25',
+    encounters:[
+      { date:'2026-06-25', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Composite filling', tooth:'14', note:'', fee:410 },
+      { date:'2026-06-25', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Composite filling', tooth:'15', note:'', fee:410 },
+      { date:'2026-06-08', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Root canal',         tooth:'36', note:'', fee:1100 },
+    ],
+    payments:[
+      { date:'2026-06-25', invoiceNo:'INV-26405', description:'Fillings #14, #15', amount:820,  method:'Insurance', insurerPaid:574, patientPaid:246, status:'pending' },
+      { date:'2026-06-08', invoiceNo:'INV-26098', description:'Root canal #36',    amount:1100, method:'Insurance + cash', insurerPaid:770, patientPaid:330, status:'paid' },
+    ] },
+  { id:'p6', qid:'29876543215', nameEn:'Nora Al-Thani',       nameAr:'نورة آل ثاني', age:31, sex:'F', dob:'1995-09-08', nationality:'Qatari', marital:'Single', phone:'+974 5567 9900', email:'nora.thani@gmail.com', address:'The Pearl, Doha', insurer:'QLM',     insNo:'QLM-665201', fileNo:'YC-2025-0387', registered:'2025-06-30', bloodType:'A-',  allergies:[], conditions:[], lastVisit:'2026-06-24',
+    encounters:[
+      { date:'2026-06-24', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Cleaning',          tooth:'', note:'+ fluoride', fee:420 },
+      { date:'2026-06-18', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Composite filling', tooth:'36', note:'', fee:600 },
+    ],
+    payments:[
+      { date:'2026-06-24', invoiceNo:'INV-26388', description:'Cleaning + fluoride',  amount:420, method:'Insurance', insurerPaid:420, patientPaid:0,  status:'paid' },
+      { date:'2026-06-18', invoiceNo:'INV-26266', description:'Composite filling #36', amount:600, method:'Insurance', insurerPaid:480, patientPaid:120,status:'paid' },
+    ] },
+  { id:'p7', qid:'27654321096', nameEn:'Ali Hassan Al-Marri', nameAr:'علي حسن المري', age:55, sex:'M', dob:'1971-02-25', nationality:'Qatari', marital:'Married', phone:'+974 5578 1234', email:'ali.marri@outlook.com', address:'Al Khor, Qatar', insurer:'Allianz', insNo:'ALZ-443098', fileNo:'YC-2022-0056', registered:'2022-04-15', bloodType:'B-',  allergies:['Codeine'], conditions:['Hypertension','Ischemic heart disease'], lastVisit:'2026-06-24',
+    encounters:[
+      { date:'2026-06-24', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Consultation',   tooth:'', note:'emergency', fee:200 },
+      { date:'2026-06-18', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Routine check',  tooth:'', note:'+ X-rays',  fee:300 },
+      { date:'2026-06-02', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Denture reline', tooth:'', note:'',          fee:800 },
+    ],
+    payments:[
+      { date:'2026-06-18', invoiceNo:'INV-26261', description:'Routine check + X-rays', amount:300, method:'Insurance', insurerPaid:240, patientPaid:60, status:'paid' },
+      { date:'2026-06-02', invoiceNo:'INV-25988', description:'Denture reline',         amount:800, method:'Insurance + cash', insurerPaid:560, patientPaid:240, status:'paid' },
+    ] },
+  { id:'p8', qid:'28811223344', nameEn:'Hamad Al-Sulaiti',    nameAr:'حمد السليطي', age:41, sex:'M', dob:'1985-06-12', nationality:'Qatari', marital:'Married', phone:'+974 5501 7788', email:'hamad.s@gmail.com', address:'Al Wakrah, Qatar', insurer:'QLM',     insNo:'QLM-201845', fileNo:'YC-2023-0142', registered:'2023-02-28', bloodType:'O+', allergies:[], conditions:[], lastVisit:'2026-05-28',
+    encounters:[
+      { date:'2026-05-28', doctor:'Dr. Omar Farouk',      kind:'dental', treatment:'Crown',        tooth:'46', note:'seat', fee:1400 },
+      { date:'2026-05-14', doctor:'Dr. Omar Farouk',      kind:'dental', treatment:'Crown',        tooth:'46', note:'prep', fee:1200 },
+    ],
+    payments:[
+      { date:'2026-05-28', invoiceNo:'INV-25744', description:'Crown #46 (seat)', amount:1400, method:'Insurance + cash', insurerPaid:980, patientPaid:420, status:'paid' },
+    ] },
+  { id:'p9', qid:'29933445566', nameEn:'Layla Ahmed',         nameAr:'ليلى أحمد', age:26, sex:'F', dob:'2000-04-19', nationality:'Jordanian', marital:'Single', phone:'+974 5502 9911', email:'layla.ahmed@gmail.com', address:'Al Mansoura, Doha', insurer:'Daman',   insNo:'DMN-339102', fileNo:'YC-2025-0455', registered:'2025-08-12', bloodType:'A+', allergies:['Ibuprofen'], conditions:[], lastVisit:'2026-06-09',
+    encounters:[
+      { date:'2026-06-09', doctor:'Dr. Layla Al-Mahmoud', kind:'aesthetic', treatment:'Filler — lips', tooth:'', note:'1 ml', fee:1800 },
+      { date:'2026-05-02', doctor:'Dr. Layla Al-Mahmoud', kind:'dental',    treatment:'Cleaning',      tooth:'', note:'',     fee:380 },
+    ],
+    payments:[
+      { date:'2026-06-09', invoiceNo:'INV-26117', description:'Lip filler — 1 ml', amount:1800, method:'Cash', insurerPaid:0, patientPaid:1800, status:'paid' },
+    ] },
+  { id:'p10', qid:'27744556677', nameEn:'Yousef Al-Emadi',    nameAr:'يوسف العمادي', age:49, sex:'M', dob:'1977-12-03', nationality:'Qatari', marital:'Married', phone:'+974 5503 4422', email:'y.emadi@outlook.com', address:'Al Dafna, Doha', insurer:'MedNet',  insNo:'MDN-447821', fileNo:'YC-2022-0311', registered:'2022-11-04', bloodType:'B+', allergies:[], conditions:['Hypertension'], lastVisit:'2026-06-01',
+    encounters:[
+      { date:'2026-06-01', doctor:'Dr. Omar Farouk', kind:'dental', treatment:'Extraction',  tooth:'18', note:'surgical', fee:650 },
+      { date:'2026-03-20', doctor:'Dr. Omar Farouk', kind:'dental', treatment:'Routine check', tooth:'', note:'',         fee:180 },
+    ],
+    payments:[
+      { date:'2026-06-01', invoiceNo:'INV-25981', description:'Surgical extraction #18', amount:650, method:'Insurance', insurerPaid:520, patientPaid:130, status:'paid' },
+    ] },
+  { id:'p11', qid:'30055667788', nameEn:'Maryam Al-Naimi',    nameAr:'مريم النعيمي', age:34, sex:'F', dob:'1992-08-27', nationality:'Qatari', marital:'Married', phone:'+974 5504 6633', email:'maryam.naimi@gmail.com', address:'Al Aziziyah, Doha', insurer:'QLM',     insNo:'QLM-558210', fileNo:'YC-2024-0398', registered:'2024-07-19', bloodType:'AB+', allergies:[], conditions:[], lastVisit:'2026-06-16',
+    encounters:[
+      { date:'2026-06-16', doctor:'Dr. Layla Al-Mahmoud', kind:'aesthetic', treatment:'Botox — forehead', tooth:'', note:'20 units', fee:1400 },
+      { date:'2026-04-28', doctor:'Dr. Layla Al-Mahmoud', kind:'dental',    treatment:'Composite filling', tooth:'24', note:'', fee:520 },
+    ],
+    payments:[
+      { date:'2026-06-16', invoiceNo:'INV-26240', description:'Botox — forehead', amount:1400, method:'Cash', insurerPaid:0, patientPaid:1400, status:'paid' },
+    ] },
+  { id:'p12', qid:'27066778899', nameEn:'Abdullah Al-Khalifa', nameAr:'عبدالله الخليفة', age:60, sex:'M', dob:'1966-03-09', nationality:'Bahraini', marital:'Married', phone:'+974 5505 8844', email:'a.khalifa@gmail.com', address:'Onaiza, Doha', insurer:'AXA',     insNo:'AXA-660112', fileNo:'YC-2021-0078', registered:'2021-10-01', bloodType:'O+', allergies:['Penicillin'], conditions:['Diabetes','Hypertension'], lastVisit:'2026-05-19',
+    encounters:[
+      { date:'2026-05-19', doctor:'Dr. Omar Farouk', kind:'dental', treatment:'Denture reline', tooth:'', note:'full upper', fee:900 },
+      { date:'2026-02-11', doctor:'Dr. Omar Farouk', kind:'dental', treatment:'Extraction',     tooth:'27', note:'',          fee:350 },
+    ],
+    payments:[
+      { date:'2026-05-19', invoiceNo:'INV-25688', description:'Denture reline — upper', amount:900, method:'Insurance + cash', insurerPaid:630, patientPaid:270, status:'partial' },
+    ] },
+  { id:'p13', qid:'30177889900', nameEn:'Reem Al-Hajri',      nameAr:'ريم الهاجري', age:22, sex:'F', dob:'2004-01-15', nationality:'Qatari', marital:'Single', phone:'+974 5506 1199', email:'reem.hajri@gmail.com', address:'Al Thumama, Doha', insurer:'Daman',   insNo:'DMN-771840', fileNo:'YC-2025-0512', registered:'2025-11-23', bloodType:'A-', allergies:[], conditions:[], lastVisit:'2026-06-21',
+    encounters:[
+      { date:'2026-06-21', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Cleaning', tooth:'', note:'+ polish', fee:380 },
+    ],
+    payments:[
+      { date:'2026-06-21', invoiceNo:'INV-26333', description:'Cleaning + polish', amount:380, method:'Insurance', insurerPaid:380, patientPaid:0, status:'paid' },
+    ] },
+  { id:'p14', qid:'28288990011', nameEn:'Saif Al-Dosari',     nameAr:'سيف الدوسري', age:45, sex:'M', dob:'1981-10-30', nationality:'Qatari', marital:'Married', phone:'+974 5507 3300', email:'saif.dosari@outlook.com', address:'Muaither, Doha', insurer:'Allianz', insNo:'ALZ-882017', fileNo:'YC-2023-0267', registered:'2023-06-08', bloodType:'B+', allergies:[], conditions:[], lastVisit:'2026-06-04',
+    encounters:[
+      { date:'2026-06-04', doctor:'Dr. Omar Farouk', kind:'dental', treatment:'Root canal', tooth:'26', note:'', fee:1100 },
+      { date:'2026-03-15', doctor:'Dr. Omar Farouk', kind:'dental', treatment:'Composite filling', tooth:'25', note:'', fee:520 },
+    ],
+    payments:[
+      { date:'2026-06-04', invoiceNo:'INV-26010', description:'Root canal #26', amount:1100, method:'Insurance + cash', insurerPaid:770, patientPaid:330, status:'paid' },
+    ] },
+  { id:'p15', qid:'29399001122', nameEn:'Huda Al-Emadi',      nameAr:'هدى العمادي', age:39, sex:'F', dob:'1987-05-21', nationality:'Qatari', marital:'Married', phone:'+974 5508 5511', email:'huda.emadi@gmail.com', address:'Al Hilal, Doha', insurer:'QLM',     insNo:'QLM-990187', fileNo:'YC-2024-0203', registered:'2024-03-30', bloodType:'O+', allergies:['Latex'], conditions:[], lastVisit:'2026-06-13',
+    encounters:[
+      { date:'2026-06-13', doctor:'Dr. Layla Al-Mahmoud', kind:'aesthetic', treatment:'Filler — cheeks', tooth:'', note:'2 ml', fee:3200 },
+      { date:'2026-05-09', doctor:'Dr. Layla Al-Mahmoud', kind:'dental',    treatment:'Cleaning',        tooth:'', note:'',     fee:380 },
+    ],
+    payments:[
+      { date:'2026-06-13', invoiceNo:'INV-26198', description:'Cheek filler — 2 ml', amount:3200, method:'Cash', insurerPaid:0, patientPaid:3200, status:'paid' },
+    ] },
+  { id:'p16', qid:'27400112233', nameEn:'Tariq Mahmoud',      nameAr:'طارق محمود', age:33, sex:'M', dob:'1993-07-07', nationality:'Sudanese', marital:'Single', phone:'+974 5509 7722', email:'tariq.m@gmail.com', address:'Najma, Doha', insurer:'MedNet',  insNo:'MDN-110298', fileNo:'YC-2025-0334', registered:'2025-05-17', bloodType:'A+', allergies:[], conditions:[], lastVisit:'2026-06-07',
+    encounters:[
+      { date:'2026-06-07', doctor:'Dr. Omar Farouk', kind:'dental', treatment:'Routine check', tooth:'', note:'+ X-rays', fee:300 },
+    ],
+    payments:[
+      { date:'2026-06-07', invoiceNo:'INV-26072', description:'Routine check + X-rays', amount:300, method:'Insurance', insurerPaid:240, patientPaid:60, status:'pending' },
+    ] },
 ];
 
 const MY_SCHEDULE = [
@@ -341,34 +474,41 @@ function ScheduleTab({ onOpenEncounter }) {
 }
 
 // ─── Patient Search Tab ────────────────────────────────────────────────────────
-function PatientSearchTab({ onOpenPatient, onOpenEncounter }) {
+function PatientSearchTab({ onOpenPatient }) {
   const [query, setQuery] = useState('');
   const q = query.trim();
-  const shown = q.length<2 ? ALL_PATIENTS : ALL_PATIENTS.filter(p=>
-    p.nameEn.toLowerCase().includes(q.toLowerCase()) || p.qid.includes(q)
-  );
+  const active = q.length>=2;
+  const shown = active ? ALL_PATIENTS.filter(p=>
+    p.nameEn.toLowerCase().includes(q.toLowerCase()) ||
+    p.qid.includes(q) ||
+    p.fileNo.toLowerCase().includes(q.toLowerCase())
+  ) : [];
   const initials = n => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{position:'relative'}}>
         <Search size={15} color="#8AA8A0" style={{position:'absolute',left:13,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search by patient name or QID..." style={{paddingLeft:40,fontSize:13.5}} autoFocus/>
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search all clinic records — name, QID, or file number..." style={{paddingLeft:40,fontSize:13.5}} autoFocus/>
       </div>
-      <div style={card}>
-        {shown.length===0?(
-          <div style={{padding:'48px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No patients match "{q}"</div>
-        ):(
-          shown.map((pt,i)=>{
-            const todayApt = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===pt.id);
-            return (
+
+      {!active?(
+        <div style={{...card,padding:'52px 24px',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
+          <div style={{width:48,height:48,borderRadius:'50%',background:'#F0F5F3',display:'flex',alignItems:'center',justifyContent:'center'}}><Search size={20} color="#7A9A90"/></div>
+          <div style={{fontSize:14,fontWeight:700,color:'#3D5850'}}>Search the clinic patient registry</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:'#8AA8A0',maxWidth:340,lineHeight:1.5}}>Type a patient&#x2019;s name, QID, or file number to look up their full record &#x2014; across all {ALL_PATIENTS.length} registered patients, not just your own.</div>
+        </div>
+      ):shown.length===0?(
+        <div style={{...card,padding:'48px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No patients match &#x201C;{q}&#x201D;</div>
+      ):(
+        <>
+          <div style={{fontSize:12,fontWeight:700,color:'#5A7870',padding:'0 2px'}}>{shown.length} {shown.length===1?'result':'results'}</div>
+          <div style={card}>
+            {shown.map((pt,i)=>(
               <div key={pt.id} className="pt-row" onClick={()=>onOpenPatient(pt)}
                 style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:i<shown.length-1?'1px solid #EEF2F0':'none',cursor:'pointer'}}>
                 <div style={{width:38,height:38,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{initials(pt.nameEn)}</div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <span style={{fontSize:13.5,fontWeight:700,color:'#111814'}}>{pt.nameEn}</span>
-                    {todayApt&&<span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:10,background:'#F0FAF6',color:'#0C6B5A',border:'1px solid #B8DDD6',whiteSpace:'nowrap'}}>Today {todayApt.time}</span>}
-                  </div>
+                  <div style={{fontSize:13.5,fontWeight:700,color:'#111814'}}>{pt.nameEn}</div>
                   <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>
                     <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{pt.qid}</span>
                     <span style={{margin:'0 6px'}}>&#xB7;</span>{pt.age}y {pt.sex}
@@ -381,14 +521,14 @@ function PatientSearchTab({ onOpenPatient, onOpenEncounter }) {
                 </div>
                 <ChevronRight size={14} color="#C8D4CF" style={{flexShrink:0}}/>
               </div>
-            );
-          })
-        )}
-      </div>
-      {q.length<2&&<div style={{fontSize:12,fontWeight:600,color:'#8AA8A0',textAlign:'center'}}>Showing all {ALL_PATIENTS.length} patients &#x2014; type to filter</div>}
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
+
 
 // ─── Range Report Tab ──────────────────────────────────────────────────────────
 function RangeReportTab() {
@@ -519,16 +659,35 @@ function RangeReportTab() {
 
 // ─── Patient File View ─────────────────────────────────────────────────────────
 function PatientFileView({ patient, onBack, onOpenEncounter }) {
-  const todayApt   = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===patient.id);
-  const pastVisits = MY_SCHEDULE.filter(a=>a.patientId===patient.id&&a.date<TODAY&&a.status==='done').sort((a,b)=>b.date.localeCompare(a.date));
-  const totalVisits= MY_SCHEDULE.filter(a=>a.patientId===patient.id).length;
-  const initials   = patient.nameEn.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const [tab, setTab] = useState('overview');
+  const todayApt  = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===patient.id);
+  const encs      = (patient.encounters||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const pays      = (patient.payments||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const initials  = patient.nameEn.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const totalBilled  = pays.reduce((s,p)=>s+p.amount,0);
+  const outstanding  = pays.filter(p=>p.status!=='paid').reduce((s,p)=>s+p.patientPaid,0);
+  const PAY_ST = {
+    paid:    {bg:'#D1FAE5',color:'#065F46',label:'Paid'},
+    pending: {bg:'#FEF3C7',color:'#92600A',label:'Pending'},
+    partial: {bg:'#FFEDD5',color:'#9A3412',label:'Partial'},
+  };
+  const TABS = [['overview','Overview'],['encounters','Encounters'],['payments','Payments'],['details','Personal']];
+  const Row = ({label,value,mono}) => (
+    <div style={{display:'flex',justifyContent:'space-between',gap:16,padding:'9px 0',borderBottom:'1px solid #EEF2F0'}}>
+      <span style={{fontSize:12.5,fontWeight:600,color:'#5A7870',flexShrink:0}}>{label}</span>
+      <span style={{fontSize:13,fontWeight:600,color:'#111814',textAlign:'right',fontFamily:mono?"'IBM Plex Mono',monospace":'inherit'}}>{value}</span>
+    </div>
+  );
   return (
     <div style={{maxWidth:860,margin:'0 auto',padding:'20px 24px'}}>
+      {/* Patient header */}
       <div style={{...card,padding:'18px 20px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:16,flexWrap:'wrap'}}>
         <div style={{width:52,height:52,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{initials}</div>
         <div style={{flex:1,minWidth:200}}>
-          <div style={{fontSize:17,fontWeight:800,color:'#111814',letterSpacing:'-.3px'}}>{patient.nameEn}</div>
+          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+            <span style={{fontSize:17,fontWeight:800,color:'#111814',letterSpacing:'-.3px'}}>{patient.nameEn}</span>
+            {patient.nameAr&&<span style={{fontSize:14,fontWeight:600,color:'#5A7870',fontFamily:"'Noto Sans Arabic',sans-serif"}}>{patient.nameAr}</span>}
+          </div>
           <div style={{fontSize:12.5,fontWeight:600,color:'#5A7870',marginTop:4,display:'flex',gap:12,flexWrap:'wrap'}}>
             <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{patient.qid}</span>
             <span>&#xB7;</span><span>{patient.age}y {patient.sex}</span>
@@ -547,11 +706,12 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
           )}
         </div>
         <div style={{textAlign:'right',flexShrink:0}}>
-          <div style={{fontSize:24,fontWeight:800,color:'#111814',letterSpacing:'-0.5px'}}>{totalVisits}</div>
-          <div style={{fontSize:11,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em'}}>Total visits</div>
+          <div style={{fontSize:24,fontWeight:800,color:'#111814',letterSpacing:'-0.5px'}}>{encs.length}</div>
+          <div style={{fontSize:11,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em'}}>Encounters</div>
         </div>
       </div>
 
+      {/* Today CTA */}
       {todayApt&&(
         <div style={{padding:'13px 18px',background:'#F0FAF6',border:'1px solid #B8DDD6',borderRadius:12,marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
           <div>
@@ -562,23 +722,123 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
         </div>
       )}
 
-      <div style={card}>
-        <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Visit history with you</div></div>
-        {pastVisits.length===0?(
-          <div style={{padding:'36px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No past visits recorded</div>
-        ):(
-          pastVisits.map((apt,i)=>(
-            <div key={apt.id} style={{display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderBottom:i<pastVisits.length-1?'1px solid #EEF2F0':'none'}}>
-              <div style={{width:10,height:10,borderRadius:'50%',background:'#34D399',flexShrink:0}}/>
-              <div style={{width:88,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:600,color:'#5A7870',flexShrink:0}}>{fmtDateShort(apt.date)}</div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:600,color:'#111814'}}>{apt.procedure}</div>
-              </div>
-              <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',fontFamily:"'IBM Plex Mono',monospace"}}>{apt.dur}min</div>
-            </div>
-          ))
-        )}
+      {/* Sub-tabs */}
+      <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
+        {TABS.map(([id,lbl])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{padding:'7px 16px',fontSize:12.5,fontWeight:tab===id?700:600,borderRadius:8,border:'1px solid '+(tab===id?CLINIC_CONFIG.primaryColor:'#DCE4E0'),background:tab===id?CLINIC_CONFIG.primaryColor:'#fff',color:tab===id?'#fff':'#4A6860',cursor:'pointer'}}>{lbl}</button>
+        ))}
       </div>
+
+      {/* Overview */}
+      {tab==='overview'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+            {[['Total billed','QAR '+totalBilled.toLocaleString(),'#111814'],['Outstanding','QAR '+outstanding.toLocaleString(),outstanding>0?'#9A3412':'#065F46'],['Patient since',fmtDateShort(patient.registered),'#1D4ED8']].map(([l,v,col])=>(
+              <div key={l} style={{padding:'12px 16px',background:'#fff',borderRadius:12,border:'1px solid #DCE4E0'}}>
+                <div style={{fontSize:18,fontWeight:800,color:col,letterSpacing:'-0.4px'}}>{v}</div>
+                <div style={{fontSize:11,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em',marginTop:3}}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={card}>
+            <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Recent encounters</div></div>
+            {encs.slice(0,3).map((e,i)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderBottom:i<Math.min(encs.length,3)-1?'1px solid #EEF2F0':'none'}}>
+                <div style={{width:84,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:600,color:'#5A7870',flexShrink:0}}>{fmtDateShort(e.date)}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{e.treatment}{e.tooth&&<span style={{fontWeight:600,color:'#5A7870'}}> &#xB7; #{e.tooth}</span>}</div>
+                  <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',marginTop:1}}>{e.doctor}{e.note&&' &#xB7; '+e.note}</div>
+                </div>
+                <span style={{fontSize:10.5,fontWeight:700,padding:'2px 8px',borderRadius:10,background:e.kind==='aesthetic'?'#FCE7F3':'#E0F2FE',color:e.kind==='aesthetic'?'#9D174D':'#075985',textTransform:'capitalize'}}>{e.kind}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Encounters */}
+      {tab==='encounters'&&(
+        <div style={card}>
+          <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Encounter history</div><span style={{fontSize:12,fontWeight:600,color:'#8AA8A0'}}>{encs.length} total</span></div>
+          {encs.length===0?(
+            <div style={{padding:'36px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No encounters recorded</div>
+          ):encs.map((e,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:14,padding:'13px 18px',borderBottom:i<encs.length-1?'1px solid #EEF2F0':'none'}}>
+              <div style={{width:10,height:10,borderRadius:'50%',background:e.kind==='aesthetic'?'#EC4899':'#34D399',flexShrink:0}}/>
+              <div style={{width:84,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:600,color:'#5A7870',flexShrink:0}}>{fmtDateShort(e.date)}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{e.treatment}{e.tooth&&<span style={{fontSize:11.5,fontWeight:600,padding:'1px 6px',borderRadius:5,background:'#EEF3F1',color:'#2E4840',fontFamily:"'IBM Plex Mono',monospace",marginLeft:8}}>#{e.tooth}</span>}</div>
+                <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',marginTop:2}}>{e.doctor}{e.note&&' &#xB7; '+e.note}</div>
+              </div>
+              <div style={{fontSize:13,fontWeight:800,color:'#111814',letterSpacing:'-0.3px',flexShrink:0}}>QAR {e.fee.toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Payments */}
+      {tab==='payments'&&(
+        <div style={card}>
+          <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Payment history</div><span style={{fontSize:12,fontWeight:600,color:'#8AA8A0'}}>QAR {totalBilled.toLocaleString()} billed</span></div>
+          {pays.length===0?(
+            <div style={{padding:'36px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No payments recorded</div>
+          ):pays.map((p,i)=>{
+            const st=PAY_ST[p.status]||PAY_ST.paid;
+            return (
+              <div key={i} style={{padding:'13px 18px',borderBottom:i<pays.length-1?'1px solid #EEF2F0':'none'}}>
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{p.description}</div>
+                    <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',marginTop:2}}>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.invoiceNo}</span>
+                      <span style={{margin:'0 6px'}}>&#xB7;</span>{fmtDateShort(p.date)}
+                      <span style={{margin:'0 6px'}}>&#xB7;</span>{p.method}
+                    </div>
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontSize:13.5,fontWeight:800,color:'#111814',letterSpacing:'-0.3px'}}>QAR {p.amount.toLocaleString()}</div>
+                    <span style={{fontSize:10.5,fontWeight:700,padding:'2px 8px',borderRadius:10,background:st.bg,color:st.color,display:'inline-block',marginTop:3}}>{st.label}</span>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:16,marginTop:7,fontSize:11.5,fontWeight:600,color:'#5A7870'}}>
+                  <span>Insurer paid: <span style={{color:'#0A6040'}}>QAR {p.insurerPaid.toLocaleString()}</span></span>
+                  <span>Patient paid: <span style={{color:'#111814'}}>QAR {p.patientPaid.toLocaleString()}</span></span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Personal details */}
+      {tab==='details'&&(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+          <div style={card}>
+            <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Personal</div></div>
+            <div style={{padding:'4px 18px 12px'}}>
+              <Row label="Full name" value={patient.nameEn}/>
+              <Row label="QID" value={patient.qid} mono/>
+              <Row label="Date of birth" value={fmtDate(patient.dob)} mono/>
+              <Row label="Age / Sex" value={patient.age+'y · '+patient.sex}/>
+              <Row label="Nationality" value={patient.nationality}/>
+              <Row label="Marital status" value={patient.marital}/>
+              <Row label="Blood type" value={patient.bloodType}/>
+            </div>
+          </div>
+          <div style={card}>
+            <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Contact &amp; insurance</div></div>
+            <div style={{padding:'4px 18px 12px'}}>
+              <Row label="Phone" value={patient.phone} mono/>
+              <Row label="Email" value={patient.email}/>
+              <Row label="Address" value={patient.address}/>
+              <Row label="Insurer" value={patient.insurer}/>
+              <Row label="Insurance no." value={patient.insNo} mono/>
+              <Row label="File number" value={patient.fileNo} mono/>
+              <Row label="Registered" value={fmtDate(patient.registered)} mono/>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
