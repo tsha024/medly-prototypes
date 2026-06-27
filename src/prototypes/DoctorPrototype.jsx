@@ -325,9 +325,10 @@ export default function DoctorPortalPrototype() {
   const [mode, setMode]                       = useState('dental');
   const [viewingEnc, setViewingEnc]           = useState(null);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [activeApt, setActiveApt]             = useState(null);
   const isDental = mode === 'dental';
 
-  const openEncounter = apt => { if (apt?.kind) setMode(apt.kind); setView('encounter'); setViewingEnc(null); };
+  const openEncounter = apt => { if (apt?.kind) setMode(apt.kind); setActiveApt(apt||null); setView('encounter'); setViewingEnc(null); };
   const openPatient   = pt  => { setSelectedPatient(pt); setView('patientFile'); };
   const goHome        = ()  => { setView('home'); setViewingEnc(null); };
 
@@ -389,11 +390,11 @@ export default function DoctorPortalPrototype() {
       {view === 'home' && <DoctorLanding onOpenEncounter={openEncounter} onOpenPatient={openPatient}/>}
       {view === 'encounter' && (
         <>
-          <PatientBanner patient={PATIENT} appointment={TODAYS_APT[mode]} mode={mode}/>
+          <PatientBanner patient={PATIENT} appointment={{...TODAYS_APT[mode], ...(activeApt||{})}} mode={mode}/>
           {viewingEnc?(
             <PastEncounterView enc={viewingEnc} onBack={()=>setViewingEnc(null)}/>
           ):(
-            <EncounterPanel mode={mode} isDental={isDental} onView={setViewingEnc}/>
+            <EncounterPanel mode={mode} isDental={isDental} onView={setViewingEnc} appointment={activeApt}/>
           )}
         </>
       )}
@@ -969,12 +970,16 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
 }
 
 // ─── Encounter Panel — 3-tab layout replacing the old 3-column grid ─────────────
-function EncounterPanel({ mode, isDental, onView }) {
+function EncounterPanel({ mode, isDental, onView, appointment }) {
   const [tab, setTab] = useState('soap');
   const apt = TODAYS_APT[mode];
   useConsents();
-  const consent = consentState(PATIENT.qid, apt.procedure, apt.consent);
-  const cOk = consent==='signed';
+  // Consent reflects the appointment the doctor actually opened — patient + treatment
+  // matched against the shared store (consent captured at reception/nurse).
+  const cQid     = appointment ? QID_BY_PID[appointment.patientId] : PATIENT.qid;
+  const cProc    = appointment ? appointment.procedure : apt.procedure;
+  const consent  = consentState(cQid, cProc, appointment ? appointment.consent : apt.consent);
+  const cRec     = findConsent(cQid, cProc);
 
   const TABS = [
     { id: 'history',   label: 'History' },
@@ -984,19 +989,29 @@ function EncounterPanel({ mode, isDental, onView }) {
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px 20px' }}>
-      {!cOk&&(
+      {consent==='missing'&&(
         <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'13px 16px',background:'#FEF2F2',border:'1px solid #FBC9C2',borderRadius:12,marginBottom:16}}>
           <ShieldAlert size={18} color="#DC2626" style={{flexShrink:0,marginTop:1}}/>
           <div style={{flex:1}}>
             <div style={{fontSize:13.5,fontWeight:800,color:'#991B1B'}}>Consent not signed &#x2014; do not begin treatment</div>
-            <div style={{fontSize:12,fontWeight:600,color:'#B02A1E',marginTop:2,lineHeight:1.45}}>There is no signed consent form for &#x201C;{apt.procedure}&#x201D;. Ask reception to capture the patient&#x2019;s consent before proceeding.</div>
+            <div style={{fontSize:12,fontWeight:600,color:'#B02A1E',marginTop:2,lineHeight:1.45}}>There is no signed consent form for &#x201C;{cProc}&#x201D;. Ask reception to capture the patient&#x2019;s consent before proceeding.</div>
           </div>
         </div>
       )}
-      {cOk&&(
+      {consent==='pending'&&(
+        <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'13px 16px',background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:12,marginBottom:16}}>
+          <Shield size={18} color="#B45309" style={{flexShrink:0,marginTop:1}}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13.5,fontWeight:800,color:'#92600A'}}>Consent awaiting signature &#x2014; do not begin treatment</div>
+            <div style={{fontSize:12,fontWeight:600,color:'#92600A',marginTop:2,lineHeight:1.45}}>Reception has started the consent form for &#x201C;{cProc}&#x201D; but the patient has not signed yet.</div>
+          </div>
+        </div>
+      )}
+      {consent==='signed'&&(
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'9px 14px',background:'#F0FAF6',border:'1px solid #CDE7E0',borderRadius:10,marginBottom:16}}>
-          <ShieldCheck size={15} color="#0A6040"/>
-          <span style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>Consent signed &amp; uploaded for {apt.procedure}</span>
+          <ShieldCheck size={15} color="#0A6040" style={{flexShrink:0}}/>
+          <span style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>Consent signed &amp; uploaded for {cProc}</span>
+          {cRec&&<span style={{fontSize:11.5,fontWeight:600,color:'#3D6B5E'}}>&#xB7; {cRec.method} &#xB7; {cRec.capturedBy||'Reception'} &#xB7; {cRec.date}</span>}
         </div>
       )}
       {/* Tab bar */}
