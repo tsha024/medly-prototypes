@@ -5,6 +5,7 @@ import {
   ChevronUp, AlertCircle, CheckCircle2, Plus, Edit3, Save,
   X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Download
 } from 'lucide-react';
+import { useTreatments, saveTreatments, getTreatments, TREATMENT_INSURERS } from './treatmentStore';
 
 // ─── Clinic branding ──────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -261,7 +262,8 @@ export default function AdminPrototype() {
   const [doctors, setDoctors]     = useState(INIT_DOCTORS);
   const [nurses, setNurses]       = useState(INIT_NURSES);
   const [trainees, setTrainees]   = useState(INIT_TRAINEES);
-  const [treatments, setTreatments] = useState(INIT_TREATMENTS);
+  const treatments = useTreatments();
+  const setTreatments = up => saveTreatments(typeof up==='function' ? up(getTreatments()) : up);
   const [transactions, setTransactions] = useState(DAILY_TRANSACTIONS);
 
   // Period-aware data — recomputes whenever Week/Month/Quarter changes
@@ -1198,22 +1200,58 @@ function NurseSettings({ nurses, setNurses }) {
 }
 
 function TreatmentSettings({ treatments, setTreatments }) {
-  const [adding, setAdding] = useState(false);
+  const BLANK = { name:'', code:'', specialty:'General Dentistry', dur:30, grossPrice:0, cashPrice:0, discount:0, needsNurse:false, insurers:[] };
+  const [adding, setAdding]   = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name:'', specialty:'General Dentistry', dur:30, price:0, needsNurse:false });
-  const startEdit = t => { setEditing(t.id); setForm({name:t.name,specialty:t.specialty,dur:t.dur,price:t.price,needsNurse:t.needsNurse}); setAdding(false); };
-  const cancel = () => { setAdding(false); setEditing(null); };
-  const save = () => { if(editing) setTreatments(prev=>prev.map(t=>t.id===editing?{...t,...form}:t)); else if(form.name) setTreatments(prev=>[...prev,{id:`t${Date.now()}`,...form,active:true}]); cancel(); };
+  const [form, setForm]       = useState(BLANK);
+  const startEdit = t => {
+    setEditing(t.id);
+    setForm({ name:t.name, code:t.code||'', specialty:t.specialty, dur:t.dur, grossPrice:t.grossPrice??t.price??0,
+              cashPrice:t.cashPrice??t.price??0, discount:t.discount||0, needsNurse:t.needsNurse, insurers:(t.insurers||[]).map(x=>({...x})) });
+    setAdding(false);
+  };
+  const startAdd = () => { setForm(BLANK); setAdding(true); setEditing(null); };
+  const cancel = () => { setAdding(false); setEditing(null); setForm(BLANK); };
+  const save = () => {
+    if (editing) setTreatments(prev=>prev.map(t=>t.id===editing?{...t,...form}:t));
+    else if (form.name) setTreatments(prev=>[...prev,{id:`t${Date.now()}`,...form,active:true}]);
+    cancel();
+  };
+  const num = v => parseInt(v)||0;
+  const addInsurer = () => setForm(f=>({...f,insurers:[...f.insurers,{name:(TREATMENT_INSURERS.find(n=>!f.insurers.some(r=>r.name===n))||TREATMENT_INSURERS[0]),insurancePrice:f.grossPrice||0,copayPct:20}]}));
+  const setIns = (i,patch) => setForm(f=>({...f,insurers:f.insurers.map((r,idx)=>idx===i?{...r,...patch}:r)}));
+  const delIns = i => setForm(f=>({...f,insurers:f.insurers.filter((_,idx)=>idx!==i)}));
   const groups = SPEC_LIST.map(s=>({s,items:treatments.filter(t=>t.specialty===s)})).filter(g=>g.items.length>0);
-  const TxForm = () => (
+
+  const form_jsx = (
     <FormBox>
       <div style={{ fontSize:13,fontWeight:700,color:'#111814' }}>{editing?'Edit treatment':'New treatment'}</div>
       <FormGrid>
         <FormField label="Treatment name"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} /></FormField>
+        <FormField label="Code"><input value={form.code} onChange={e=>setForm({...form,code:e.target.value})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
         <FormField label="Specialty"><select value={form.specialty} onChange={e=>setForm({...form,specialty:e.target.value})}>{SPEC_LIST.map(s=><option key={s}>{s}</option>)}</select></FormField>
-        <FormField label="Duration (min)"><input type="number" value={form.dur} onChange={e=>setForm({...form,dur:parseInt(e.target.value)||30})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
-        <FormField label="Default price (QAR)"><input type="number" value={form.price} onChange={e=>setForm({...form,price:parseInt(e.target.value)||0})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+        <FormField label="Duration (min)"><input type="number" value={form.dur} onChange={e=>setForm({...form,dur:num(e.target.value)||30})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+        <FormField label="Gross price (QAR)"><input type="number" value={form.grossPrice} onChange={e=>setForm({...form,grossPrice:num(e.target.value)})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+        <FormField label="Cash price (QAR)"><input type="number" value={form.cashPrice} onChange={e=>setForm({...form,cashPrice:num(e.target.value)})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+        <FormField label="Cash discount (%)"><input type="number" value={form.discount} onChange={e=>setForm({...form,discount:num(e.target.value)})} style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
       </FormGrid>
+
+      <div>
+        <div style={{ fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#4E6860',marginBottom:8 }}>Insurance pricing</div>
+        <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
+          {form.insurers.length===0&&<div style={{ fontSize:12.5,fontWeight:600,color:'#6A8880' }}>No insurance pricing &mdash; cash only.</div>}
+          {form.insurers.map((row,i)=>(
+            <div key={i} style={{ display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 32px',gap:8,alignItems:'center' }}>
+              <select value={row.name} onChange={e=>setIns(i,{name:e.target.value})}>{TREATMENT_INSURERS.map(n=><option key={n}>{n}</option>)}</select>
+              <input type="number" value={row.insurancePrice} onChange={e=>setIns(i,{insurancePrice:num(e.target.value)})} placeholder="Ins. price" style={{fontFamily:"'IBM Plex Mono',monospace"}} title="Insurance price (QAR)" />
+              <input type="number" value={row.copayPct} onChange={e=>setIns(i,{copayPct:num(e.target.value)})} placeholder="Copay %" style={{fontFamily:"'IBM Plex Mono',monospace"}} title="Copay %" />
+              <button onClick={()=>delIns(i)} style={{ width:30,height:30,borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',color:'#9A3412',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><X size={13}/></button>
+            </div>
+          ))}
+          <DashedAddBtn onClick={addInsurer}><Plus size={13}/>Add insurer price</DashedAddBtn>
+        </div>
+      </div>
+
       <label style={{ display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:500,color:'#2A3830',cursor:'pointer' }}>
         <input type="checkbox" checked={form.needsNurse} onChange={e=>setForm({...form,needsNurse:e.target.checked})} style={{ width:15,height:15,flexShrink:0 }} />
         Nurse assist recommended for this procedure
@@ -1221,23 +1259,29 @@ function TreatmentSettings({ treatments, setTreatments }) {
       <FormActions onCancel={cancel} onSave={save} saveLabel={editing?'Save changes':'Add treatment'} disabled={!form.name} />
     </FormBox>
   );
+
   return (
     <div>
-      {!adding&&!editing&&<div style={{ display:'flex',justifyContent:'flex-end',marginBottom:12 }}><PrimaryBtn onClick={()=>setAdding(true)}><Plus size={14}/>Add treatment</PrimaryBtn></div>}
-      {(adding||editing)&&<div style={{marginBottom:14}}><TxForm/></div>}
+      {!adding&&!editing&&<div style={{ display:'flex',justifyContent:'flex-end',marginBottom:12 }}><PrimaryBtn onClick={startAdd}><Plus size={14}/>Add treatment</PrimaryBtn></div>}
+      {(adding||editing)&&<div style={{marginBottom:14}}>{form_jsx}</div>}
       {groups.map(g=>(
         <SettingsCard key={g.s} title={g.s} sub={`${g.items.length} treatments`}>
           <div style={{ display:'flex',flexDirection:'column',gap:6 }}>
             {g.items.map(t=>(
               <div key={t.id} style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,border:'1px solid #DCE4E0',background:t.active?'#fff':'#F8FAF9',opacity:t.active?1:.5 }}>
                 <div style={{ flex:1,minWidth:0 }}>
-                  <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:8,flexWrap:'wrap' }}>
                     <span style={{ fontSize:13,fontWeight:600,color:'#111814' }}>{t.name}</span>
+                    {t.code&&<span style={{ fontSize:11,fontWeight:600,color:'#6A8880',fontFamily:"'IBM Plex Mono',monospace" }}>{t.code}</span>}
                     {t.needsNurse&&<span style={{ fontSize:12,fontWeight:700,padding:'2px 7px',borderRadius:20,background:'#EDE9FE',color:'#5B21B6' }}>+ nurse</span>}
                   </div>
-                  <div style={{ fontSize:12,color:'#4E6860',marginTop:2 }}>{t.dur}min · QAR {t.price.toLocaleString()}</div>
+                  <div style={{ fontSize:12,color:'#4E6860',marginTop:2 }}>
+                    {t.dur}min &middot; Cash QAR {(t.cashPrice??t.price??0).toLocaleString()}
+                    {t.discount>0&&<span> ({t.discount}% off)</span>}
+                    {' · '}{(t.insurers||[]).length>0?`${t.insurers.length} insurer${t.insurers.length>1?'s':''}`:'cash only'}
+                  </div>
                 </div>
-                <button onClick={()=>startEdit(t)} style={{ fontSize:12,fontWeight:600,padding:'4px 10px',borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',color:'#4A6860',display:'flex',alignItems:'center',gap:4 }}><Edit3 size={11}/>Edit</button>
+                <button onClick={()=>startEdit(t)} style={{ fontSize:12,fontWeight:600,padding:'4px 10px',borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',color:'#4A6860',display:'flex',alignItems:'center',gap:4,cursor:'pointer' }}><Edit3 size={11}/>Edit</button>
                 <ActiveBadge active={t.active} onToggle={()=>setTreatments(prev=>prev.map(x=>x.id===t.id?{...x,active:!x.active}:x))} />
               </div>
             ))}

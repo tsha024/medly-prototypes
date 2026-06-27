@@ -7,6 +7,7 @@ import {
   ShieldCheck, ShieldAlert, Upload, Download, FileSignature, PenLine
 } from 'lucide-react';
 import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
+import { useTreatments, insurerPricing, priceBreakdown } from './treatmentStore';
 
 const CLINIC_CONFIG = {
   name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
@@ -1120,6 +1121,110 @@ function AestheticSoapTab({ apt }) {
 }
 
 // ─── Treatment Tab — odontogram/injection map + Rx + actions ──────────────────
+function TreatmentChargeCard({ insurer, mode }) {
+  const all = useTreatments();
+  const active = all.filter(t => t.active);
+  const [selId, setSelId]       = useState('');
+  const [payMode, setPayMode]   = useState('insurance');
+  const [cashPrice, setCashPrice] = useState(0);
+  const [discount, setDiscount]   = useState(0);
+
+  const tx  = active.find(t => t.id === selId) || null;
+  const ins = tx ? insurerPricing(tx, insurer) : null;
+  const bd  = tx ? priceBreakdown(tx, insurer, { payMode, cashPrice, discount }) : null;
+
+  const onSelect = id => {
+    setSelId(id);
+    const t = active.find(x => x.id === id);
+    if (t) { setCashPrice(t.cashPrice); setDiscount(t.discount || 0); setPayMode(insurerPricing(t, insurer) ? 'insurance' : 'cash'); }
+  };
+
+  // group active treatments by specialty for the dropdown
+  const specs = [...new Set(active.map(t => t.specialty))];
+
+  const PriceRow = ({ label, value, strong, accent }) => (
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:'1px solid #EEF2F0' }}>
+      <span style={{ fontSize:12.5, fontWeight:600, color:'#5A7870' }}>{label}</span>
+      <span style={{ fontSize: strong?15:13, fontWeight: strong?800:700, color: accent||'#111814', letterSpacing: strong?'-0.3px':0 }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div style={card}>
+      <div style={cardHd}>
+        <div>
+          <div style={{ fontSize:14, fontWeight:700 }}>Treatment &amp; charge</div>
+          <div style={{ fontSize:12, color:'#3D5850', marginTop:2, fontWeight:600 }}>Prices populate from the Admin price list</div>
+        </div>
+      </div>
+      <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:14 }}>
+        {/* Treatment dropdown */}
+        <div>
+          <div style={{ fontSize:11.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#2E4840', marginBottom:6 }}>Treatment</div>
+          <select value={selId} onChange={e => onSelect(e.target.value)}>
+            <option value="">Select a treatment…</option>
+            {specs.map(s => (
+              <optgroup key={s} label={s}>
+                {active.filter(t => t.specialty === s).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}{t.code ? ` (${t.code})` : ''}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+
+        {!tx ? (
+          <div style={{ padding:'20px', textAlign:'center', fontSize:12.5, fontWeight:600, color:'#8AA8A0' }}>Select a treatment to see pricing.</div>
+        ) : (
+          <>
+            {/* Payment mode */}
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => ins && setPayMode('insurance')} disabled={!ins}
+                style={{ flex:1, padding:'9px', borderRadius:9, border:'2px solid '+(payMode==='insurance'&&ins?CLINIC_CONFIG.primaryColor:'#DCE4E0'), background: payMode==='insurance'&&ins?'#F0FAF6':'#fff', color: !ins?'#B7C9C2':(payMode==='insurance'?CLINIC_CONFIG.primaryColor:'#5A7870'), fontSize:12.5, fontWeight:700, cursor: ins?'pointer':'not-allowed' }}>
+                Insurance · {insurer}{!ins && ' (not covered)'}
+              </button>
+              <button onClick={() => setPayMode('cash')}
+                style={{ flex:1, padding:'9px', borderRadius:9, border:'2px solid '+(payMode==='cash'?CLINIC_CONFIG.primaryColor:'#DCE4E0'), background: payMode==='cash'?'#F0FAF6':'#fff', color: payMode==='cash'?CLINIC_CONFIG.primaryColor:'#5A7870', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
+                Cash
+              </button>
+            </div>
+
+            {/* Pricing */}
+            <div style={{ padding:'4px 14px 12px', background:'#F8FAF9', border:'1px solid #EEF2F0', borderRadius:10 }}>
+              {payMode==='insurance' && ins ? (
+                <>
+                  <PriceRow label="Gross price" value={`QAR ${bd.gross.toLocaleString()}`} />
+                  <PriceRow label="Insurance price" value={`QAR ${bd.insurancePrice.toLocaleString()}`} />
+                  <PriceRow label="Co-pay" value={`${bd.copayPct}%`} />
+                  <PriceRow label="Insurer pays" value={`QAR ${bd.insurerPays.toLocaleString()}`} accent="#0A6040" />
+                  <PriceRow label="Patient pays" value={`QAR ${bd.patientPays.toLocaleString()}`} strong accent="#111814" />
+                </>
+              ) : (
+                <>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, padding:'8px 0 12px' }}>
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:700, color:'#5A7870', marginBottom:4 }}>Cash price (QAR)</div>
+                      <input type="number" value={cashPrice} onChange={e => setCashPrice(parseInt(e.target.value)||0)} style={{ fontFamily:"'IBM Plex Mono',monospace" }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:700, color:'#5A7870', marginBottom:4 }}>Discount (%)</div>
+                      <input type="number" value={discount} onChange={e => setDiscount(parseInt(e.target.value)||0)} style={{ fontFamily:"'IBM Plex Mono',monospace" }} />
+                    </div>
+                  </div>
+                  <PriceRow label="List / gross price" value={`QAR ${bd.gross.toLocaleString()}`} />
+                  {discount>0 && <PriceRow label={`Discount (${discount}%)`} value={`− QAR ${Math.round(cashPrice*discount/100).toLocaleString()}`} accent="#9A3412" />}
+                  <PriceRow label="Patient pays" value={`QAR ${bd.patientPays.toLocaleString()}`} strong accent="#111814" />
+                  <div style={{ fontSize:11, fontWeight:600, color:'#8AA8A0', marginTop:6 }}>Cash price &amp; discount are editable here for this visit.</div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TreatmentTab({ mode, apt, isDental }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1135,6 +1240,9 @@ function TreatmentTab({ mode, apt, isDental }) {
 
       {/* Odontogram / injection map */}
       {isDental ? <DentalTreatmentCard /> : <AestheticMapCard />}
+
+      {/* Treatment & charge — dropdown + pricing from the shared Admin price list */}
+      <TreatmentChargeCard insurer={PATIENT.insurer} mode={mode} />
 
       {/* Rx Done + Rx Med + Plan + Finish */}
       <ActionsColumn mode={mode} apt={apt} />
