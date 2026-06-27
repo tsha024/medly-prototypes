@@ -6,6 +6,7 @@ import {
   Calendar, Search, BarChart2, Users,
   ShieldCheck, ShieldAlert, Upload, Download, FileSignature, PenLine
 } from 'lucide-react';
+import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
 
 const CLINIC_CONFIG = {
   name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
@@ -247,10 +248,21 @@ function buildDocuments(p) {
 }
 ALL_PATIENTS.forEach(p=>{ p.documents = buildDocuments(p); });
 
+// Map appointment patientId -> QID (the shared key with the Reception portal)
+const QID_BY_PID = {};
+ALL_PATIENTS.forEach(p=>{ QID_BY_PID[p.id] = p.qid; });
+
+// A treatment is consented if Reception captured a matching consent (shared
+// store, by QID + treatment); otherwise fall back to the seeded status.
+function consentState(qid, procedure, seed) {
+  if (qid && findConsent(qid, procedure)) return 'signed';
+  return seed || 'signed';
+}
+
 const MY_SCHEDULE = [
   { id:'s1',  date:'2026-06-26', time:'09:00', dur:30, patientId:'p2', patientName:'Mohammed Al-Rashidi', procedure:'Routine check + X-rays',         status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2024-0089' },
   { id:'s2',  date:'2026-06-26', time:'09:45', dur:15, patientId:'p3', patientName:'Fatima Hassan',       procedure:'Post-op review — extraction #28', status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2025-0204' },
-  { id:'s3',  date:'2026-06-26', time:'10:30', dur:60, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Filling — tooth #16',             status:'in-progress', consent:'signed',  kind:'dental', fileNo:'YC-2024-0142' },
+  { id:'s3',  date:'2026-06-26', time:'10:30', dur:60, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Filling — tooth #16',             status:'in-progress', consent:'missing', kind:'dental', fileNo:'YC-2024-0142' },
   { id:'s4',  date:'2026-06-26', time:'12:00', dur:45, patientId:'p4', patientName:'Sara Al-Jaber',       procedure:'Crown prep — tooth #26',          status:'booked',      consent:'missing', kind:'dental', fileNo:'YC-2023-0318' },
   { id:'s5',  date:'2026-06-26', time:'13:00', dur:30, patientId:'p5', patientName:'Khalid Al-Mansouri',  procedure:'Emergency — toothache #36',       status:'booked',      consent:'signed',  kind:'dental', fileNo:'YC-2024-0271' },
   { id:'s6',  date:'2026-06-26', time:'14:00', dur:60, patientId:'p6', patientName:'Nora Al-Thani',       procedure:'Scaling & root planing',          status:'booked',      consent:'pending', kind:'dental', fileNo:'YC-2025-0387' },
@@ -438,6 +450,7 @@ function DoctorLanding({ onOpenEncounter, onOpenPatient }) {
 // ─── Schedule Tab ─────────────────────────────────────────────────────────────
 function ScheduleTab({ onOpenEncounter }) {
   const [date, setDate] = useState(TODAY);
+  useConsents();
   const apts = MY_SCHEDULE.filter(a=>a.date===date).sort((a,b)=>a.time.localeCompare(b.time));
   const ST = {
     'done':        {bg:'#D1FAE5',color:'#065F46',label:'Done',        bar:'#34D399'},
@@ -480,7 +493,7 @@ function ScheduleTab({ onOpenEncounter }) {
         ):(
           apts.map((apt,i)=>{
             const st=ST[apt.status]||ST['booked'];
-            const cm=CONSENT[apt.consent]||CONSENT.signed; const CI=cm.Icon;
+            const cm=CONSENT[consentState(QID_BY_PID[apt.patientId], apt.procedure, apt.consent)]||CONSENT.signed; const CI=cm.Icon;
             return (
               <div key={apt.id} className="apt-row" onClick={()=>onOpenEncounter(apt)}
                 style={{display:'flex',alignItems:'center',gap:14,padding:'13px 18px',borderBottom:i<apts.length-1?'1px solid #EEF2F0':'none',cursor:'pointer'}}>
@@ -694,12 +707,16 @@ function RangeReportTab() {
 function PatientFileView({ patient, onBack, onOpenEncounter }) {
   const [tab, setTab] = useState('overview');
   const [docFilter, setDocFilter] = useState('all');
+  useConsents();
   const todayApt  = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===patient.id);
-  const todayConsentDocs = (todayApt && todayApt.consent && todayApt.consent!=='missing') ? [{
-    id:'doc-today', type:'consent', name:'Consent — '+todayApt.procedure, treatment:todayApt.procedure, date:TODAY, fileType:'PDF', sizeKB:92, uploadedBy:'Reception',
-    signed: todayApt.consent==='signed', signMethod: todayApt.consent==='signed'?'iPad':null,
-  }] : [];
-  const allDocs     = [...todayConsentDocs, ...(patient.documents||[])].sort((a,b)=>b.date.localeCompare(a.date));
+  // Consents captured at Reception (shared store) attach to the patient file here.
+  const recConsents = consentsForQid(patient.qid).map(cc=>({
+    id:cc.id, type:'consent', name:'Consent — '+cc.treatment, treatment:cc.treatment, date:cc.date,
+    fileType:'PDF', sizeKB:90, uploadedBy:(cc.capturedBy||'Reception'), signed:true, signMethod:cc.method, source:'reception',
+  }));
+  const recTreat    = new Set(recConsents.map(cc=>normalizeTreatment(cc.treatment)));
+  const builtinDocs = (patient.documents||[]).filter(d=> !(d.type==='consent' && recTreat.has(normalizeTreatment(d.treatment||d.name))));
+  const allDocs     = [...recConsents, ...builtinDocs].sort((a,b)=>b.date.localeCompare(a.date));
   const docFiltered = docFilter==='all' ? allDocs : allDocs.filter(d=>d.type===docFilter);
   const encs      = (patient.encounters||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
   const pays      = (patient.payments||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
@@ -753,7 +770,7 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
 
       {/* Today CTA + consent gate */}
       {todayApt&&(()=>{
-        const cs = todayApt.consent || 'signed';
+        const cs = consentState(patient.qid, todayApt.procedure, todayApt.consent);
         const ok = cs==='signed';
         return (
           <div style={{marginBottom:16}}>
@@ -901,6 +918,7 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
                       <span className="mono">{d.fileType} &#xB7; {d.sizeKB} KB</span>
                       <span>&#xB7;</span><span>{fmtDateShort(d.date)}</span>
                       <span>&#xB7;</span><span>{d.uploadedBy}</span>
+                      {d.source==='reception'&&<span style={{padding:'1px 7px',borderRadius:10,background:'#EEF6FF',color:'#1D4ED8',fontWeight:700}}>via Reception</span>}
                     </div>
                   </div>
                   {d.type==='consent'&&(d.signed?(
@@ -953,7 +971,8 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
 function EncounterPanel({ mode, isDental, onView }) {
   const [tab, setTab] = useState('soap');
   const apt = TODAYS_APT[mode];
-  const consent = apt.consent || 'signed';
+  useConsents();
+  const consent = consentState(PATIENT.qid, apt.procedure, apt.consent);
   const cOk = consent==='signed';
 
   const TABS = [

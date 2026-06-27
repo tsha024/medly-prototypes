@@ -4,6 +4,7 @@ import {
   Search, Plus, User, Clock, Shield, AlertTriangle, CheckCircle2,
   FileText, X, Save, Globe, Edit3, CalendarDays, MessageSquare, Send, Inbox, CheckCheck, PhoneOff,
   ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser} from 'lucide-react';
+import { addConsent, findConsent, useConsents } from './consentStore';
 
 // ─── Clinic branding ─────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -79,7 +80,7 @@ const DOCTOR_SCHEDULES = {
 const TIME_SLOTS = Array.from({length:18},(_,i)=>{ const h=9+Math.floor(i/2); const m=i%2===0?'00':'30'; return `${String(h).padStart(2,'0')}:${m}`; });
 const SEED_APPOINTMENTS = [
   {id:'a1',doctorId:'d1',patientId:'p3',start:'09:00',date:'2026-05-24',dur:45,procedure:'Cleaning & polish',    status:'payment-done',  nurseId:'n2',notes:'Standard cleaning.'},
-  {id:'a2',doctorId:'d1',patientId:'p1',start:'10:30',date:'2026-05-24',dur:60,procedure:'Extraction',           status:'arrived',       nurseId:'n2',asstDoctorId:'d4',consent:{signed:true,method:'iPad',signedName:'Aisha Al-Kuwari',date:'2026-05-24'},notes:'Anxious patient.'},
+  {id:'a2',doctorId:'d1',patientId:'p1',start:'10:30',date:'2026-05-24',dur:60,procedure:'Filling — tooth #16',  status:'arrived',       nurseId:'n2',asstDoctorId:'d4',notes:'Anxious patient.'},
   {id:'a3',doctorId:'d2',patientId:'p2',start:'11:00',date:'2026-05-24',dur:30,procedure:'Braces adjustment',    status:'confirmed',     nurseId:null,notes:''},
   {id:'a4',doctorId:'d3',patientId:'p1',start:'14:00',date:'2026-05-24',dur:90,procedure:'Root canal treatment', status:'in-progress',   nurseId:'n2',consent:{signed:true,method:'iPad',signedName:'Aisha Al-Kuwari',date:'2026-05-24'},notes:''},
   {id:'a5',doctorId:'d5',patientId:'p3',start:'15:30',date:'2026-05-24',dur:60,procedure:'Hydrafacial',          status:'booked',        nurseId:'n1',notes:'First hydrafacial.'},
@@ -1301,6 +1302,11 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
   const [aptTime,     setAptTime]    = useState(appointment.start);
   const [aptDoctorId, setAptDoctorId]= useState(appointment.doctorId);
   const [consentOpen, setConsentOpen]= useState(false);
+  useConsents();
+  const storeConsent  = patient ? findConsent(patient.qid, appointment.procedure) : null;
+  const consentSigned = !!(appointment.consent && appointment.consent.signed) || !!storeConsent;
+  const consentInfo   = (appointment.consent && appointment.consent.signed) ? appointment.consent
+                       : storeConsent ? {method:storeConsent.method, signedName:storeConsent.signedName, date:storeConsent.date} : null;
   const effectiveDoc = DOCTORS.find(d=>d.id===aptDoctorId);
   // Availability check for reschedules — only applies if this is a doctor appointment
   const reschedUnavail = aptDoctorId && appointment.providerType!=='nurse'
@@ -1352,12 +1358,12 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
         {/* Treatment consent */}
         <div>
           <SectionLabel>Treatment consent</SectionLabel>
-          {appointment.consent&&appointment.consent.signed?(
+          {consentSigned?(
             <div style={{display:'flex',alignItems:'center',gap:10,padding:'11px 13px',background:'#F0FAF6',border:'1px solid #B8DDD6',borderRadius:9}}>
               <ShieldCheck size={18} color="#0A6040" style={{flexShrink:0}}/>
               <div style={{flex:1}}>
                 <div style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>Consent signed &amp; uploaded</div>
-                <div style={{fontSize:11.5,fontWeight:600,color:'#3D6B5E',marginTop:1}}>{appointment.consent.method} · {appointment.consent.signedName} · {appointment.consent.date}</div>
+                <div style={{fontSize:11.5,fontWeight:600,color:'#3D6B5E',marginTop:1}}>{consentInfo?.method} · {consentInfo?.signedName} · {consentInfo?.date}</div>
               </div>
               <button onClick={()=>setConsentOpen(true)} style={{fontSize:12,fontWeight:700,color:'#0C6B5A',background:'none',border:'none',cursor:'pointer'}}>Re-capture</button>
             </div>
@@ -1456,6 +1462,7 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
   const [adopted, setAdopted]     = useState(false);
   const [agreed, setAgreed]       = useState(false);
   const [hasInk, setHasInk]       = useState(false);
+  const [capturedBy, setCapturedBy] = useState('Reception');
   const canvasRef = useRef(null);
   const drawing   = useRef(false);
   const dateStr   = appointment.date || '2026-05-24';
@@ -1473,8 +1480,11 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
 
   const canSign = method==='ipad' ? hasInk : (adopted && agreed);
   const submit = () => {
-    onSign({ signed:true, method: method==='ipad'?'iPad':'DigiSign', date:dateStr,
-             treatment:appointment.procedure, signedName: method==='ipad'?(patient?.nameEn||'Patient'):typedName.trim(), signedAt:dateStr });
+    const signedName = method==='ipad' ? (patient?.nameEn||'Patient') : typedName.trim();
+    const methodLbl  = method==='ipad' ? 'iPad' : 'DigiSign';
+    addConsent({ qid: patient?.qid||'', patientName: patient?.nameEn||'Patient', fileNo: patient?.fileNo||'',
+                 treatment: appointment.procedure, date: dateStr, method: methodLbl, signedName, capturedBy, signedAt: dateStr });
+    onSign({ signed:true, method: methodLbl, date:dateStr, treatment:appointment.procedure, signedName, capturedBy, signedAt:dateStr });
     onClose();
   };
 
@@ -1489,6 +1499,17 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
     <Modal onClose={onClose} width={560}>
       <ModalHeader title="Treatment consent form" sub="Auto-filled from the appointment · signed at reception on arrival" onClose={onClose}/>
       <div style={{padding:'18px 24px',display:'flex',flexDirection:'column',gap:16}}>
+        {/* Captured by */}
+        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#5A7870'}}>Captured by</span>
+          <div style={{display:'flex',borderRadius:8,overflow:'hidden',border:'1px solid #DCE4E0'}}>
+            {['Reception','Nurse','Assistant'].map(roleLbl=>(
+              <button key={roleLbl} onClick={()=>setCapturedBy(roleLbl)} style={{padding:'6px 13px',fontSize:12.5,fontWeight:capturedBy===roleLbl?700:500,border:'none',background:capturedBy===roleLbl?CLINIC_CONFIG.primaryColor:'#fff',color:capturedBy===roleLbl?'#fff':'#4A6860',cursor:'pointer'}}>{roleLbl}</button>
+            ))}
+          </div>
+          <span style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0'}}>before the doctor sees the patient</span>
+        </div>
+
         {/* Auto-pulled from the system */}
         <div style={{display:'flex',flexWrap:'wrap',gap:14,padding:'13px 15px',background:'#F5F8F7',border:'1px solid #DCE4E0',borderRadius:10}}>
           <Field label="Date" value={dateStr}/>
