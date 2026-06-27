@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronDown, Calendar, Bell, Settings,
   Search, Plus, User, Clock, Shield, AlertTriangle, CheckCircle2,
-  FileText, X, Save, Globe, Edit3, CalendarDays, MessageSquare, Send, Inbox, CheckCheck, PhoneOff} from 'lucide-react';
+  FileText, X, Save, Globe, Edit3, CalendarDays, MessageSquare, Send, Inbox, CheckCheck, PhoneOff,
+  ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser} from 'lucide-react';
 
 // ─── Clinic branding ─────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -78,11 +79,11 @@ const DOCTOR_SCHEDULES = {
 const TIME_SLOTS = Array.from({length:18},(_,i)=>{ const h=9+Math.floor(i/2); const m=i%2===0?'00':'30'; return `${String(h).padStart(2,'0')}:${m}`; });
 const SEED_APPOINTMENTS = [
   {id:'a1',doctorId:'d1',patientId:'p3',start:'09:00',date:'2026-05-24',dur:45,procedure:'Cleaning & polish',    status:'payment-done',  nurseId:'n2',notes:'Standard cleaning.'},
-  {id:'a2',doctorId:'d1',patientId:'p1',start:'10:30',date:'2026-05-24',dur:60,procedure:'Extraction',           status:'arrived',       nurseId:'n2',asstDoctorId:'d4',notes:'Anxious patient.'},
+  {id:'a2',doctorId:'d1',patientId:'p1',start:'10:30',date:'2026-05-24',dur:60,procedure:'Extraction',           status:'arrived',       nurseId:'n2',asstDoctorId:'d4',consent:{signed:true,method:'iPad',signedName:'Aisha Al-Kuwari',date:'2026-05-24'},notes:'Anxious patient.'},
   {id:'a3',doctorId:'d2',patientId:'p2',start:'11:00',date:'2026-05-24',dur:30,procedure:'Braces adjustment',    status:'confirmed',     nurseId:null,notes:''},
-  {id:'a4',doctorId:'d3',patientId:'p1',start:'14:00',date:'2026-05-24',dur:90,procedure:'Root canal treatment', status:'in-progress',   nurseId:'n2',notes:''},
+  {id:'a4',doctorId:'d3',patientId:'p1',start:'14:00',date:'2026-05-24',dur:90,procedure:'Root canal treatment', status:'in-progress',   nurseId:'n2',consent:{signed:true,method:'iPad',signedName:'Aisha Al-Kuwari',date:'2026-05-24'},notes:''},
   {id:'a5',doctorId:'d5',patientId:'p3',start:'15:30',date:'2026-05-24',dur:60,procedure:'Hydrafacial',          status:'booked',        nurseId:'n1',notes:'First hydrafacial.'},
-  {id:'a6',doctorId:'d6',patientId:'p2',start:'10:00',date:'2026-05-24',dur:45,procedure:'Botox',                status:'treatment-done',nurseId:'n4',notes:'20U total.'},
+  {id:'a6',doctorId:'d6',patientId:'p2',start:'10:00',date:'2026-05-24',dur:45,procedure:'Botox',                status:'treatment-done',nurseId:'n4',consent:{signed:true,method:'DigiSign',signedName:'Mohammed Al-Rashidi',date:'2026-05-24'},notes:'20U total.'},
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1299,6 +1300,7 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
   const [aptDate,     setAptDate]    = useState(appointment.date||'2026-05-24');
   const [aptTime,     setAptTime]    = useState(appointment.start);
   const [aptDoctorId, setAptDoctorId]= useState(appointment.doctorId);
+  const [consentOpen, setConsentOpen]= useState(false);
   const effectiveDoc = DOCTORS.find(d=>d.id===aptDoctorId);
   // Availability check for reschedules — only applies if this is a doctor appointment
   const reschedUnavail = aptDoctorId && appointment.providerType!=='nurse'
@@ -1345,6 +1347,32 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
               );
             })}
           </div>
+        </div>
+
+        {/* Treatment consent */}
+        <div>
+          <SectionLabel>Treatment consent</SectionLabel>
+          {appointment.consent&&appointment.consent.signed?(
+            <div style={{display:'flex',alignItems:'center',gap:10,padding:'11px 13px',background:'#F0FAF6',border:'1px solid #B8DDD6',borderRadius:9}}>
+              <ShieldCheck size={18} color="#0A6040" style={{flexShrink:0}}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>Consent signed &amp; uploaded</div>
+                <div style={{fontSize:11.5,fontWeight:600,color:'#3D6B5E',marginTop:1}}>{appointment.consent.method} · {appointment.consent.signedName} · {appointment.consent.date}</div>
+              </div>
+              <button onClick={()=>setConsentOpen(true)} style={{fontSize:12,fontWeight:700,color:'#0C6B5A',background:'none',border:'none',cursor:'pointer'}}>Re-capture</button>
+            </div>
+          ):(
+            <div style={{padding:'11px 13px',background:'#FFF7F6',border:'1px solid #FBC9C2',borderRadius:9,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:9}}>
+                <ShieldAlert size={18} color="#DC2626" style={{flexShrink:0,marginTop:1}}/>
+                <div>
+                  <div style={{fontSize:12.5,fontWeight:700,color:'#991B1B'}}>No consent form signed</div>
+                  <div style={{fontSize:11.5,fontWeight:600,color:'#B02A1E',marginTop:1}}>Capture the patient&#x2019;s consent before treatment begins.</div>
+                </div>
+              </div>
+              <PrimaryBtn onClick={()=>setConsentOpen(true)}><FileSignature size={13}/>Capture consent</PrimaryBtn>
+            </div>
+          )}
         </div>
 
         {/* Care team */}
@@ -1409,6 +1437,127 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
         <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:4}}>
           <GhostBtn onClick={onClose}>Discard</GhostBtn>
           <PrimaryBtn onClick={()=>{ onUpdate({status,notes,start:aptTime,date:aptDate,doctorId:aptDoctorId}); onClose(); }} disabled={reschedUnavail}><Save size={13}/>Save changes</PrimaryBtn>
+        </div>
+
+        {consentOpen&&(
+          <ConsentModal isAr={isAr} appointment={appointment} patient={patient}
+            onClose={()=>setConsentOpen(false)}
+            onSign={cobj=>{ onUpdate({consent:cobj}); }}/>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Treatment consent capture (iPad signature / adopt & DigiSign) ─────────────
+function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
+  const [method, setMethod]       = useState('ipad');
+  const [typedName, setTypedName] = useState(patient?.nameEn || '');
+  const [adopted, setAdopted]     = useState(false);
+  const [agreed, setAgreed]       = useState(false);
+  const [hasInk, setHasInk]       = useState(false);
+  const canvasRef = useRef(null);
+  const drawing   = useRef(false);
+  const dateStr   = appointment.date || '2026-05-24';
+
+  const pos = e => {
+    const cv = canvasRef.current, rect = cv.getBoundingClientRect();
+    const t = e.touches && e.touches[0];
+    const sx = cv.width / rect.width, sy = cv.height / rect.height;
+    return { x:((t?t.clientX:e.clientX)-rect.left)*sx, y:((t?t.clientY:e.clientY)-rect.top)*sy };
+  };
+  const startDraw = e => { drawing.current=true; const {x,y}=pos(e); const ctx=canvasRef.current.getContext('2d'); ctx.beginPath(); ctx.moveTo(x,y); };
+  const moveDraw  = e => { if(!drawing.current) return; if(e.preventDefault)e.preventDefault(); const {x,y}=pos(e); const ctx=canvasRef.current.getContext('2d'); ctx.lineWidth=2.4; ctx.lineCap='round'; ctx.strokeStyle='#0f1f1a'; ctx.lineTo(x,y); ctx.stroke(); setHasInk(true); };
+  const endDraw   = () => { drawing.current=false; };
+  const clearInk  = () => { const cv=canvasRef.current, ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height); setHasInk(false); };
+
+  const canSign = method==='ipad' ? hasInk : (adopted && agreed);
+  const submit = () => {
+    onSign({ signed:true, method: method==='ipad'?'iPad':'DigiSign', date:dateStr,
+             treatment:appointment.procedure, signedName: method==='ipad'?(patient?.nameEn||'Patient'):typedName.trim(), signedAt:dateStr });
+    onClose();
+  };
+
+  const Field = ({label,value}) => (
+    <div style={{flex:'1 1 150px'}}>
+      <div style={{fontSize:10.5,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#5A7870'}}>{label}</div>
+      <div style={{fontSize:13,fontWeight:700,color:'#111814',marginTop:2}}>{value}</div>
+    </div>
+  );
+
+  return (
+    <Modal onClose={onClose} width={560}>
+      <ModalHeader title="Treatment consent form" sub="Auto-filled from the appointment · signed at reception on arrival" onClose={onClose}/>
+      <div style={{padding:'18px 24px',display:'flex',flexDirection:'column',gap:16}}>
+        {/* Auto-pulled from the system */}
+        <div style={{display:'flex',flexWrap:'wrap',gap:14,padding:'13px 15px',background:'#F5F8F7',border:'1px solid #DCE4E0',borderRadius:10}}>
+          <Field label="Date" value={dateStr}/>
+          <Field label="Treatment" value={appointment.procedure}/>
+          <Field label="Patient" value={patient?.nameEn||'—'}/>
+          <Field label="Patient ID / QID" value={patient?.qid||patient?.fileNo||'—'}/>
+        </div>
+
+        {/* Consent statement */}
+        <div style={{padding:'13px 15px',background:'#fff',border:'1px solid #DCE4E0',borderRadius:10,fontSize:12.5,fontWeight:500,color:'#3D5850',lineHeight:1.6,maxHeight:128,overflowY:'auto'}}>
+          I confirm that the nature, purpose, risks, benefits and alternatives of <b>{appointment.procedure}</b> have been explained to me by the treating clinician. I have had the opportunity to ask questions and I consent to the procedure being carried out at {CLINIC_CONFIG.name}. I understand the estimated costs and my insurance coverage where applicable.
+        </div>
+
+        {/* Method toggle */}
+        <div style={{display:'flex',gap:8}}>
+          {[['ipad','Sign on iPad',Tablet],['digisign','Adopt & DigiSign',FileSignature]].map(([k,lbl,Ic])=>(
+            <button key={k} onClick={()=>setMethod(k)} style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'10px',borderRadius:9,border:'2px solid '+(method===k?CLINIC_CONFIG.primaryColor:'#DCE4E0'),background:method===k?'#F0FAF6':'#fff',color:method===k?CLINIC_CONFIG.primaryColor:'#5A7870',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+              <Ic size={15}/>{lbl}
+            </button>
+          ))}
+        </div>
+
+        {/* iPad signature pad */}
+        {method==='ipad'&&(
+          <div>
+            <SectionLabel>Patient signature</SectionLabel>
+            <div style={{position:'relative',border:'1.5px dashed #C8D4CF',borderRadius:10,background:'#FCFEFD',overflow:'hidden'}}>
+              <canvas ref={canvasRef} width={500} height={150}
+                onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onMouseLeave={endDraw}
+                onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw}
+                style={{width:'100%',height:150,touchAction:'none',cursor:'crosshair',display:'block'}}/>
+              {!hasInk&&<div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none',fontSize:13,fontWeight:600,color:'#B7C9C2'}}>Ask the patient to sign here with the stylus</div>}
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
+              <span style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0'}}>{patient?.nameEn} · {dateStr}</span>
+              <button onClick={clearInk} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'#5A7870',background:'none',border:'none',cursor:'pointer'}}><Eraser size={13}/>Clear</button>
+            </div>
+          </div>
+        )}
+
+        {/* Adopt & DigiSign */}
+        {method==='digisign'&&(
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <FormField label="Full legal name">
+              <input value={typedName} onChange={e=>{setTypedName(e.target.value);setAdopted(false);}} placeholder="Type full name to use as signature"/>
+            </FormField>
+            {typedName.trim()&&(
+              <div style={{padding:'14px 16px',border:'1.5px solid '+(adopted?'#0C6B5A':'#DCE4E0'),borderRadius:10,background:adopted?'#F0FAF6':'#fff',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+                <div>
+                  <div style={{fontFamily:"'Segoe Script','Bradley Hand','Brush Script MT',cursive",fontSize:27,color:'#0f1f1a',lineHeight:1}}>{typedName}</div>
+                  <div style={{fontSize:11,fontWeight:600,color:'#8AA8A0',marginTop:4}}>Adopted electronic signature</div>
+                </div>
+                {!adopted?(
+                  <PrimaryBtn onClick={()=>setAdopted(true)}><PenLine size={13}/>Adopt</PrimaryBtn>
+                ):(
+                  <span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12.5,fontWeight:700,color:'#0A6040'}}><CheckCircle2 size={14}/>Adopted</span>
+                )}
+              </div>
+            )}
+            <label style={{display:'flex',alignItems:'flex-start',gap:9,cursor:'pointer'}}>
+              <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} style={{width:16,height:16,marginTop:1,accentColor:CLINIC_CONFIG.primaryColor}}/>
+              <span style={{fontSize:12,fontWeight:600,color:'#3D5850',lineHeight:1.45}}>The patient agrees that this typed signature is the legal equivalent of their handwritten signature (e-signature consent).</span>
+            </label>
+          </div>
+        )}
+
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:2}}>
+          <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+          <PrimaryBtn onClick={submit} disabled={!canSign}><ShieldCheck size={13}/>Sign &amp; save consent</PrimaryBtn>
         </div>
       </div>
     </Modal>
