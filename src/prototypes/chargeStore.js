@@ -41,6 +41,14 @@ export function removeCharge(id) {
   persist();
 }
 
+// Replace all of a patient's charges in one go (idempotent re-post of a bill).
+export function setChargesForQid(qid, recs) {
+  const others = charges.filter(c => c.qid !== qid);
+  const stamped = recs.map(r => ({ id: 'ch-' + (++seq), status: 'posted', postedAt: r.date || '', ...r }));
+  charges = [...others, ...stamped];
+  persist();
+}
+
 export function useCharges() {
   const [, force] = useState(0);
   useEffect(() => {

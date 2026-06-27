@@ -7,8 +7,8 @@ import {
   ShieldCheck, ShieldAlert, Upload, Download, FileSignature, PenLine
 } from 'lucide-react';
 import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
-import { useTreatments, insurerPricing, priceBreakdown } from './treatmentStore';
-import { addCharge } from './chargeStore';
+import { useTreatments, insurerPricing } from './treatmentStore';
+import { setChargesForQid } from './chargeStore';
 
 const CLINIC_CONFIG = {
   name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
@@ -1137,138 +1137,6 @@ function AestheticSoapTab({ apt }) {
 }
 
 // ─── Treatment Tab — odontogram/injection map + Rx + actions ──────────────────
-function TreatmentChargeCard({ patient, mode }) {
-  const insurer = patient.insurer;
-  const all = useTreatments();
-  const active = all.filter(t => t.active);
-  const [selId, setSelId]       = useState('');
-  const [payMode, setPayMode]   = useState('insurance');
-  const [cashPrice, setCashPrice] = useState(0);
-  const [discount, setDiscount]   = useState(0);
-  const [posted, setPosted]     = useState(null);
-
-  const tx  = active.find(t => t.id === selId) || null;
-  const ins = tx ? insurerPricing(tx, insurer) : null;
-  const bd  = tx ? priceBreakdown(tx, insurer, { payMode, cashPrice, discount }) : null;
-
-  const onSelect = id => {
-    setSelId(id); setPosted(null);
-    const t = active.find(x => x.id === id);
-    if (t) { setCashPrice(t.cashPrice); setDiscount(t.discount || 0); setPayMode(insurerPricing(t, insurer) ? 'insurance' : 'cash'); }
-  };
-
-  const postToCheckout = () => {
-    if (!tx || !bd) return;
-    addCharge({
-      qid: patient.qid, patientName: patient.nameEn, date: TODAY,
-      treatment: tx.name, code: tx.code || '', specialty: tx.specialty,
-      payMode: bd.mode, grossPrice: bd.gross,
-      insurer, insurancePrice: bd.insurancePrice || 0, copayPct: bd.copayPct || 0,
-      cashPrice: bd.cashPrice || 0, discount: bd.discount || 0,
-      patientPays: bd.patientPays, insurerPays: bd.insurerPays || 0,
-      postedBy: CURRENT_DOCTOR.name,
-    });
-    setPosted({ treatment: tx.name, patientPays: bd.patientPays });
-  };
-
-  // group active treatments by specialty for the dropdown
-  const specs = [...new Set(active.map(t => t.specialty))];
-
-  const PriceRow = ({ label, value, strong, accent }) => (
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:'1px solid #EEF2F0' }}>
-      <span style={{ fontSize:12.5, fontWeight:600, color:'#5A7870' }}>{label}</span>
-      <span style={{ fontSize: strong?15:13, fontWeight: strong?800:700, color: accent||'#111814', letterSpacing: strong?'-0.3px':0 }}>{value}</span>
-    </div>
-  );
-
-  return (
-    <div style={card}>
-      <div style={cardHd}>
-        <div>
-          <div style={{ fontSize:14, fontWeight:700 }}>Treatment &amp; charge</div>
-          <div style={{ fontSize:12, color:'#3D5850', marginTop:2, fontWeight:600 }}>Prices populate from the Admin price list</div>
-        </div>
-      </div>
-      <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:14 }}>
-        {/* Treatment dropdown */}
-        <div>
-          <div style={{ fontSize:11.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#2E4840', marginBottom:6 }}>Treatment</div>
-          <select value={selId} onChange={e => onSelect(e.target.value)}>
-            <option value="">Select a treatment…</option>
-            {specs.map(s => (
-              <optgroup key={s} label={s}>
-                {active.filter(t => t.specialty === s).map(t => (
-                  <option key={t.id} value={t.id}>{t.name}{t.code ? ` (${t.code})` : ''}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-
-        {!tx ? (
-          <div style={{ padding:'20px', textAlign:'center', fontSize:12.5, fontWeight:600, color:'#8AA8A0' }}>Select a treatment to see pricing.</div>
-        ) : (
-          <>
-            {/* Payment mode */}
-            <div style={{ display:'flex', gap:8 }}>
-              <button onClick={() => ins && setPayMode('insurance')} disabled={!ins}
-                style={{ flex:1, padding:'9px', borderRadius:9, border:'2px solid '+(payMode==='insurance'&&ins?CLINIC_CONFIG.primaryColor:'#DCE4E0'), background: payMode==='insurance'&&ins?'#F0FAF6':'#fff', color: !ins?'#B7C9C2':(payMode==='insurance'?CLINIC_CONFIG.primaryColor:'#5A7870'), fontSize:12.5, fontWeight:700, cursor: ins?'pointer':'not-allowed' }}>
-                Insurance · {insurer}{!ins && ' (not covered)'}
-              </button>
-              <button onClick={() => setPayMode('cash')}
-                style={{ flex:1, padding:'9px', borderRadius:9, border:'2px solid '+(payMode==='cash'?CLINIC_CONFIG.primaryColor:'#DCE4E0'), background: payMode==='cash'?'#F0FAF6':'#fff', color: payMode==='cash'?CLINIC_CONFIG.primaryColor:'#5A7870', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
-                Cash
-              </button>
-            </div>
-
-            {/* Pricing */}
-            <div style={{ padding:'4px 14px 12px', background:'#F8FAF9', border:'1px solid #EEF2F0', borderRadius:10 }}>
-              {payMode==='insurance' && ins ? (
-                <>
-                  <PriceRow label="Gross price" value={`QAR ${bd.gross.toLocaleString()}`} />
-                  <PriceRow label="Insurance price" value={`QAR ${bd.insurancePrice.toLocaleString()}`} />
-                  <PriceRow label="Co-pay" value={`${bd.copayPct}%`} />
-                  <PriceRow label="Insurer pays" value={`QAR ${bd.insurerPays.toLocaleString()}`} accent="#0A6040" />
-                  <PriceRow label="Patient pays" value={`QAR ${bd.patientPays.toLocaleString()}`} strong accent="#111814" />
-                </>
-              ) : (
-                <>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, padding:'8px 0 12px' }}>
-                    <div>
-                      <div style={{ fontSize:11, fontWeight:700, color:'#5A7870', marginBottom:4 }}>Cash price (QAR)</div>
-                      <input type="number" value={cashPrice} onChange={e => setCashPrice(parseInt(e.target.value)||0)} style={{ fontFamily:"'IBM Plex Mono',monospace" }} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize:11, fontWeight:700, color:'#5A7870', marginBottom:4 }}>Discount (%)</div>
-                      <input type="number" value={discount} onChange={e => setDiscount(parseInt(e.target.value)||0)} style={{ fontFamily:"'IBM Plex Mono',monospace" }} />
-                    </div>
-                  </div>
-                  <PriceRow label="List / gross price" value={`QAR ${bd.gross.toLocaleString()}`} />
-                  {discount>0 && <PriceRow label={`Discount (${discount}%)`} value={`− QAR ${Math.round(cashPrice*discount/100).toLocaleString()}`} accent="#9A3412" />}
-                  <PriceRow label="Patient pays" value={`QAR ${bd.patientPays.toLocaleString()}`} strong accent="#111814" />
-                  <div style={{ fontSize:11, fontWeight:600, color:'#8AA8A0', marginTop:6 }}>Cash price &amp; discount are editable here for this visit.</div>
-                </>
-              )}
-            </div>
-
-            {/* Post to checkout */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' }}>
-              {posted ? (
-                <div style={{ display:'flex', alignItems:'center', gap:7, fontSize:12.5, fontWeight:700, color:'#0A6040' }}>
-                  <CheckCircle2 size={15}/> Sent to checkout &#xB7; {posted.treatment} &#xB7; QAR {posted.patientPays.toLocaleString()}
-                </div>
-              ) : (
-                <div style={{ fontSize:11.5, fontWeight:600, color:'#8AA8A0' }}>Posts this treatment &amp; price to the patient&#x2019;s checkout bill.</div>
-              )}
-              <PrimaryBtn onClick={postToCheckout}><Receipt size={13}/>{posted?'Post again':'Post to checkout'}</PrimaryBtn>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function TreatmentTab({ mode, apt, isDental }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1284,9 +1152,6 @@ function TreatmentTab({ mode, apt, isDental }) {
 
       {/* Odontogram / injection map */}
       {isDental ? <DentalTreatmentCard /> : <AestheticMapCard />}
-
-      {/* Treatment & charge — dropdown + pricing from the shared Admin price list */}
-      <TreatmentChargeCard patient={PATIENT} mode={mode} />
 
       {/* Rx Done + Rx Med + Plan + Finish */}
       <ActionsColumn mode={mode} apt={apt} />
@@ -1799,17 +1664,52 @@ function RxMedPanel({ mode }) {
 
 // ─── Rx Done Panel ────────────────────────────────────────────────────────────
 function RxDonePanel({ mode, apt }) {
-  const DEFAULTS = mode==='dental'?[{id:'d1',label:'Composite filling — tooth #16',code:'D2391',price:600},{id:'d2',label:'Bitewing X-rays (4 films)',code:'D0274',price:220}]:[{id:'a1',label:'Botox 20U — glabellar + frontalis',code:'M0023',price:1800}];
+  const insurer = PATIENT.insurer;
+  const all = useTreatments();
+  const active = all.filter(t => t.active);
+  const DEFAULTS = mode==='dental'
+    ? [{id:'d1',label:'Composite filling — tooth #16',code:'D2391',price:600,specialty:'General Dentistry',payMode:'cash'},{id:'d2',label:'Bitewing X-rays (4 films)',code:'D0274',price:220,specialty:'General Dentistry',payMode:'cash'}]
+    : [{id:'a1',label:'Botox 20U — glabellar + frontalis',code:'M0023',price:1800,specialty:'Aesthetic Medicine',payMode:'cash'}];
   const [items, setItems] = useState(DEFAULTS.map(i=>({...i,editPrice:i.price})));
-  const [showAdd, setShowAdd] = useState(false);
-  const [newItem, setNewItem] = useState({label:'',code:'',price:''});
-  const [discPct, setDiscPct] = useState(0);
+  const [showAdd, setShowAdd]   = useState(false);
+  const [selTxId, setSelTxId]   = useState('');
+  const [discPct, setDiscPct]   = useState(0);
   const [discReason, setDiscReason] = useState('');
   const [showDisc, setShowDisc] = useState(false);
-  const subtotal = items.reduce((s,i)=>s+i.editPrice,0);
-  const discAmt = Math.round(subtotal*discPct/100);
-  const total = subtotal-discAmt;
-  const addItem = () => { if(!newItem.label)return; const p=parseInt(newItem.price)||0; setItems(prev=>[...prev,{id:`r${Date.now()}`,label:newItem.label,code:newItem.code,price:p,editPrice:p}]); setNewItem({label:'',code:'',price:''}); setShowAdd(false); };
+  const [posted, setPosted]     = useState(false);
+  const dirty = () => setPosted(false);
+
+  const specs = [...new Set(active.map(t => t.specialty))];
+  const selTx  = active.find(t => t.id === selTxId) || null;
+  const selCov = selTx ? insurerPricing(selTx, insurer) : null;
+
+  const itemPatient = it => it.payMode==='insurance' ? Math.round(it.editPrice*(it.copayPct||0)/100) : it.editPrice;
+  const billed         = items.reduce((s,i)=>s+i.editPrice,0);
+  const patientSubtotal= items.reduce((s,i)=>s+itemPatient(i),0);
+  const insuranceCovers= billed - patientSubtotal;
+  const cashPatient    = items.filter(i=>i.payMode!=='insurance').reduce((s,i)=>s+i.editPrice,0);
+  const discAmt        = Math.round(cashPatient*discPct/100);
+  const total          = patientSubtotal - discAmt;
+
+  const addFromCatalog = () => {
+    const t = active.find(x => x.id === selTxId); if(!t) return;
+    const cov = insurerPricing(t, insurer);
+    const base = { id:`r${Date.now()}`, txId:t.id, label:t.name, code:t.code||'', specialty:t.specialty, grossPrice:t.grossPrice };
+    const it = cov
+      ? { ...base, payMode:'insurance', price:cov.insurancePrice, editPrice:cov.insurancePrice, copayPct:cov.copayPct }
+      : { ...base, payMode:'cash', price:t.cashPrice, editPrice:t.cashPrice };
+    setItems(prev=>[...prev, it]); setSelTxId(''); setShowAdd(false); dirty();
+  };
+
+  const postToCheckout = () => {
+    const recs = items.map(it => it.payMode==='insurance'
+      ? (()=>{ const pPays=Math.round(it.editPrice*(it.copayPct||0)/100);
+          return { qid:PATIENT.qid, patientName:PATIENT.nameEn, date:TODAY, treatment:it.label, code:it.code, specialty:it.specialty||'', payMode:'insurance', grossPrice:it.grossPrice||it.editPrice, insurer, insurancePrice:it.editPrice, copayPct:it.copayPct||0, patientPays:pPays, insurerPays:it.editPrice-pPays, postedBy:CURRENT_DOCTOR.name }; })()
+      : (()=>{ const pPays=Math.round(it.editPrice*(1-discPct/100));
+          return { qid:PATIENT.qid, patientName:PATIENT.nameEn, date:TODAY, treatment:it.label, code:it.code, specialty:it.specialty||'', payMode:'cash', grossPrice:it.grossPrice||it.editPrice, cashPrice:it.editPrice, discount:discPct, patientPays:pPays, insurerPays:0, postedBy:CURRENT_DOCTOR.name }; })());
+    setChargesForQid(PATIENT.qid, recs); setPosted(true);
+  };
+
   return (
     <div>
       <div style={SEC}>Treatments done today</div>
@@ -1823,43 +1723,67 @@ function RxDonePanel({ mode, apt }) {
               </div>
               <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
                 <span style={{fontSize:12,fontWeight:600,color:'#5A7870'}}>QAR</span>
-                <input type="number" value={item.editPrice} onChange={e=>setItems(p=>p.map(i=>i.id===item.id?{...i,editPrice:parseInt(e.target.value)||0}:i))} style={{width:72,textAlign:'right',fontFamily:"'IBM Plex Mono',monospace",padding:'4px 7px',fontSize:13,fontWeight:700}}/>
-                <button onClick={()=>setItems(p=>p.filter(i=>i.id!==item.id))} style={{background:'none',border:'none',color:'#C8D4CF',cursor:'pointer',padding:2}}><X size={12}/></button>
+                <input type="number" value={item.editPrice} onChange={e=>{setItems(p=>p.map(i=>i.id===item.id?{...i,editPrice:parseInt(e.target.value)||0}:i));dirty();}} style={{width:72,textAlign:'right',fontFamily:"'IBM Plex Mono',monospace",padding:'4px 7px',fontSize:13,fontWeight:700}}/>
+                <button onClick={()=>{setItems(p=>p.filter(i=>i.id!==item.id));dirty();}} style={{background:'none',border:'none',color:'#C8D4CF',cursor:'pointer',padding:2}}><X size={12}/></button>
               </div>
             </div>
-            {item.editPrice!==item.price&&<div style={{fontSize:12,fontWeight:600,color:'#C05820',marginTop:4,display:'flex',alignItems:'center',gap:4}}><Edit3 size={10}/>Modified from QAR {item.price.toLocaleString()}</div>}
+            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
+              {item.payMode==='insurance'
+                ? <span style={{fontSize:11,fontWeight:700,color:'#0A6040'}}>{insurer} · copay {item.copayPct}% · patient QAR {itemPatient(item).toLocaleString()}</span>
+                : <span style={{fontSize:11,fontWeight:700,color:'#92600A'}}>Cash · patient pays full</span>}
+              {item.editPrice!==item.price&&<span style={{fontSize:11,fontWeight:600,color:'#C05820',display:'flex',alignItems:'center',gap:4}}><Edit3 size={10}/>edited from QAR {item.price.toLocaleString()}</span>}
+            </div>
           </div>
         ))}
       </div>
+
       {!showAdd?<button onClick={()=>setShowAdd(true)} style={{width:'100%',padding:'7px',borderRadius:8,border:'1.5px dashed #C8D4CF',background:'transparent',fontSize:12.5,fontWeight:600,color:'#5A7870',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5,marginBottom:8}}><Plus size={13}/>Add treatment</button>:(
         <div style={{padding:'10px 12px',background:'#F5F8F7',borderRadius:9,border:'1px solid #DCE4E0',marginBottom:8,display:'flex',flexDirection:'column',gap:7}}>
-          <input value={newItem.label} onChange={e=>setNewItem({...newItem,label:e.target.value})} placeholder="Treatment name"/>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7}}>
-            <input value={newItem.code} onChange={e=>setNewItem({...newItem,code:e.target.value})} placeholder="Code (opt)" style={{fontFamily:"'IBM Plex Mono',monospace"}}/>
-            <input type="number" value={newItem.price} onChange={e=>setNewItem({...newItem,price:e.target.value})} placeholder="Price (QAR)" style={{fontFamily:"'IBM Plex Mono',monospace"}}/>
-          </div>
+          <select value={selTxId} onChange={e=>setSelTxId(e.target.value)}>
+            <option value="">Select treatment from price list…</option>
+            {specs.map(s=>(
+              <optgroup key={s} label={s}>
+                {active.filter(t=>t.specialty===s).map(t=><option key={t.id} value={t.id}>{t.name}{t.code?` (${t.code})`:''}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          {selTx&&(
+            <div style={{fontSize:11.5,fontWeight:600,color:'#5A7870'}}>
+              Cash QAR {selTx.cashPrice.toLocaleString()}
+              {selCov ? ` · ${insurer} copay ${selCov.copayPct}% → patient QAR ${Math.round(selCov.insurancePrice*selCov.copayPct/100).toLocaleString()}` : ` · not covered by ${insurer} (cash)`}
+            </div>
+          )}
           <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
-            <GhostBtn onClick={()=>{setShowAdd(false);setNewItem({label:'',code:'',price:''}); }} style={{padding:'5px 12px',fontSize:12}}>Cancel</GhostBtn>
-            <PrimaryBtn onClick={addItem} disabled={!newItem.label} style={{padding:'5px 12px',fontSize:12}}><Plus size={11}/>Add</PrimaryBtn>
+            <GhostBtn onClick={()=>{setShowAdd(false);setSelTxId('');}} style={{padding:'5px 12px',fontSize:12}}>Cancel</GhostBtn>
+            <PrimaryBtn onClick={addFromCatalog} disabled={!selTxId} style={{padding:'5px 12px',fontSize:12}}><Plus size={11}/>Add</PrimaryBtn>
           </div>
         </div>
       )}
-      {!showDisc?<button onClick={()=>setShowDisc(true)} style={{width:'100%',padding:'7px',borderRadius:8,border:'1.5px dashed #C8D4CF',background:'transparent',fontSize:12.5,fontWeight:600,color:'#5A7870',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5,marginBottom:8}}><Tag size={13}/>Add discount</button>:(
+
+      {!showDisc?<button onClick={()=>setShowDisc(true)} style={{width:'100%',padding:'7px',borderRadius:8,border:'1.5px dashed #C8D4CF',background:'transparent',fontSize:12.5,fontWeight:600,color:'#5A7870',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5,marginBottom:8}}><Tag size={13}/>Add discount (cash)</button>:(
         <div style={{padding:'10px 12px',background:'#F5F8F7',borderRadius:9,border:'1px solid #DCE4E0',marginBottom:8}}>
           <div style={{display:'flex',gap:8,marginBottom:6}}>
-            <div style={{width:64}}><div style={{...SEC,marginBottom:4}}>% Off</div><input type="number" min={0} max={100} value={discPct} onChange={e=>setDiscPct(Math.min(100,Math.max(0,parseInt(e.target.value)||0)))} style={{fontFamily:"'IBM Plex Mono',monospace"}}/></div>
+            <div style={{width:64}}><div style={{...SEC,marginBottom:4}}>% Off</div><input type="number" min={0} max={100} value={discPct} onChange={e=>{setDiscPct(Math.min(100,Math.max(0,parseInt(e.target.value)||0)));dirty();}} style={{fontFamily:"'IBM Plex Mono',monospace"}}/></div>
             <div style={{flex:1}}><div style={{...SEC,marginBottom:4}}>Reason</div><input value={discReason} onChange={e=>setDiscReason(e.target.value)} placeholder="e.g. Staff family"/></div>
-            <button onClick={()=>{setShowDisc(false);setDiscPct(0);setDiscReason('');}} style={{alignSelf:'flex-end',marginBottom:2,background:'none',border:'none',color:'#4E6860',cursor:'pointer'}}><X size={14}/></button>
+            <button onClick={()=>{setShowDisc(false);setDiscPct(0);setDiscReason('');dirty();}} style={{alignSelf:'flex-end',marginBottom:2,background:'none',border:'none',color:'#4E6860',cursor:'pointer'}}><X size={14}/></button>
           </div>
-          {discPct>0&&<div style={{fontSize:12,fontWeight:700,color:'#0A6040'}}>Saves patient QAR {discAmt.toLocaleString()}</div>}
+          {discPct>0&&<div style={{fontSize:12,fontWeight:700,color:'#0A6040'}}>Saves patient QAR {discAmt.toLocaleString()} (cash items)</div>}
         </div>
       )}
+
       <div style={{paddingTop:10,borderTop:'1px solid #EEF2F0',display:'flex',flexDirection:'column',gap:5}}>
-        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:12.5,fontWeight:600,color:'#3D5850'}}>Subtotal</span><span style={{fontSize:12.5,fontWeight:700}}>QAR {subtotal.toLocaleString()}</span></div>
-        {discPct>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:12.5,fontWeight:600,color:'#0A6040'}}>Discount ({discPct}%)</span><span style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>-QAR {discAmt.toLocaleString()}</span></div>}
-        <div style={{display:'flex',justifyContent:'space-between',paddingTop:6,marginTop:2,borderTop:'1px solid #DCE4E0'}}><span style={{fontSize:13,fontWeight:700}}>Total</span><span style={{fontSize:14,fontWeight:800,letterSpacing:'-0.5px'}}>QAR {total.toLocaleString()}</span></div>
+        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:12.5,fontWeight:600,color:'#3D5850'}}>Billed</span><span style={{fontSize:12.5,fontWeight:700}}>QAR {billed.toLocaleString()}</span></div>
+        {insuranceCovers>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:12.5,fontWeight:600,color:'#0A6040'}}>Insurance covers</span><span style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>-QAR {insuranceCovers.toLocaleString()}</span></div>}
+        {discPct>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:12.5,fontWeight:600,color:'#0A6040'}}>Cash discount ({discPct}%)</span><span style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>-QAR {discAmt.toLocaleString()}</span></div>}
+        <div style={{display:'flex',justifyContent:'space-between',paddingTop:6,marginTop:2,borderTop:'1px solid #DCE4E0'}}><span style={{fontSize:13,fontWeight:700}}>Patient pays</span><span style={{fontSize:14,fontWeight:800,letterSpacing:'-0.5px'}}>QAR {total.toLocaleString()}</span></div>
       </div>
-      <div style={{marginTop:8,fontSize:12,fontWeight:600,color:'#4E6860',fontStyle:'italic'}}>Prices flow to checkout. Edits are audit-logged.</div>
+
+      <div style={{marginTop:10,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+        {posted
+          ? <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:700,color:'#0A6040'}}><CheckCircle2 size={14}/>Posted to checkout</span>
+          : <span style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0'}}>Flows to the patient&#x2019;s checkout bill.</span>}
+        <PrimaryBtn onClick={postToCheckout} disabled={!items.length} style={{padding:'6px 14px',fontSize:12.5}}><Receipt size={12}/>{posted?'Update bill':'Post to checkout'}</PrimaryBtn>
+      </div>
     </div>
   );
 }
