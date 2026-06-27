@@ -40,13 +40,16 @@ function persist() {
 // Normalize a treatment label so cross-portal names line up, e.g.
 // "Filling — tooth #16" and "Filling" both reduce to "filling".
 export function normalizeTreatment(t) {
-  return String(t || '')
-    .toLowerCase()
-    .replace(/#\s*\d+/g, '')
+  const base = String(t || '').toLowerCase().replace(/#\s*\d+/g, '');
+  const aggressive = base
     .replace(/tooth|teeth/g, '')
     .replace(/\b(prep|preparation|impression|seat|review|post-?op|treatment|plan|consultation|emergency)\b/g, '')
     .replace(/[^a-z]+/g, ' ')
     .trim();
+  // If stripping stage/filler words leaves nothing (e.g. "Consultation + treatment
+  // plan"), fall back to the plain words so distinct treatments stay distinct.
+  if (aggressive) return aggressive;
+  return base.replace(/[^a-z]+/g, ' ').trim();
 }
 
 export function getConsents() { return consents.slice(); }
