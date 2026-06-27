@@ -1161,30 +1161,35 @@ function TreatmentTab({ mode, apt, isDental }) {
 
 // ─── Dental treatment card (odontogram only) ───────────────────────────────────
 function DentalTreatmentCard() {
-  const [findings, setFindings] = useState({ 16: { status: 'decay' }, 17: { status: 'filling' }, 36: { status: 'filling' } });
+  const [findings, setFindings] = useState({
+    16: { note: 'Deep distal caries — recommend composite filling.' },
+    36: { note: 'Existing composite, margins intact.' },
+  });
   const [selectedTooth, setSelectedTooth] = useState(16);
-  const setToothStatus = (num, status) => {
+  const setToothNote = (num, note) => {
     setFindings(prev => {
       const next = { ...prev };
-      if (status === 'healthy') delete next[num];
-      else next[num] = { status };
+      if (!note || !note.trim()) delete next[num];
+      else next[num] = { note };
       return next;
     });
   };
+  const noted = Object.keys(findings).length;
   return (
     <div style={card}>
       <div style={cardHd}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>Odontogram</div>
-          <div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>FDI notation · Click a tooth to flag treatment</div>
+          <div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>FDI notation · Click a tooth to add a note</div>
         </div>
+        {noted>0&&<span style={{ fontSize: 11.5, fontWeight: 700, color: '#0C6B5A' }}>{noted} {noted===1?'tooth noted':'teeth noted'}</span>}
       </div>
       <div style={{ padding: '18px 20px' }}>
         <Odontogram findings={findings} selected={selectedTooth} onSelect={setSelectedTooth} />
-        <ToothStatusPicker
+        <ToothNoteEditor
           num={selectedTooth}
-          currentStatus={findings[selectedTooth]?.status || 'healthy'}
-          onSet={status => setToothStatus(selectedTooth, status)}
+          note={findings[selectedTooth]?.note || ''}
+          onSet={note => setToothNote(selectedTooth, note)}
         />
       </div>
     </div>
@@ -1419,22 +1424,9 @@ function SoapField({ letter, label, value, onChange }) {
 
 // ─── Odontogram — recreated from the original prototype ──────────────────────
 // Single tooth path repeated for all 32 teeth. Lower arch flipped vertically.
-// FDI numbering. Status: decay | filling | crown | missing | healthy.
-const ODONTO_STATUS_COLOR = {
-  decay:   '#fca5a5',
-  filling: '#93c5fd',
-  crown:   '#fcd34d',
-  missing: '#d6d3d1',
-};
+// FDI numbering. Teeth with a clinical note are highlighted.
 
-function ToothStatusPicker({ num, currentStatus, onSet }) {
-  const STATUSES = [
-    { id: 'healthy', label: 'Healthy', color: '#FFFFFF',  border: '#A8A29E' },
-    { id: 'decay',   label: 'Decay',   color: '#fca5a5',  border: '#DC4F38' },
-    { id: 'filling', label: 'Filling', color: '#93c5fd',  border: '#3B82F6' },
-    { id: 'crown',   label: 'Crown',   color: '#fcd34d',  border: '#D97706' },
-    { id: 'missing', label: 'Missing', color: '#d6d3d1',  border: '#78716C' },
-  ];
+function ToothNoteEditor({ num, note, onSet }) {
   const quadrant = (() => {
     if (num >= 11 && num <= 18) return 'Upper right';
     if (num >= 21 && num <= 28) return 'Upper left';
@@ -1447,35 +1439,23 @@ function ToothStatusPicker({ num, currentStatus, onSet }) {
       <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:10,flexWrap:'wrap'}}>
         <span style={{fontSize:13,fontWeight:700,color:'#111814'}}>Tooth #{num}</span>
         <span style={{fontSize:11.5,fontWeight:600,color:'#5A7870'}}>{quadrant}</span>
-        <span style={{marginLeft:'auto',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#5A7870'}}>Set status</span>
+        <span style={{marginLeft:'auto',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#5A7870'}}>Clinical note</span>
       </div>
-      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-        {STATUSES.map(st => {
-          const active = st.id === currentStatus;
-          return (
-            <button
-              key={st.id}
-              onClick={() => onSet(st.id)}
-              style={{
-                display:'flex',alignItems:'center',gap:7,
-                padding:'6px 11px',borderRadius:8,
-                border:`1.5px solid ${active ? st.border : '#DCE4E0'}`,
-                background: active ? '#fff' : '#F8FAF9',
-                fontSize:12,fontWeight:active?700:600,
-                color: active ? '#111814' : '#3D5850',
-                cursor:'pointer',transition:'all .13s'
-              }}
-            >
-              <span style={{width:12,height:12,borderRadius:3,background:st.color,border:`1px solid ${st.border}`,display:'inline-block',flexShrink:0}}/>
-              {st.label}
-            </button>
-          );
-        })}
-      </div>
+      <textarea
+        value={note}
+        onChange={e => onSet(e.target.value)}
+        rows={3}
+        placeholder={`Write a note for tooth #${num} — findings, condition, planned work…`}
+        style={{resize:'vertical'}}
+      />
+      {note && note.trim() ? (
+        <button onClick={() => onSet('')} style={{marginTop:8,fontSize:12,fontWeight:600,color:'#9A3412',background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:5,padding:0}}><X size={12}/>Clear note</button>
+      ) : (
+        <div style={{marginTop:8,fontSize:11.5,fontWeight:600,color:'#8AA8A0'}}>Teeth with a note are highlighted on the chart.</div>
+      )}
     </div>
   );
 }
-
 function Tooth({ num, findings, selected, onSelect, fill, divider, flipped }) {
   return (
     <>
@@ -1507,7 +1487,7 @@ function LegendDot({ color, label, border }) {
 function Odontogram({ findings = {}, selected, onSelect = () => {} }) {
   const upper = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
   const lower = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
-  const fillFor = num => ODONTO_STATUS_COLOR[findings[num]?.status] || '#FFFFFF';
+  const fillFor = num => (findings[num] && findings[num].note) ? '#BFE0D6' : '#FFFFFF';
   return (
     <div style={{background:'#F8FAF9',borderRadius:8,padding:'12px 14px'}}>
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
@@ -1526,11 +1506,8 @@ function Odontogram({ findings = {}, selected, onSelect = () => {} }) {
       </div>
       {/* Legend */}
       <div style={{display:'flex',alignItems:'center',gap:14,marginTop:10,paddingTop:8,borderTop:'1px solid #DCE4E0',flexWrap:'wrap'}}>
-        <LegendDot color="#fca5a5" label="Decay"/>
-        <LegendDot color="#93c5fd" label="Filling"/>
-        <LegendDot color="#fcd34d" label="Crown"/>
-        <LegendDot color="#d6d3d1" label="Missing"/>
-        <LegendDot color="#FFFFFF" label="Healthy" border/>
+        <LegendDot color="#BFE0D6" label="Has note" border/>
+        <LegendDot color="#FFFFFF" label="No note" border/>
       </div>
     </div>
   );
@@ -1682,6 +1659,9 @@ function RxDonePanel({ mode, apt }) {
   const specs = [...new Set(active.map(t => t.specialty))];
   const selTx  = active.find(t => t.id === selTxId) || null;
   const selCov = selTx ? insurerPricing(selTx, insurer) : null;
+  const FDI_TEETH = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28,48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+  const selDental = selTx && !/aesthetic/i.test(selTx.specialty || '');
+  const [tooth, setTooth] = useState('');
 
   const itemPatient = it => it.payMode==='insurance' ? Math.round(it.editPrice*(it.copayPct||0)/100) : it.editPrice;
   const billed         = items.reduce((s,i)=>s+i.editPrice,0);
@@ -1693,12 +1673,14 @@ function RxDonePanel({ mode, apt }) {
 
   const addFromCatalog = () => {
     const t = active.find(x => x.id === selTxId); if(!t) return;
+    const dental = !/aesthetic/i.test(t.specialty || '');
+    const label = (dental && tooth) ? `${t.name} — #${tooth}` : t.name;
     const cov = insurerPricing(t, insurer);
-    const base = { id:`r${Date.now()}`, txId:t.id, label:t.name, code:t.code||'', specialty:t.specialty, grossPrice:t.grossPrice };
+    const base = { id:`r${Date.now()}`, txId:t.id, label, tooth:(dental?tooth:''), code:t.code||'', specialty:t.specialty, grossPrice:t.grossPrice };
     const it = cov
       ? { ...base, payMode:'insurance', price:cov.insurancePrice, editPrice:cov.insurancePrice, copayPct:cov.copayPct }
       : { ...base, payMode:'cash', price:t.cashPrice, editPrice:t.cashPrice };
-    setItems(prev=>[...prev, it]); setSelTxId(''); setShowAdd(false); dirty();
+    setItems(prev=>[...prev, it]); setSelTxId(''); setTooth(''); setShowAdd(false); dirty();
   };
 
   const postToCheckout = () => {
@@ -1747,6 +1729,15 @@ function RxDonePanel({ mode, apt }) {
               </optgroup>
             ))}
           </select>
+          {selDental&&(
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:11.5,fontWeight:700,color:'#3D5850'}}>Tooth #</span>
+              <select value={tooth} onChange={e=>setTooth(e.target.value)} style={{flex:1}}>
+                <option value="">Select tooth (FDI)…</option>
+                {FDI_TEETH.map(n=><option key={n} value={n}>#{n}</option>)}
+              </select>
+            </div>
+          )}
           {selTx&&(
             <div style={{fontSize:11.5,fontWeight:600,color:'#5A7870'}}>
               Cash QAR {selTx.cashPrice.toLocaleString()}
@@ -1754,8 +1745,8 @@ function RxDonePanel({ mode, apt }) {
             </div>
           )}
           <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
-            <GhostBtn onClick={()=>{setShowAdd(false);setSelTxId('');}} style={{padding:'5px 12px',fontSize:12}}>Cancel</GhostBtn>
-            <PrimaryBtn onClick={addFromCatalog} disabled={!selTxId} style={{padding:'5px 12px',fontSize:12}}><Plus size={11}/>Add</PrimaryBtn>
+            <GhostBtn onClick={()=>{setShowAdd(false);setSelTxId('');setTooth('');}} style={{padding:'5px 12px',fontSize:12}}>Cancel</GhostBtn>
+            <PrimaryBtn onClick={addFromCatalog} disabled={!selTxId||(selDental&&!tooth)} style={{padding:'5px 12px',fontSize:12}}><Plus size={11}/>Add</PrimaryBtn>
           </div>
         </div>
       )}
