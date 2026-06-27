@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import {
   ChevronLeft, ChevronDown, ChevronRight, Shield, AlertTriangle,
   CheckCircle2, FileText, Plus, Edit3, Save, X, Bell, Pill,
-  Stethoscope, Sparkles, Tag, ExternalLink, AlertCircle, Receipt
+  Stethoscope, Sparkles, Tag, ExternalLink, AlertCircle, Receipt,
+  Calendar, Search, BarChart2, Users
 } from 'lucide-react';
 
 const CLINIC_CONFIG = {
@@ -68,6 +69,71 @@ const SOAP_MAP = {
   e5:{ s:'New patient consultation. Interested in Botox for preventive anti-ageing. No prior aesthetic treatments.', o:'Skin assessment: mild dynamic lines glabella and frontalis. Good skin turgor. No contraindications.', a:'Appropriate candidate for preventive Botox. Realistic expectations established.', p:'Botox session scheduled for 3 weeks. Pre-treatment photography taken.' },
 };
 
+
+// ─── Landing page seed data ───────────────────────────────────────────────────
+const TODAY = '2026-06-26';
+
+const CURRENT_DOCTOR = {
+  id:'d1', name:'Dr. Layla Al-Mahmoud', specialty:'General Dentistry & Cosmetic Dentistry',
+  initials:'LA', qchp:'QCHP-D-002847',
+};
+
+const ALL_PATIENTS = [
+  { id:'p1', qid:'28934567812', nameEn:'Aisha Al-Kuwari',     age:37, sex:'F', phone:'+974 5512 4488', lastVisit:'2026-06-26', insurer:'QLM',     fileNo:'YC-2024-0142', bloodType:'O+',  allergies:['Penicillin','Latex'], conditions:['Type 2 diabetes','Hypertension'] },
+  { id:'p2', qid:'29012345671', nameEn:'Mohammed Al-Rashidi', age:44, sex:'M', phone:'+974 5523 1122', lastVisit:'2026-06-25', insurer:'AXA',     fileNo:'YC-2024-0089', bloodType:'A+',  allergies:[], conditions:['Hypertension'] },
+  { id:'p3', qid:'27891234562', nameEn:'Fatima Hassan',       age:29, sex:'F', phone:'+974 5534 8877', lastVisit:'2026-06-25', insurer:'Daman',   fileNo:'YC-2025-0204', bloodType:'B+',  allergies:['Aspirin'], conditions:[] },
+  { id:'p4', qid:'30123456783', nameEn:'Sara Al-Jaber',       age:52, sex:'F', phone:'+974 5545 3344', lastVisit:'2026-06-25', insurer:'QLM',     fileNo:'YC-2023-0318', bloodType:'AB-', allergies:[], conditions:['Osteoporosis'] },
+  { id:'p5', qid:'28765432104', nameEn:'Khalid Al-Mansouri',  age:38, sex:'M', phone:'+974 5556 6655', lastVisit:'2026-06-25', insurer:'MedNet',  fileNo:'YC-2024-0271', bloodType:'O-',  allergies:[], conditions:['Type 1 diabetes'] },
+  { id:'p6', qid:'29876543215', nameEn:'Nora Al-Thani',       age:31, sex:'F', phone:'+974 5567 9900', lastVisit:'2026-06-24', insurer:'QLM',     fileNo:'YC-2025-0387', bloodType:'A-',  allergies:[], conditions:[] },
+  { id:'p7', qid:'27654321096', nameEn:'Ali Hassan Al-Marri', age:55, sex:'M', phone:'+974 5578 1234', lastVisit:'2026-06-24', insurer:'Allianz', fileNo:'YC-2022-0056', bloodType:'B-',  allergies:['Codeine'], conditions:['Hypertension','Ischemic heart disease'] },
+];
+
+const MY_SCHEDULE = [
+  { id:'s1',  date:'2026-06-26', time:'09:00', dur:30, patientId:'p2', patientName:'Mohammed Al-Rashidi', procedure:'Routine check + X-rays',         status:'done',        kind:'dental', fileNo:'YC-2024-0089' },
+  { id:'s2',  date:'2026-06-26', time:'09:45', dur:15, patientId:'p3', patientName:'Fatima Hassan',       procedure:'Post-op review — extraction #28', status:'done',        kind:'dental', fileNo:'YC-2025-0204' },
+  { id:'s3',  date:'2026-06-26', time:'10:30', dur:60, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Filling — tooth #16',             status:'in-progress', kind:'dental', fileNo:'YC-2024-0142' },
+  { id:'s4',  date:'2026-06-26', time:'12:00', dur:45, patientId:'p4', patientName:'Sara Al-Jaber',       procedure:'Crown prep — tooth #26',          status:'booked',      kind:'dental', fileNo:'YC-2023-0318' },
+  { id:'s5',  date:'2026-06-26', time:'13:00', dur:30, patientId:'p5', patientName:'Khalid Al-Mansouri',  procedure:'Emergency — toothache #36',       status:'booked',      kind:'dental', fileNo:'YC-2024-0271' },
+  { id:'s6',  date:'2026-06-26', time:'14:00', dur:60, patientId:'p6', patientName:'Nora Al-Thani',       procedure:'Scaling & root planing',          status:'booked',      kind:'dental', fileNo:'YC-2025-0387' },
+  { id:'s7',  date:'2026-06-26', time:'15:30', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Consultation + treatment plan',   status:'booked',      kind:'dental', fileNo:'YC-2022-0056' },
+  { id:'s8',  date:'2026-06-25', time:'09:00', dur:60, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Root canal — #16 prep',           status:'done',        kind:'dental', fileNo:'YC-2024-0142' },
+  { id:'s9',  date:'2026-06-25', time:'10:30', dur:30, patientId:'p3', patientName:'Fatima Hassan',       procedure:'Extraction #28',                  status:'done',        kind:'dental', fileNo:'YC-2025-0204' },
+  { id:'s10', date:'2026-06-25', time:'11:30', dur:45, patientId:'p5', patientName:'Khalid Al-Mansouri',  procedure:'Filling #14 + #15',               status:'done',        kind:'dental', fileNo:'YC-2024-0271' },
+  { id:'s11', date:'2026-06-25', time:'13:30', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Routine check',                   status:'no-show',     kind:'dental', fileNo:'YC-2022-0056' },
+  { id:'s12', date:'2026-06-25', time:'14:30', dur:60, patientId:'p4', patientName:'Sara Al-Jaber',       procedure:'Crown impression #26',            status:'done',        kind:'dental', fileNo:'YC-2023-0318' },
+  { id:'s13', date:'2026-06-24', time:'09:30', dur:60, patientId:'p2', patientName:'Mohammed Al-Rashidi', procedure:'Composite fillings #11, #12',      status:'done',        kind:'dental', fileNo:'YC-2024-0089' },
+  { id:'s14', date:'2026-06-24', time:'11:00', dur:30, patientId:'p6', patientName:'Nora Al-Thani',       procedure:'Cleaning + fluoride',             status:'done',        kind:'dental', fileNo:'YC-2025-0387' },
+  { id:'s15', date:'2026-06-24', time:'13:00', dur:45, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Bitewing X-rays',                 status:'done',        kind:'dental', fileNo:'YC-2024-0142' },
+  { id:'s16', date:'2026-06-24', time:'15:00', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Emergency — broken crown #36',    status:'done',        kind:'dental', fileNo:'YC-2022-0056' },
+];
+
+const PROCEDURE_REPORT = [
+  { id:'pr1',  date:'2026-06-25', patientName:'Aisha Al-Kuwari',     procedure:'Root canal — #16 prep',      code:'D3310', amount:900,  kind:'dental', insurer:'QLM'     },
+  { id:'pr2',  date:'2026-06-25', patientName:'Fatima Hassan',       procedure:'Extraction #28',              code:'D7210', amount:350,  kind:'dental', insurer:'Daman'   },
+  { id:'pr3',  date:'2026-06-25', patientName:'Khalid Al-Mansouri',  procedure:'Filling #14 + #15',           code:'D2390', amount:820,  kind:'dental', insurer:'MedNet'  },
+  { id:'pr4',  date:'2026-06-25', patientName:'Sara Al-Jaber',       procedure:'Crown impression #26',        code:'D2752', amount:1400, kind:'dental', insurer:'QLM'     },
+  { id:'pr5',  date:'2026-06-24', patientName:'Mohammed Al-Rashidi', procedure:'Composite fillings #11, #12', code:'D2391', amount:1100, kind:'dental', insurer:'AXA'     },
+  { id:'pr6',  date:'2026-06-24', patientName:'Nora Al-Thani',       procedure:'Cleaning + fluoride',         code:'D1110', amount:420,  kind:'dental', insurer:'QLM'     },
+  { id:'pr7',  date:'2026-06-24', patientName:'Aisha Al-Kuwari',     procedure:'Bitewing X-rays',             code:'D0274', amount:220,  kind:'dental', insurer:'QLM'     },
+  { id:'pr8',  date:'2026-06-24', patientName:'Ali Hassan Al-Marri', procedure:'Emergency consultation',      code:'D9110', amount:200,  kind:'dental', insurer:'Allianz' },
+  { id:'pr9',  date:'2026-06-23', patientName:'Fatima Hassan',       procedure:'Consultation + OPG X-ray',   code:'D0330', amount:380,  kind:'dental', insurer:'Daman'   },
+  { id:'pr10', date:'2026-06-23', patientName:'Khalid Al-Mansouri',  procedure:'Routine check',               code:'D0120', amount:180,  kind:'dental', insurer:'MedNet'  },
+  { id:'pr11', date:'2026-06-20', patientName:'Mohammed Al-Rashidi', procedure:'Scaling & polish',            code:'D1110', amount:380,  kind:'dental', insurer:'AXA'     },
+  { id:'pr12', date:'2026-06-20', patientName:'Sara Al-Jaber',       procedure:'Crown seat #25',              code:'D2752', amount:1400, kind:'dental', insurer:'QLM'     },
+  { id:'pr13', date:'2026-06-18', patientName:'Nora Al-Thani',       procedure:'Composite filling #36',       code:'D2391', amount:600,  kind:'dental', insurer:'QLM'     },
+  { id:'pr14', date:'2026-06-18', patientName:'Ali Hassan Al-Marri', procedure:'Routine check + X-rays',      code:'D0120', amount:300,  kind:'dental', insurer:'Allianz' },
+  { id:'pr15', date:'2026-06-15', patientName:'Aisha Al-Kuwari',     procedure:'Cleaning + polish',           code:'D1110', amount:380,  kind:'dental', insurer:'QLM'     },
+  { id:'pr16', date:'2026-06-12', patientName:'Fatima Hassan',       procedure:'Composite filling #21',       code:'D2391', amount:550,  kind:'dental', insurer:'Daman'   },
+  { id:'pr17', date:'2026-06-10', patientName:'Mohammed Al-Rashidi', procedure:'Emergency — abscess drainage', code:'D9110', amount:250, kind:'dental', insurer:'AXA'     },
+  { id:'pr18', date:'2026-06-08', patientName:'Khalid Al-Mansouri',  procedure:'Root canal — #36',            code:'D3330', amount:1100, kind:'dental', insurer:'MedNet'  },
+  { id:'pr19', date:'2026-06-05', patientName:'Sara Al-Jaber',       procedure:'Crown prep #25',              code:'D2750', amount:1200, kind:'dental', insurer:'QLM'     },
+  { id:'pr20', date:'2026-06-02', patientName:'Ali Hassan Al-Marri', procedure:'Denture reline',              code:'D5730', amount:800,  kind:'dental', insurer:'Allianz' },
+];
+
+const fmtDate      = d => new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+const fmtDateShort = d => new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+const shiftDay     = (d,n) => { const dt=new Date(d+'T12:00:00'); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); };
+
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = { fontFamily:"'Manrope','Noto Sans Arabic',system-ui,sans-serif" };
 const CANVAS = '#EAEDEB';
@@ -79,9 +145,15 @@ const PrimaryBtn = ({onClick,disabled,children,style={}}) => <button onClick={on
 const GhostBtn   = ({onClick,children,style={}}) => <button onClick={onClick} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:9,border:'1px solid #DCE4E0',background:'#F5F8F7',fontSize:12.5,fontWeight:600,color:'#2A4840',cursor:'pointer',...style}}>{children}</button>;
 
 export default function DoctorPortalPrototype() {
-  const [mode, setMode]           = useState('dental');
-  const [viewingEnc, setViewingEnc] = useState(null);
+  const [view, setView]                       = useState('home');
+  const [mode, setMode]                       = useState('dental');
+  const [viewingEnc, setViewingEnc]           = useState(null);
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const isDental = mode === 'dental';
+
+  const openEncounter = apt => { if (apt?.kind) setMode(apt.kind); setView('encounter'); setViewingEnc(null); };
+  const openPatient   = pt  => { setSelectedPatient(pt); setView('patientFile'); };
+  const goHome        = ()  => { setView('home'); setViewingEnc(null); };
 
   return (
     <div style={{...T, minHeight:'100vh', background:CANVAS, color:'#111814'}}>
@@ -96,49 +168,369 @@ export default function DoctorPortalPrototype() {
         input:hover,select:hover,textarea:hover{border-color:#7A9A90;background:#fff;}
         input:focus,select:focus,textarea:focus{outline:none;background:#fff;border-color:#0C6B5A;box-shadow:0 0 0 3px rgba(12,107,90,.12);}
         input::placeholder,textarea::placeholder{color:#8AA8A0;}
-        .enc-row:hover{background:#F5F8F7;}
-        @media(prefers-reduced-motion:reduce){*{transition:none!important;}}
+        .apt-row:hover{background:#F5F8F7;}
+        .pt-row:hover{background:#F5F8F7;}
         .tooth-svg:hover{filter:brightness(.95);cursor:pointer;}
         .injection-site:hover{r:9;cursor:pointer;}
+        .enc-row:hover{background:#F5F8F7;}
+        @media(prefers-reduced-motion:reduce){*{transition:none!important;}}
       `}</style>
 
       {/* Header */}
       <header style={{background:CLINIC_CONFIG.headerBg,borderBottom:'1px solid rgba(255,255,255,.07)'}}>
         <div style={{padding:'0 24px',height:54,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <button style={{width:44,height: 44,borderRadius:8,background:'rgba(255,255,255,.08)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',color:'#7AADA0'}}><ChevronLeft size={16}/></button>
+            {view !== 'home' ? (
+              <button onClick={goHome} style={{width:44,height:44,borderRadius:8,background:'rgba(255,255,255,.08)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',color:'#7AADA0'}}><ChevronLeft size={16}/></button>
+            ) : (
+              <div style={{width:44,height:44}}/>
+            )}
             {CLINIC_CONFIG.logoUrl?<img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{height:34}}/>:<MedlyLogo/>}
             <div>
-              <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>· clinical</span></div>
-              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
+              <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>&#xB7; clinical</span></div>
+              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{CLINIC_CONFIG.name} &#xB7; {CLINIC_CONFIG.city}</div>
             </div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            {/* Mode toggle */}
-            <div style={{display:'flex',borderRadius:9,overflow:'hidden',border:'1px solid rgba(255,255,255,.12)'}}>
-              <button onClick={()=>setMode('dental')} style={{padding:'6px 14px',fontSize:12.5,fontWeight:600,border:'none',display:'flex',alignItems:'center',gap:6,background:isDental?CLINIC_CONFIG.primaryColor:'transparent',color:isDental?'#fff':'#6A9080'}}>
-                <Stethoscope size={13}/> Dental
-              </button>
-              <button onClick={()=>setMode('aesthetic')} style={{padding:'6px 14px',fontSize:12.5,fontWeight:600,border:'none',display:'flex',alignItems:'center',gap:6,background:!isDental?CLINIC_CONFIG.primaryColor:'transparent',color:!isDental?'#fff':'#6A9080'}}>
-                <Sparkles size={13}/> Aesthetic
-              </button>
-            </div>
+            {view === 'encounter' && (
+              <div style={{display:'flex',borderRadius:9,overflow:'hidden',border:'1px solid rgba(255,255,255,.12)'}}>
+                <button onClick={()=>setMode('dental')} style={{padding:'6px 14px',fontSize:12.5,fontWeight:600,border:'none',display:'flex',alignItems:'center',gap:6,background:isDental?CLINIC_CONFIG.primaryColor:'transparent',color:isDental?'#fff':'#6A9080'}}>
+                  <Stethoscope size={13}/> Dental
+                </button>
+                <button onClick={()=>setMode('aesthetic')} style={{padding:'6px 14px',fontSize:12.5,fontWeight:600,border:'none',display:'flex',alignItems:'center',gap:6,background:!isDental?CLINIC_CONFIG.primaryColor:'transparent',color:!isDental?'#fff':'#6A9080'}}>
+                  <Sparkles size={13}/> Aesthetic
+                </button>
+              </div>
+            )}
             <div style={{display:'flex',alignItems:'center',gap:8,background:'rgba(255,255,255,.07)',border:'1px solid rgba(255,255,255,.1)',padding:'5px 12px 5px 6px',borderRadius:20}}>
-              <div style={{width:44,height: 44,borderRadius:'50%',background:CLINIC_CONFIG.primaryColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#fff'}}>{isDental?'LA':'RT'}</div>
-              <span style={{fontSize:12,color:'#C0D8D0',fontWeight:500}}>{isDental?'Dr. Layla Al-Mahmoud':'Dr. Reem Al-Thani'}</span>
+              <div style={{width:32,height:32,borderRadius:'50%',background:CLINIC_CONFIG.primaryColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#fff'}}>{CURRENT_DOCTOR.initials}</div>
+              <span style={{fontSize:12,color:'#C0D8D0',fontWeight:500}}>{CURRENT_DOCTOR.name}</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Patient banner */}
-      <PatientBanner patient={PATIENT} appointment={TODAYS_APT[mode]} mode={mode}/>
-
-      {viewingEnc?(
-        <PastEncounterView enc={viewingEnc} onBack={()=>setViewingEnc(null)}/>
-      ):(
-        <EncounterPanel mode={mode} isDental={isDental} onView={setViewingEnc}/>
+      {view === 'home' && <DoctorLanding onOpenEncounter={openEncounter} onOpenPatient={openPatient}/>}
+      {view === 'encounter' && (
+        <>
+          <PatientBanner patient={PATIENT} appointment={TODAYS_APT[mode]} mode={mode}/>
+          {viewingEnc?(
+            <PastEncounterView enc={viewingEnc} onBack={()=>setViewingEnc(null)}/>
+          ):(
+            <EncounterPanel mode={mode} isDental={isDental} onView={setViewingEnc}/>
+          )}
+        </>
       )}
+      {view === 'patientFile' && selectedPatient && (
+        <PatientFileView patient={selectedPatient} onBack={goHome} onOpenEncounter={openEncounter}/>
+      )}
+    </div>
+  );
+}
+
+// ─── Doctor Landing ────────────────────────────────────────────────────────────
+function DoctorLanding({ onOpenEncounter, onOpenPatient }) {
+  const [tab, setTab] = useState('schedule');
+  const TABS = [
+    {id:'schedule', label:'My Schedule', Icon:Calendar},
+    {id:'search',   label:'Patient Search', Icon:Search},
+    {id:'report',   label:'My Report', Icon:BarChart2},
+  ];
+  const todayCount = MY_SCHEDULE.filter(a=>a.date===TODAY).length;
+  const doneCount  = MY_SCHEDULE.filter(a=>a.date===TODAY&&a.status==='done').length;
+  const hour = new Date().getHours();
+  const greeting = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+  return (
+    <div style={{maxWidth:900,margin:'0 auto',padding:'20px 24px'}}>
+      <div style={{marginBottom:20,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+        <div>
+          <div style={{fontSize:21,fontWeight:800,color:'#111814',letterSpacing:'-.5px'}}>{greeting}, {CURRENT_DOCTOR.name.replace('Dr. ','')}</div>
+          <div style={{fontSize:13,fontWeight:600,color:'#5A7870',marginTop:3}}>{fmtDate(TODAY)} &#xB7; {CURRENT_DOCTOR.specialty}</div>
+        </div>
+        <div style={{display:'flex',gap:10}}>
+          {[['Today',todayCount,'#111814'],['Done',doneCount,'#0C6B5A'],['Remaining',todayCount-doneCount,'#92600A']].map(([lbl,val,color])=>(
+            <div key={lbl} style={{padding:'8px 16px',background:'#fff',borderRadius:10,border:'1px solid #DCE4E0',textAlign:'center',minWidth:72}}>
+              <div style={{fontSize:20,fontWeight:800,color,letterSpacing:'-0.5px'}}>{val}</div>
+              <div style={{fontSize:11,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em',marginTop:1}}>{lbl}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{display:'flex',borderBottom:'2px solid #DCE4E0',marginBottom:20}}>
+        {TABS.map(({id,label,Icon})=>(
+          <button key={id} onClick={()=>setTab(id)} style={{padding:'10px 24px',fontSize:13.5,fontWeight:tab===id?700:500,border:'none',borderBottom:`2.5px solid ${tab===id?CLINIC_CONFIG.primaryColor:'transparent'}`,marginBottom:-2,background:'transparent',color:tab===id?CLINIC_CONFIG.primaryColor:'#5A7870',cursor:'pointer',display:'flex',alignItems:'center',gap:7,transition:'color .13s'}}>
+            <Icon size={14}/>{label}
+          </button>
+        ))}
+      </div>
+
+      {tab==='schedule' && <ScheduleTab onOpenEncounter={onOpenEncounter}/>}
+      {tab==='search'   && <PatientSearchTab onOpenPatient={onOpenPatient} onOpenEncounter={onOpenEncounter}/>}
+      {tab==='report'   && <RangeReportTab/>}
+    </div>
+  );
+}
+
+// ─── Schedule Tab ─────────────────────────────────────────────────────────────
+function ScheduleTab({ onOpenEncounter }) {
+  const [date, setDate] = useState(TODAY);
+  const apts = MY_SCHEDULE.filter(a=>a.date===date).sort((a,b)=>a.time.localeCompare(b.time));
+  const ST = {
+    'done':        {bg:'#D1FAE5',color:'#065F46',label:'Done',        bar:'#34D399'},
+    'in-progress': {bg:'#F0FAF6',color:'#0C6B5A',label:'In progress', bar:CLINIC_CONFIG.primaryColor},
+    'booked':      {bg:'#F5F8F7',color:'#5A7870',label:'Booked',      bar:'#C8D4CF'},
+    'no-show':     {bg:'#FEF2F2',color:'#991B1B',label:'No-show',     bar:'#FCA5A5'},
+    'cancelled':   {bg:'#FFF7ED',color:'#92400E',label:'Cancelled',   bar:'#FCD34D'},
+  };
+  const stats = {total:apts.length,done:apts.filter(a=>a.status==='done').length,rem:apts.filter(a=>['booked','in-progress'].includes(a.status)).length};
+  const isToday = date===TODAY;
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+        <button onClick={()=>setDate(shiftDay(date,-1))} style={{width:34,height:34,borderRadius:8,border:'1px solid #DCE4E0',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><ChevronLeft size={15} color="#5A7870"/></button>
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:170,fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}/>
+        <button onClick={()=>setDate(shiftDay(date,1))} style={{width:34,height:34,borderRadius:8,border:'1px solid #DCE4E0',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><ChevronRight size={15} color="#5A7870"/></button>
+        {!isToday&&<button onClick={()=>setDate(TODAY)} style={{padding:'5px 12px',borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',fontSize:12.5,fontWeight:600,color:'#5A7870',cursor:'pointer'}}>Today</button>}
+        <span style={{fontSize:13,fontWeight:600,color:'#3D5850',marginLeft:4}}>{fmtDate(date)}{isToday?' &#x2014; Today':''}</span>
+      </div>
+
+      {apts.length>0&&(
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+          {[['Total',stats.total,'#111814'],['Done',stats.done,'#065F46'],['Remaining',stats.rem,'#92600A']].map(([l,v,c])=>(
+            <div key={l} style={{padding:'10px 14px',background:'#fff',borderRadius:10,border:'1px solid #DCE4E0',textAlign:'center'}}>
+              <div style={{fontSize:22,fontWeight:800,color:c,letterSpacing:'-0.5px'}}>{v}</div>
+              <div style={{fontSize:11,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em',marginTop:1}}>{l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={card}>
+        {apts.length===0?(
+          <div style={{padding:'48px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No appointments scheduled for {fmtDate(date)}</div>
+        ):(
+          apts.map((apt,i)=>{
+            const st=ST[apt.status]||ST['booked'];
+            return (
+              <div key={apt.id} className="apt-row" onClick={()=>onOpenEncounter(apt)}
+                style={{display:'flex',alignItems:'center',gap:14,padding:'13px 18px',borderBottom:i<apts.length-1?'1px solid #EEF2F0':'none',cursor:'pointer'}}>
+                <div style={{width:52,flexShrink:0,textAlign:'right'}}>
+                  <div style={{fontSize:13,fontWeight:800,color:'#111814',fontFamily:"'IBM Plex Mono',monospace"}}>{apt.time}</div>
+                  <div style={{fontSize:11,fontWeight:600,color:'#8AA8A0',marginTop:1}}>{apt.dur}min</div>
+                </div>
+                <div style={{width:3,height:40,borderRadius:2,background:st.bar,flexShrink:0}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13.5,fontWeight:700,color:'#111814',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{apt.patientName}</div>
+                  <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{apt.procedure}</div>
+                </div>
+                <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',fontFamily:"'IBM Plex Mono',monospace",flexShrink:0}}>{apt.fileNo}</div>
+                <div style={{padding:'3px 10px',borderRadius:20,background:st.bg,color:st.color,fontSize:11.5,fontWeight:700,flexShrink:0,whiteSpace:'nowrap'}}>{st.label}</div>
+                <ChevronRight size={14} color="#C8D4CF" style={{flexShrink:0}}/>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Patient Search Tab ────────────────────────────────────────────────────────
+function PatientSearchTab({ onOpenPatient, onOpenEncounter }) {
+  const [query, setQuery] = useState('');
+  const q = query.trim();
+  const shown = q.length<2 ? ALL_PATIENTS : ALL_PATIENTS.filter(p=>
+    p.nameEn.toLowerCase().includes(q.toLowerCase()) || p.qid.includes(q)
+  );
+  const initials = n => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{position:'relative'}}>
+        <Search size={15} color="#8AA8A0" style={{position:'absolute',left:13,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search by patient name or QID..." style={{paddingLeft:40,fontSize:13.5}} autoFocus/>
+      </div>
+      <div style={card}>
+        {shown.length===0?(
+          <div style={{padding:'48px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No patients match "{q}"</div>
+        ):(
+          shown.map((pt,i)=>{
+            const todayApt = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===pt.id);
+            return (
+              <div key={pt.id} className="pt-row" onClick={()=>onOpenPatient(pt)}
+                style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:i<shown.length-1?'1px solid #EEF2F0':'none',cursor:'pointer'}}>
+                <div style={{width:38,height:38,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{initials(pt.nameEn)}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                    <span style={{fontSize:13.5,fontWeight:700,color:'#111814'}}>{pt.nameEn}</span>
+                    {todayApt&&<span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:10,background:'#F0FAF6',color:'#0C6B5A',border:'1px solid #B8DDD6',whiteSpace:'nowrap'}}>Today {todayApt.time}</span>}
+                  </div>
+                  <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>
+                    <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{pt.qid}</span>
+                    <span style={{margin:'0 6px'}}>&#xB7;</span>{pt.age}y {pt.sex}
+                    <span style={{margin:'0 6px'}}>&#xB7;</span>Last visit {fmtDateShort(pt.lastVisit)}
+                  </div>
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',fontFamily:"'IBM Plex Mono',monospace"}}>{pt.fileNo}</div>
+                  <div style={{fontSize:11.5,fontWeight:600,color:'#5A7870',marginTop:2}}>{pt.insurer}</div>
+                </div>
+                <ChevronRight size={14} color="#C8D4CF" style={{flexShrink:0}}/>
+              </div>
+            );
+          })
+        )}
+      </div>
+      {q.length<2&&<div style={{fontSize:12,fontWeight:600,color:'#8AA8A0',textAlign:'center'}}>Showing all {ALL_PATIENTS.length} patients &#x2014; type to filter</div>}
+    </div>
+  );
+}
+
+// ─── Range Report Tab ──────────────────────────────────────────────────────────
+function RangeReportTab() {
+  const [period, setPeriod]     = useState('7d');
+  const [fromDate, setFromDate] = useState(shiftDay(TODAY,-6));
+  const [toDate, setToDate]     = useState(TODAY);
+  const [kindFilter, setKind]   = useState('all');
+  const [txFilter, setTx]       = useState('all');
+
+  const from = period==='today'?TODAY : period==='7d'?shiftDay(TODAY,-6) : period==='month'?(TODAY.slice(0,7)+'-01') : fromDate;
+  const to   = period==='custom'?toDate:TODAY;
+
+  const filtered = PROCEDURE_REPORT.filter(p=>
+    p.date>=from && p.date<=to &&
+    (kindFilter==='all'||p.kind===kindFilter) &&
+    (txFilter==='all'||p.procedure===txFilter)
+  );
+
+  const totalRev = filtered.reduce((s,p)=>s+p.amount,0);
+  const avgRev   = filtered.length?Math.round(totalRev/filtered.length):0;
+  const uniqueTx = [...new Set(PROCEDURE_REPORT.map(p=>p.procedure))].sort();
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+        <div style={{display:'flex',borderRadius:8,overflow:'hidden',border:'1px solid #DCE4E0'}}>
+          {[['today','Today'],['7d','Last 7d'],['month','This month'],['custom','Custom']].map(([k,lbl])=>(
+            <button key={k} onClick={()=>setPeriod(k)} style={{padding:'6px 13px',fontSize:12.5,fontWeight:period===k?700:500,border:'none',background:period===k?CLINIC_CONFIG.primaryColor:'#fff',color:period===k?'#fff':'#4A6860',cursor:'pointer',whiteSpace:'nowrap'}}>{lbl}</button>
+          ))}
+        </div>
+        <div style={{display:'flex',borderRadius:8,overflow:'hidden',border:'1px solid #DCE4E0'}}>
+          {[['all','All'],['dental','Dental'],['aesthetic','Aesthetic']].map(([k,lbl])=>(
+            <button key={k} onClick={()=>setKind(k)} style={{padding:'6px 12px',fontSize:12.5,fontWeight:kindFilter===k?700:500,border:'none',background:kindFilter===k?'#EFF6FF':'#fff',color:kindFilter===k?'#1D4ED8':'#4A6860',cursor:'pointer'}}>{lbl}</button>
+          ))}
+        </div>
+        <select value={txFilter} onChange={e=>setTx(e.target.value)} style={{flex:1,maxWidth:260,fontSize:12.5,padding:'6px 12px',width:'auto'}}>
+          <option value="all">All treatments</option>
+          {uniqueTx.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+
+      {period==='custom'&&(
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',background:'#F5F8F7',borderRadius:10,border:'1px solid #DCE4E0',flexWrap:'wrap'}}>
+          <span style={{fontSize:12.5,fontWeight:600,color:'#3D5850'}}>From</span>
+          <input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} style={{width:165,fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}/>
+          <span style={{fontSize:12.5,fontWeight:600,color:'#3D5850'}}>To</span>
+          <input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} style={{width:165,fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}/>
+        </div>
+      )}
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+        {[['Procedures',filtered.length,'#111814'],['Total revenue','QAR '+totalRev.toLocaleString(),'#0C6B5A'],['Avg per procedure','QAR '+avgRev.toLocaleString(),'#1D4ED8']].map(([l,v,c])=>(
+          <div key={l} style={{padding:'12px 16px',background:'#fff',borderRadius:12,border:'1px solid #DCE4E0'}}>
+            <div style={{fontSize:20,fontWeight:800,color:c,letterSpacing:'-0.5px'}}>{v}</div>
+            <div style={{fontSize:11.5,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em',marginTop:3}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{...card,overflow:'hidden'}}>
+        <div style={{display:'grid',gridTemplateColumns:'90px 1fr 1fr 68px 100px 80px',padding:'8px 18px',background:'#F8FAF9',borderBottom:'1px solid #EEF2F0'}}>
+          {['Date','Patient','Procedure','Code','Amount','Insurer'].map(h=>(
+            <div key={h} style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840'}}>{h}</div>
+          ))}
+        </div>
+        {filtered.length===0?(
+          <div style={{padding:'48px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No procedures in this period</div>
+        ):(
+          filtered.map((p,i)=>(
+            <div key={p.id} style={{display:'grid',gridTemplateColumns:'90px 1fr 1fr 68px 100px 80px',padding:'10px 18px',borderBottom:i<filtered.length-1?'1px solid #EEF2F0':'none',alignItems:'center'}}>
+              <div style={{fontSize:12,fontWeight:600,color:'#5A7870',fontFamily:"'IBM Plex Mono',monospace"}}>{fmtDateShort(p.date)}</div>
+              <div style={{fontSize:13,fontWeight:600,color:'#111814',paddingRight:10,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.patientName}</div>
+              <div style={{fontSize:12.5,fontWeight:500,color:'#3D5850',paddingRight:10,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.procedure}</div>
+              <div style={{fontSize:12,fontWeight:600,color:'#4E6860',fontFamily:"'IBM Plex Mono',monospace"}}>{p.code}</div>
+              <div style={{fontSize:13,fontWeight:800,color:'#111814',letterSpacing:'-0.3px'}}>QAR {p.amount.toLocaleString()}</div>
+              <div style={{fontSize:12,fontWeight:600,color:'#5A7870'}}>{p.insurer}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Patient File View ─────────────────────────────────────────────────────────
+function PatientFileView({ patient, onBack, onOpenEncounter }) {
+  const todayApt   = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===patient.id);
+  const pastVisits = MY_SCHEDULE.filter(a=>a.patientId===patient.id&&a.date<TODAY&&a.status==='done').sort((a,b)=>b.date.localeCompare(a.date));
+  const totalVisits= MY_SCHEDULE.filter(a=>a.patientId===patient.id).length;
+  const initials   = patient.nameEn.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return (
+    <div style={{maxWidth:860,margin:'0 auto',padding:'20px 24px'}}>
+      <div style={{...card,padding:'18px 20px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:16,flexWrap:'wrap'}}>
+        <div style={{width:52,height:52,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{initials}</div>
+        <div style={{flex:1,minWidth:200}}>
+          <div style={{fontSize:17,fontWeight:800,color:'#111814',letterSpacing:'-.3px'}}>{patient.nameEn}</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:'#5A7870',marginTop:4,display:'flex',gap:12,flexWrap:'wrap'}}>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{patient.qid}</span>
+            <span>&#xB7;</span><span>{patient.age}y {patient.sex}</span>
+            <span>&#xB7;</span><span>{patient.bloodType}</span>
+            <span>&#xB7;</span><span style={{color:'#0A6040'}}>{patient.insurer}</span>
+            <span>&#xB7;</span><span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{patient.fileNo}</span>
+          </div>
+          {patient.allergies.length>0&&(
+            <div style={{display:'flex',alignItems:'center',gap:6,marginTop:7}}>
+              <AlertTriangle size={12} color="#DC4F38"/>
+              <span style={{fontSize:12,fontWeight:600,color:'#B02A1E'}}>Allergies: {patient.allergies.join(', ')}</span>
+            </div>
+          )}
+          {patient.conditions.length>0&&(
+            <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:5}}>Conditions: {patient.conditions.join(' &#xB7; ')}</div>
+          )}
+        </div>
+        <div style={{textAlign:'right',flexShrink:0}}>
+          <div style={{fontSize:24,fontWeight:800,color:'#111814',letterSpacing:'-0.5px'}}>{totalVisits}</div>
+          <div style={{fontSize:11,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em'}}>Total visits</div>
+        </div>
+      </div>
+
+      {todayApt&&(
+        <div style={{padding:'13px 18px',background:'#F0FAF6',border:'1px solid #B8DDD6',borderRadius:12,marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+          <div>
+            <div style={{fontSize:13.5,fontWeight:700,color:'#0A6040'}}>Today &#xB7; {todayApt.time} &#x2014; {todayApt.procedure}</div>
+            <div style={{fontSize:12,fontWeight:600,color:'#2A6040',marginTop:2,textTransform:'capitalize'}}>{todayApt.status}</div>
+          </div>
+          <PrimaryBtn onClick={()=>onOpenEncounter(todayApt)}><FileText size={13}/>Open encounter</PrimaryBtn>
+        </div>
+      )}
+
+      <div style={card}>
+        <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Visit history with you</div></div>
+        {pastVisits.length===0?(
+          <div style={{padding:'36px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No past visits recorded</div>
+        ):(
+          pastVisits.map((apt,i)=>(
+            <div key={apt.id} style={{display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderBottom:i<pastVisits.length-1?'1px solid #EEF2F0':'none'}}>
+              <div style={{width:10,height:10,borderRadius:'50%',background:'#34D399',flexShrink:0}}/>
+              <div style={{width:88,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:600,color:'#5A7870',flexShrink:0}}>{fmtDateShort(apt.date)}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:'#111814'}}>{apt.procedure}</div>
+              </div>
+              <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',fontFamily:"'IBM Plex Mono',monospace"}}>{apt.dur}min</div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
