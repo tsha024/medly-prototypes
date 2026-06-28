@@ -5,6 +5,7 @@ import {
   FileText, X, Save, Globe, Edit3, CalendarDays, MessageSquare, Send, Inbox, CheckCheck, PhoneOff,
   ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser} from 'lucide-react';
 import { addConsent, findConsent, useConsents } from './consentStore';
+import PatientFile from './PatientFile';
 
 // ─── Clinic branding ─────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -763,7 +764,7 @@ export default function ReceptionPrototype() {
       {bookingModal&&<BookingModal isAr={isAr} doctor={DOCTORS.find(d=>d.id===bookingModal.doctorId)} slot={bookingModal.slot} date={date} patients={patients} onClose={()=>setBookingModal(null)} onConfirm={addAppt} onAddPatient={addPatient} onUpdatePatient={updatePatient}/>}
       {detailModal&&<AppointmentDetail isAr={isAr} appointment={detailModal} patient={patients.find(p=>p.id===detailModal.patientId)} onClose={()=>setDetailModal(null)} onUpdate={patch=>{updateAppt(detailModal.id,patch);setDetailModal({...detailModal,...patch});}} onViewFile={p=>{setDetailModal(null);setFileViewer(p);}}/>}
       {showSchedules&&<DoctorScheduleModal onClose={()=>setShowSched(false)}/>}
-      {fileViewer&&<PatientFileViewer patient={fileViewer} onUpdate={updatePatient} onClose={()=>setFileViewer(null)}/>}
+      {fileViewer&&<PatientFile patient={fileViewer} role="reception" variant="overlay" onClose={()=>setFileViewer(null)} onSaveNotes={notes=>updatePatient(fileViewer.id,{notes})}/>}
     </div>
   );
 }
@@ -1585,95 +1586,6 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
         <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:2}}>
           <GhostBtn onClick={onClose}>Cancel</GhostBtn>
           <PrimaryBtn onClick={submit} disabled={!canSign}><ShieldCheck size={13}/>Sign &amp; save consent</PrimaryBtn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Patient File Viewer ──────────────────────────────────────────────────────
-function PatientFileViewer({ patient, onUpdate, onClose }) {
-  const [notes, setNotes] = useState(patient.notes||'');
-  const [saved, setSaved] = useState(false);
-  const saveNotes = () => { onUpdate(patient.id,{notes}); setSaved(true); setTimeout(()=>setSaved(false),2000); };
-  return(
-    <Modal onClose={onClose} width={700}>
-      <ModalHeader title={patient.nameEn} sub={patient.isInternational ? `${patient.fileNo} · ${patient.countryOfResidence||'International'} visitor` : (patient.fileNo + (patient.qid ? ' · QID '+patient.qid : ' · QID pending'))} onClose={onClose}/>
-      <div style={{padding:'20px 24px',display:'flex',flexDirection:'column',gap:16}}>
-        {(!patient.qid || !patient.dob) && (
-          <div style={{padding:'10px 14px',background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:9,display:'flex',alignItems:'flex-start',gap:8}}>
-            <AlertTriangle size={14} color="#D97706" style={{flexShrink:0,marginTop:1}}/>
-            <div>
-              <div style={{fontSize:12.5,fontWeight:700,color:'#78400A'}}>Patient record incomplete</div>
-              <div style={{fontSize:12,fontWeight:600,color:'#92600A',marginTop:2}}>
-                {[!patient.qid&&'Qatar ID',!patient.dob&&'Date of birth'].filter(Boolean).join(' · ')} missing — please complete on arrival.
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Identity */}
-        <div>
-          <SectionLabel>Patient details</SectionLabel>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            {[
-            patient.isInternational ? ['Passport', patient.idNumber ? `${patient.idCountry} · ${patient.idNumber}` : '—'] : ['Arabic name', patient.nameAr||'—'],
-            ['Date of birth', patient.dob||'—'],
-            ['Phone', patient.phone],
-            ['Insurance', patient.insurer ? patient.insurer+(patient.policy?` / ${patient.policy}`:'') : (patient.insurerCategory ? 'Pending' : 'Self-pay')],
-            patient.isInternational ? ['Country of residence', patient.countryOfResidence||'—'] : ['Last visit', patient.lastVisit||'—'],
-            patient.isInternational && patient.departureDate ? ['Departs Qatar', patient.departureDate] : ['File number', patient.fileNo],
-          ].filter(Boolean).map(([l,v])=>(
-              <div key={l} style={{padding:'8px 12px',background:'#F5F8F7',borderRadius:8,border:'1px solid #DCE4E0'}}>
-                <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#6A8880',marginBottom:3}}>{l}</div>
-                <div style={{fontSize:13,fontWeight:600,color:'#111814',fontFamily:l==='File number'||l==='Date of birth'?"'IBM Plex Mono',monospace":'inherit'}}>{v}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Alerts */}
-        {(patient.allergies?.length>0)&&(
-          <div style={{padding:'12px 14px',background:'#FEF4F2',border:'1px solid #FECACA',borderRadius:10,display:'flex',gap:10}}>
-            <AlertTriangle size={16} color="#DC4F38" style={{flexShrink:0,marginTop:1}}/>
-            <div><div style={{fontSize:12.5,fontWeight:700,color:'#B02A1E',marginBottom:3}}>Allergies</div>{patient.allergies.map(a=><div key={a} style={{fontSize:12.5,fontWeight:600,color:'#B02A1E',marginBottom:1}}>· {a}</div>)}</div>
-          </div>
-        )}
-        {patient.conditions?.length>0&&(
-          <div><SectionLabel>Medical conditions</SectionLabel>
-            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-              {patient.conditions.map(c=><span key={c} style={{padding:'4px 10px',borderRadius:8,border:'1px solid #DCE4E0',background:'#F5F8F7',fontSize:12.5,fontWeight:600,color:'#3D5850'}}>{c}</span>)}
-            </div>
-          </div>
-        )}
-
-        {/* Encounter history */}
-        {patient.encounterHistory?.length>0&&(
-          <div>
-            <SectionLabel>Encounter history</SectionLabel>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {patient.encounterHistory.map((e,i)=>(
-                <div key={i} className="trow" style={{padding:'10px 14px',borderRadius:8,border:'1px solid #EEF2F0',background:'#fff',display:'flex',gap:14,alignItems:'flex-start'}}>
-                  <div style={{fontSize:12,fontWeight:700,color:'#5A7870',width:80,flexShrink:0}}>{e.date}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{e.procedure}</div>
-                    <div style={{fontSize:12,color:'#5A7870',marginTop:1,fontWeight:600}}>{e.doctor}</div>
-                    {e.notes&&<div style={{fontSize:12,color:'#4E6860',marginTop:2,fontStyle:'italic',fontWeight:600}}>{e.notes}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Reception notes */}
-        <div>
-          <SectionLabel>Reception notes</SectionLabel>
-          <textarea value={notes} onChange={e=>{setNotes(e.target.value);setSaved(false);}} rows={3} style={{resize:'none'}}/>
-          <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
-            <PrimaryBtn onClick={saveNotes} disabled={notes===patient.notes&&!saved} style={{padding:'7px 14px',fontSize:12,background:saved?'#0A6040':undefined}}>
-              {saved?<><CheckCircle2 size={12}/>Saved</>:<><Save size={12}/>Save notes</>}
-            </PrimaryBtn>
-          </div>
         </div>
       </div>
     </Modal>
