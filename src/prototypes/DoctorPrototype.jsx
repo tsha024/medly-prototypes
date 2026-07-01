@@ -9,6 +9,7 @@ import {
 import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
 import { useTreatments, insurerPricing } from './treatmentStore';
 import { setChargesForQid } from './chargeStore';
+import { useClinicConfig } from './clinicConfigStore';
 import PatientFile, { buildDocuments } from './PatientFile';
 
 const CLINIC_CONFIG = {
@@ -83,7 +84,9 @@ const CURRENT_DOCTOR = {
   initials:'LA', qchp:'QCHP-D-002847',
 };
 
-const ALL_PATIENTS = [
+// Exported so other portals (Admin) can look up the same patient records —
+// one file, one dataset, no matter who opens it.
+export const ALL_PATIENTS = [
   { id:'p1', qid:'28934567812', nameEn:'Aisha Al-Kuwari',     nameAr:'عائشة الكواري', age:37, sex:'F', dob:'1989-03-14', nationality:'Qatari', marital:'Married', phone:'+974 5512 4488', email:'aisha.kuwari@gmail.com', address:'Al Waab, Doha', insurer:'QLM',     insNo:'QLM-884512', fileNo:'YC-2024-0142', registered:'2024-02-10', bloodType:'O+',  allergies:['Penicillin','Latex'], conditions:['Type 2 diabetes','Hypertension'], lastVisit:'2026-06-26',
     encounters:[
       { date:'2026-06-25', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Root canal',        tooth:'16', note:'prep stage', fee:900 },
@@ -308,6 +311,7 @@ export default function DoctorPortalPrototype() {
   const [viewingEnc, setViewingEnc]           = useState(null);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [activeApt, setActiveApt]             = useState(null);
+  const cfg = useClinicConfig();     // clinic branding — set once at installation, shown everywhere
   const isDental = mode === 'dental';
 
   const openEncounter = apt => { if (apt?.kind) setMode(apt.kind); setActiveApt(apt||null); setView('encounter'); setViewingEnc(null); };
@@ -344,10 +348,10 @@ export default function DoctorPortalPrototype() {
             ) : (
               <div style={{width:44,height:44}}/>
             )}
-            {CLINIC_CONFIG.logoUrl?<img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{height:34}}/>:<MedlyLogo/>}
+            {cfg.logoUrl?<img src={cfg.logoUrl} alt={cfg.name} style={{height:34,maxWidth:120,objectFit:'contain'}}/>:<MedlyLogo/>}
             <div>
               <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>&#xB7; clinical</span></div>
-              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{CLINIC_CONFIG.name} &#xB7; {CLINIC_CONFIG.city}</div>
+              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{cfg.name} &#xB7; {cfg.city}</div>
             </div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>

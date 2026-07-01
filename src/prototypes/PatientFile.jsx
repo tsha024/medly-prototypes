@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import {
   AlertTriangle, FileText, FileSignature, Upload, Download, PenLine,
-  AlertCircle, ShieldCheck, ShieldAlert, Save, CheckCircle2, X, ChevronLeft,
+  AlertCircle, ShieldCheck, ShieldAlert, Save, CheckCircle2, X, ChevronLeft, FileDown, Loader2,
 } from 'lucide-react';
 import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
+import { downloadPatientFilePdf } from './patientFilePdf';
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Unified Patient File
@@ -15,6 +16,7 @@ import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './
 //  The only thing that changes by who is looking is permission to *act*:
 //    • role="doctor"    → can open an encounter / add a treatment
 //    • role="reception" → same file, view + reception notes, no treatment action
+//    • role="admin"     → same file, plus can download it as a letterheaded PDF
 //
 //  It accepts either patient data shape used in the prototypes (the Doctor
 //  portal's rich `encounters/payments` records or Reception's `encounterHistory`)
@@ -106,11 +108,14 @@ export default function PatientFile({
   useConsents();               // re-render when a consent is captured elsewhere
   const norm = useMemo(() => normalizePatient(patient), [patient]);
   const canAddTreatment = role === 'doctor';
+  const canDownload = role === 'admin';
 
   const [tab, setTab]         = useState('overview');
   const [docFilter, setDocFilter] = useState('all');
   const [notes, setNotes]     = useState(patient.notes || '');
   const [saved, setSaved]     = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadErr, setDownloadErr] = useState('');
 
   // Consents captured at Reception (shared store) attach to the file here.
   const recConsents = consentsForQid(norm.qid).map(cc => ({
@@ -148,6 +153,20 @@ export default function PatientFile({
   );
 
   const saveNotes = () => { onSaveNotes && onSaveNotes(notes); setSaved(true); setTimeout(()=>setSaved(false),2000); };
+
+  const handleDownload = async () => {
+    setDownloading(true); setDownloadErr('');
+    try {
+      await downloadPatientFilePdf({
+        patient: norm, encounters: encs, payments: pays, documents: allDocs,
+        notes: patient.notes || '', generatedBy: 'Admin',
+      });
+    } catch (e) {
+      setDownloadErr('Could not generate the PDF — check your connection and try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const body = (
     <div style={{maxWidth:860,margin:'0 auto',padding:'20px 24px'}}>
@@ -436,8 +455,20 @@ export default function PatientFile({
           <div style={{fontSize:14,fontWeight:800,color:'#fff',letterSpacing:'-.3px'}}>{norm.nameEn} <span style={{fontWeight:500,color:'#8ECFBB'}}>· Patient file</span></div>
           <div style={{fontSize:11.5,color:'#8ECFBB',fontWeight:600,fontFamily:"'IBM Plex Mono',monospace"}}>{norm.fileNo}</div>
         </div>
+        {canDownload&&(
+          <button onClick={handleDownload} disabled={downloading} title="Download this file as a letterheaded PDF"
+            style={{display:'inline-flex',alignItems:'center',gap:7,padding:'8px 14px',borderRadius:8,border:'none',background:PRIMARY,color:'#fff',fontSize:12.5,fontWeight:700,cursor:downloading?'default':'pointer',opacity:downloading?.7:1,flexShrink:0}}>
+            {downloading?<Loader2 size={13}/>:<FileDown size={13}/>}
+            {downloading?'Generating…':'Download PDF'}
+          </button>
+        )}
         <button onClick={onClose} title="Close" style={{width:40,height:40,borderRadius:8,background:'rgba(255,255,255,.08)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',color:'#7AADA0',cursor:'pointer'}}><X size={16}/></button>
       </div>
+      {downloadErr&&(
+        <div style={{maxWidth:860,margin:'10px auto 0',padding:'0 24px'}}>
+          <div style={{padding:'9px 14px',background:'#FEF2F2',border:'1px solid #FBC9C2',borderRadius:9,fontSize:12.5,fontWeight:600,color:'#B02A1E'}}>{downloadErr}</div>
+        </div>
+      )}
       {body}
     </div>
   );

@@ -23,6 +23,7 @@ function MedlyLogo({ size = 34 }) {
 }
 
 import { useCharges, chargesForQid } from './chargeStore';
+import { useClinicConfig } from './clinicConfigStore';
 
 // Map a doctor-posted charge to a checkout line item. Insurance charges keep the
 // insurer split (coveragePct = 100 − copay%); cash charges bake the discount into
@@ -126,6 +127,7 @@ export default function CheckoutPrototype() {
   const [itemOverrides, setItemOverrides] = useState({});
   const [discounts,     setDiscounts]     = useState({});
   const [splitsByEnc,   setSplitsByEnc]   = useState({});
+  const cfg = useClinicConfig();     // clinic branding — set once at installation, shown everywhere
 
   const charges = useCharges();
   useEffect(() => {
@@ -185,10 +187,10 @@ export default function CheckoutPrototype() {
             <button style={{width:44,height: 44,borderRadius:8,background:'rgba(255,255,255,.08)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',color:'#7AADA0'}}>
               <ChevronLeft size={16}/>
             </button>
-            {CLINIC_CONFIG.logoUrl ? <img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{height:34}}/> : <MedlyLogo/>}
+            {cfg.logoUrl ? <img src={cfg.logoUrl} alt={cfg.name} style={{height:34,maxWidth:120,objectFit:'contain'}}/> : <MedlyLogo/>}
             <div>
               <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>· checkout</span></div>
-              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
+              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{cfg.name} · {cfg.city}</div>
             </div>
           </div>
           {/* Stepper */}
