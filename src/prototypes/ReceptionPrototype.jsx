@@ -5,6 +5,7 @@ import {
   FileText, X, Save, Globe, Edit3, CalendarDays, MessageSquare, Send, Inbox, CheckCheck, PhoneOff,
   ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser} from 'lucide-react';
 import { addConsent, findConsent, useConsents } from './consentStore';
+import { useClinicConfig } from './clinicConfigStore';
 import PatientFile from './PatientFile';
 
 // ─── Clinic branding ─────────────────────────────────────────────────────────
@@ -416,6 +417,7 @@ export default function ReceptionPrototype() {
   const [dragOver,setDragOver]       = useState(null);
   const [waInbox,setWaInbox]         = useState([]);         // sent + received messages
   const [showWAPanel,setShowWAPanel] = useState(false);
+  const cfg = useClinicConfig();     // clinic branding — set once at installation, shown everywhere
   const isAr = locale==='ar';
 
   // Run morning reminder batch — called manually or on schedule.
@@ -547,10 +549,10 @@ export default function ReceptionPrototype() {
       <header style={{background:CLINIC_CONFIG.headerBg,borderBottom:'1px solid rgba(255,255,255,.07)'}}>
         <div style={{padding:'0 24px',height:54,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
-            {CLINIC_CONFIG.logoUrl?<img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{height:34}}/>:<MedlyLogo/>}
+            {cfg.logoUrl?<img src={cfg.logoUrl} alt={cfg.name} style={{height:34,maxWidth:120,objectFit:'contain'}}/>:<MedlyLogo/>}
             <div>
               <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>· reception</span></div>
-              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{isAr?CLINIC_CONFIG.nameAr:CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
+              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{isAr?cfg.nameAr:cfg.name} · {cfg.city}</div>
             </div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>

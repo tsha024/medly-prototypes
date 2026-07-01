@@ -3,9 +3,13 @@ import {
   AlertTriangle, Calendar, Package, Users, FileText, ChevronRight,
   ArrowUpRight, ArrowDownRight, Banknote, Shield, Bell, ChevronDown,
   ChevronUp, AlertCircle, CheckCircle2, Plus, Edit3, Save,
-  X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Download
+  X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Download,
+  ImagePlus, Trash2, Search
 } from 'lucide-react';
 import { useTreatments, saveTreatments, getTreatments, TREATMENT_INSURERS } from './treatmentStore';
+import { useClinicConfig, setClinicConfig, resetClinicConfig } from './clinicConfigStore';
+import { ALL_PATIENTS } from './DoctorPrototype';
+import PatientFile from './PatientFile';
 
 // ─── Clinic branding ──────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -265,6 +269,8 @@ export default function AdminPrototype() {
   const treatments = useTreatments();
   const setTreatments = up => saveTreatments(typeof up==='function' ? up(getTreatments()) : up);
   const [transactions, setTransactions] = useState(DAILY_TRANSACTIONS);
+  const cfg = useClinicConfig();     // clinic branding — set once at installation, shown everywhere
+  const [openPatient, setOpenPatient] = useState(null);
 
   // Period-aware data — recomputes whenever Week/Month/Quarter changes
   const periodData    = REVENUE_BY_PERIOD[period];
@@ -325,14 +331,14 @@ export default function AdminPrototype() {
       <header style={{ background: CLINIC_CONFIG.headerBg, borderBottom: '1px solid rgba(255,255,255,.07)' }}>
         <div style={{ padding: '0 24px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {CLINIC_CONFIG.logoUrl
-              ? <img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{ height: 34 }} />
+            {cfg.logoUrl
+              ? <img src={cfg.logoUrl} alt={cfg.name} style={{ height: 34, maxWidth: 120, objectFit: 'contain' }} />
               : <MedlyLogo />}
             <div>
               <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-.5px', color: '#fff', lineHeight: 1 }}>
                 medly <span style={{ color: '#4EB896', fontWeight: 500 }}>· admin</span>
               </div>
-              <div style={{ fontSize:12, color: '#8ECFBB', marginTop: 3, fontWeight: 600 }}>{CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
+              <div style={{ fontSize:12, color: '#8ECFBB', marginTop: 3, fontWeight: 600 }}>{cfg.name} · {cfg.city}</div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -358,7 +364,7 @@ export default function AdminPrototype() {
           </div>
         </div>
         <div style={{ display: 'flex', padding: '0 24px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
-          {[['dashboard','Dashboard'],['reports','Reports'],['daily','Daily report'],['settings','Settings']].map(([id, label]) => (
+          {[['dashboard','Dashboard'],['reports','Reports'],['daily','Daily report'],['patients','Patients'],['settings','Settings']].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               padding: '9px 18px', fontSize: 13, fontWeight: tab === id ? 700 : 500,
               color: tab === id ? '#fff' : '#5A8A7A',
@@ -409,8 +415,63 @@ export default function AdminPrototype() {
       )}
       {tab === 'reports'  && <ReportsTab doctors={doctors} />}
       {tab === 'daily'    && <DailyTab   transactions={transactions} setTransactions={setTransactions} doctors={doctors} />}
+      {tab === 'patients' && <PatientsTab onOpenPatient={setOpenPatient} />}
       {tab === 'settings' && <SettingsTab doctors={doctors} setDoctors={setDoctors} nurses={nurses} setNurses={setNurses} trainees={trainees} setTrainees={setTrainees} treatments={treatments} setTreatments={setTreatments} />}
+      {openPatient && (
+        <PatientFile patient={openPatient} role="admin" variant="overlay" onClose={() => setOpenPatient(null)} />
+      )}
     </div>
+  );
+}
+
+// ─── Patients tab — admin lookup + PDF export ──────────────────────────────────
+function PatientsTab({ onOpenPatient }) {
+  const [query, setQuery] = useState('');
+  const q = query.trim();
+  const active = q.length >= 2;
+  const shown = active ? ALL_PATIENTS.filter(p =>
+    p.nameEn.toLowerCase().includes(q.toLowerCase()) ||
+    p.qid.includes(q) ||
+    p.fileNo.toLowerCase().includes(q.toLowerCase())
+  ) : [];
+  const initials = n => n.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  return (
+    <main style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ position: 'relative' }}>
+        <Search size={15} color="#8AA8A0" style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search clinic records — name, QID, or file number…" style={{ paddingLeft: 40, fontSize: 13.5, maxWidth: 420 }} />
+      </div>
+      {!active ? (
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #DCE4E0', padding: '52px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#F0F5F3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Search size={20} color="#7A9A90" /></div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#3D5850' }}>Search the clinic patient registry</div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: '#8AA8A0', maxWidth: 340, lineHeight: 1.5 }}>Open a patient's file to review it or download it as a letterheaded PDF — across all {ALL_PATIENTS.length} registered patients.</div>
+        </div>
+      ) : shown.length === 0 ? (
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #DCE4E0', padding: '48px 20px', textAlign: 'center', color: '#5A7870', fontSize: 13, fontWeight: 600 }}>No patients match &#x201C;{q}&#x201D;</div>
+      ) : (
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #DCE4E0', boxShadow: '0 1px 3px rgba(15,31,26,.08)' }}>
+          {shown.map((pt, i) => (
+            <div key={pt.id} className="trow" onClick={() => onOpenPatient(pt)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 18px', borderBottom: i < shown.length - 1 ? '1px solid #EEF2F0' : 'none', cursor: 'pointer' }}>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg,#E3EEEA,#CFE3DC)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#0C6B5A', flexShrink: 0 }}>{initials(pt.nameEn)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111814' }}>{pt.nameEn}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#5A7870', marginTop: 2 }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{pt.qid}</span>
+                  <span style={{ margin: '0 6px' }}>&#xB7;</span>{pt.age}y {pt.sex}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8AA8A0', fontFamily: "'IBM Plex Mono',monospace" }}>{pt.fileNo}</div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: '#5A7870', marginTop: 2 }}>{pt.insurer}</div>
+              </div>
+              <ChevronRight size={14} color="#C8D4CF" style={{ flexShrink: 0 }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </main>
   );
 }
 
@@ -991,26 +1052,150 @@ const COL_LIST  = ['rose','amber','teal','violet','sky','emerald'];
 const COL_HEX   = { rose:'#FCA5A5',amber:'#FCD34D',teal:'#5EEAD4',violet:'#C4B5FD',sky:'#7DD3FC',emerald:'#6EE7B7' };
 
 function SettingsTab({ doctors, setDoctors, nurses, setNurses, trainees, setTrainees, treatments, setTreatments }) {
-  const [sec, setSec] = useState('doctors');
-  const SECS = [['doctors','Doctors & calendar'],['trainees','Trainees'],['nurses','Nurses'],['treatments','Treatments']];
+  const cfg = useClinicConfig();
+  const [sec, setSec] = useState(cfg.configured ? 'doctors' : 'branding');
+  const SECS = [['branding','Clinic branding'],['doctors','Doctors & calendar'],['trainees','Trainees'],['nurses','Nurses'],['treatments','Treatments']];
   return (
     <main style={{ padding: '16px 24px', display: 'flex', gap: 16 }}>
       <div style={{ width: 200, flexShrink: 0 }}>
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', overflow: 'hidden' }}>
           {SECS.map(([id, lbl]) => (
             <button key={id} onClick={()=>setSec(id)} className={sec===id?'':'settings-nav-btn'} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: sec===id?700:500, border: 'none', borderBottom: '1px solid #EEF2F0', background: sec===id?CLINIC_CONFIG.primaryColor:'transparent', color: sec===id?'#fff':'#2A3830', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {lbl}{sec===id&&<ChevronRight size={14} style={{opacity:.7}}/>}
+              <span style={{ display:'flex', alignItems:'center', gap:7 }}>
+                {lbl}
+                {id==='branding' && !cfg.configured && <span title="Required — not yet set up" style={{ width:6, height:6, borderRadius:'50%', background: sec===id?'#fff':'#DC4F38', flexShrink:0 }}/>}
+              </span>
+              {sec===id&&<ChevronRight size={14} style={{opacity:.7}}/>}
             </button>
           ))}
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
+        {sec==='branding'   && <ClinicBrandingSettings cfg={cfg} />}
         {sec==='doctors'    && <DoctorSettings    doctors={doctors}    setDoctors={setDoctors} />}
         {sec==='trainees'   && <TraineeSettings   trainees={trainees}  setTrainees={setTrainees} doctors={doctors} />}
         {sec==='nurses'     && <NurseSettings     nurses={nurses}      setNurses={setNurses} />}
         {sec==='treatments' && <TreatmentSettings treatments={treatments} setTreatments={setTreatments} />}
       </div>
     </main>
+  );
+}
+
+// Resize/compress an uploaded image before it's stored — keeps the header thumbnail,
+// PDF letterhead and watermark all sharp without bloating localStorage.
+function readAndResizeLogo(file, maxDim = 480) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onerror = () => reject(new Error('Could not read image'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function ClinicBrandingSettings({ cfg }) {
+  const [form, setForm] = useState({
+    name: cfg.name, nameAr: cfg.nameAr, tagline: cfg.tagline, city: cfg.city,
+    address: cfg.address, phone: cfg.phone, email: cfg.email, license: cfg.license, logoUrl: cfg.logoUrl,
+  });
+  const [logoErr, setLogoErr] = useState('');
+  const dirty = JSON.stringify(form) !== JSON.stringify({ name: cfg.name, nameAr: cfg.nameAr, tagline: cfg.tagline, city: cfg.city, address: cfg.address, phone: cfg.phone, email: cfg.email, license: cfg.license, logoUrl: cfg.logoUrl });
+
+  const handleLogo = async e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { setLogoErr('Please choose an image file (PNG, JPG or SVG).'); return; }
+    if (file.size > 4 * 1024 * 1024) { setLogoErr('Logo must be under 4MB.'); return; }
+    try {
+      const dataUrl = await readAndResizeLogo(file);
+      setLogoErr('');
+      setForm(f => ({ ...f, logoUrl: dataUrl }));
+    } catch {
+      setLogoErr('Could not read that image — try a different file.');
+    }
+  };
+
+  const save = () => setClinicConfig(form);
+
+  return (
+    <>
+      {!cfg.configured ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', background: '#FEF9EC', border: '1px solid #FDE68A', borderRadius: 10, marginBottom: 14 }}>
+          <AlertTriangle size={16} color="#D97706" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#78400A' }}>Required at installation</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: '#92600A', marginTop: 2, lineHeight: 1.5 }}>Set your clinic's logo and details once — they appear in the header of every portal (Reception, Doctor, Admin, Checkout) and on the letterhead of any patient file exported as a PDF.</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 16px', background: '#F0FAF6', border: '1px solid #B8DDD6', borderRadius: 10, marginBottom: 14 }}>
+          <CheckCircle2 size={15} color="#0A6040" style={{ flexShrink: 0 }} />
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: '#0A6040' }}>Branding configured{cfg.updatedAt ? ` · last updated ${cfg.updatedAt}` : ''}</div>
+        </div>
+      )}
+
+      <SettingsCard title="Logo" sub="Used in the app header, and as the watermark on exported patient file PDFs">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 88, height: 88, borderRadius: 12, border: '1.5px dashed #C8D4CF', background: '#F5F8F7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+            {form.logoUrl ? <img src={form.logoUrl} alt="Clinic logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <MedlyLogo size={40} />}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: '1px solid #DCE4E0', background: '#fff', fontSize: 12.5, fontWeight: 700, color: '#2A4840', cursor: 'pointer' }}>
+                <ImagePlus size={13} />Upload logo
+                <input type="file" accept="image/*" onChange={handleLogo} style={{ display: 'none' }} />
+              </label>
+              {form.logoUrl && (
+                <GhostBtn onClick={() => setForm(f => ({ ...f, logoUrl: null }))}><Trash2 size={13} />Remove</GhostBtn>
+              )}
+            </div>
+            <div style={{ fontSize: 11.5, color: '#8AA8A0', fontWeight: 600 }}>PNG, JPG or SVG · square or wide logos both work</div>
+            {logoErr && <div style={{ fontSize: 11.5, color: '#B02A1E', fontWeight: 700 }}>{logoErr}</div>}
+          </div>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title="Clinic details" sub="Shown in the header and on the patient file PDF letterhead">
+        <FormGrid>
+          <FormField label="Clinic name (English)"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Yasmeen Clinic" /></FormField>
+          <FormField label="Clinic name (Arabic)"><input value={form.nameAr} onChange={e=>setForm({...form,nameAr:e.target.value})} placeholder="عيادة الياسمين" style={{fontFamily:"'Noto Sans Arabic',sans-serif"}} dir="rtl" /></FormField>
+          <FormField label="Tagline / specialty"><input value={form.tagline} onChange={e=>setForm({...form,tagline:e.target.value})} placeholder="Dental & Aesthetic Medicine" /></FormField>
+          <FormField label="City"><input value={form.city} onChange={e=>setForm({...form,city:e.target.value})} placeholder="Doha, Qatar" /></FormField>
+          <FormField label="Address"><input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Street, building, area" /></FormField>
+          <FormField label="License / CR number"><input value={form.license} onChange={e=>setForm({...form,license:e.target.value})} placeholder="MOPH-CL-XXXXX" style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+          <FormField label="Phone"><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+974 XXXX XXXX" style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+          <FormField label="Email"><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="info@clinic.qa" /></FormField>
+        </FormGrid>
+      </SettingsCard>
+
+      <SettingsCard title="Header preview" sub="This is exactly what appears at the top of every portal">
+        <div style={{ background: cfg.headerBg, borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {form.logoUrl ? <img src={form.logoUrl} alt={form.name} style={{ height: 30, maxWidth: 110, objectFit: 'contain' }} /> : <MedlyLogo size={30} />}
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '-.4px', color: '#fff', lineHeight: 1 }}>medly <span style={{ color: '#4EB896', fontWeight: 500 }}>· reception</span></div>
+            <div style={{ fontSize: 11, color: '#8ECFBB', marginTop: 3, fontWeight: 600 }}>{form.name || 'Clinic name'} · {form.city || 'City'}</div>
+          </div>
+        </div>
+      </SettingsCard>
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        {cfg.configured && <GhostBtn onClick={() => { resetClinicConfig(); setForm({ name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', tagline:'Dental & Aesthetic Medicine', city:'Doha, Qatar', address:'', phone:'', email:'', license:'', logoUrl:null }); }}>Reset to defaults</GhostBtn>}
+        <PrimaryBtn onClick={save} disabled={!dirty || !form.name}><Save size={13}/>Save branding</PrimaryBtn>
+      </div>
+    </>
   );
 }
 
