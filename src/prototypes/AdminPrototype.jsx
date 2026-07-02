@@ -3,9 +3,12 @@ import {
   AlertTriangle, Calendar, Package, Users, FileText, ChevronRight,
   ArrowUpRight, ArrowDownRight, Banknote, Shield, Bell, ChevronDown,
   ChevronUp, AlertCircle, CheckCircle2, Plus, Edit3, Save,
-  X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Download
+  X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Download,
+  Search, Clock, Trash2, CalendarDays, Coffee, Plane, Phone, ClipboardList, Headset
 } from 'lucide-react';
 import { useTreatments, saveTreatments, getTreatments, TREATMENT_INSURERS } from './treatmentStore';
+import { useSchedules, getSchedule, setSchedule, WEEK_DAYS, defaultSchedule } from './scheduleStore';
+import { usePatients, patientAge } from './patientStore';
 
 // ─── Clinic branding ──────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -190,6 +193,11 @@ const INIT_TRAINEES = [
   { id: 'tr2', name: 'Trainee Maryam Jaber',     specialty: 'Aesthetic Medicine', supervisorIds: ['d5'],       active: true  },
   { id: 'tr3', name: 'Trainee Faris Al-Dosari',  specialty: 'Orthodontics',       supervisorIds: ['d2'],       active: false },
 ];
+const INIT_RECEPTIONISTS = [
+  { id: 'r1', name: 'Rania Mansour',    desk: 'Front desk',    phone: '+974 5512 0091', shift: 'Morning', active: true  },
+  { id: 'r2', name: 'Huda Al-Naimi',    desk: 'Front desk',    phone: '+974 5533 7742', shift: 'Evening', active: true  },
+  { id: 'r3', name: 'Leen Abdullah',    desk: 'Aesthetic wing', phone: '+974 5501 8830', shift: 'Morning', active: true  },
+];
 const INIT_TREATMENTS = [
   { id: 't1',  name: 'Consultation',         specialty: 'General Dentistry',  dur: 30, price: 250,  needsNurse: false, active: true },
   { id: 't2',  name: 'Cleaning & polish',    specialty: 'General Dentistry',  dur: 45, price: 400,  needsNurse: true,  active: true },
@@ -250,6 +258,95 @@ const AVATAR_COLORS = {
   emerald: { bg: '#D1FAE5', fg: '#064E3B' },
 };
 const qar = n => `QAR ${Number(n).toLocaleString()}`;
+
+// ─── Date helpers (Reports) ────────────────────────────────────────────────────
+const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Monday-anchored week start for a given ISO date string.
+function weekStartISO(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  const dow = (d.getDay() + 6) % 7; // 0 = Monday
+  d.setDate(d.getDate() - dow);
+  return isoDate(d);
+}
+const fmtDay = iso => { const d = new Date(iso + 'T00:00:00'); return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]}`; };
+
+// ─── Procedure log — every procedure across all patients & doctors ─────────────
+// Built deterministically over a date range so date/doctor/treatment filters and
+// daily/weekly/monthly revenue roll-ups are all meaningful. In production this is
+// the billing ledger. Each row: one completed, billed procedure.
+const REPORT_PATIENTS = [
+  { name: 'Aisha Al-Kuwari',   fileNo: 'YC-2024-0142', insurer: 'QLM' },
+  { name: 'James Patterson',   fileNo: 'YC-2024-0089', insurer: null },
+  { name: 'Fatima Al-Mansoori', fileNo: 'YC-2025-0317', insurer: 'AXA' },
+  { name: 'Sara Al-Jaber',     fileNo: 'YC-2023-0318', insurer: 'QLM' },
+  { name: 'Nora Al-Thani',     fileNo: 'YC-2025-0387', insurer: 'QLM' },
+  { name: 'Ali Hassan Al-Marri', fileNo: 'YC-2022-0056', insurer: 'Allianz' },
+  { name: 'Sara Nasser',       fileNo: 'YC-2025-0204', insurer: 'AXA' },
+  { name: 'Khalid Al-Emadi',   fileNo: 'YC-2026-0028', insurer: null },
+  { name: 'Mohammed Al-Ali',   fileNo: 'YC-2024-0312', insurer: 'MedNet' },
+  { name: 'Ahmed Al-Marri',    fileNo: 'YC-2025-0137', insurer: 'Daman' },
+];
+// treatment → { specialty, doctorId, price, insurable }
+const REPORT_TX = [
+  { treatment: 'Cleaning & polish',    specialty: 'General Dentistry', doctorId: 'd1', price: 400,  insurable: true  },
+  { treatment: 'Filling',              specialty: 'General Dentistry', doctorId: 'd1', price: 600,  insurable: true  },
+  { treatment: 'Extraction',           specialty: 'General Dentistry', doctorId: 'd1', price: 800,  insurable: true  },
+  { treatment: 'Crown prep',           specialty: 'General Dentistry', doctorId: 'd1', price: 1400, insurable: true  },
+  { treatment: 'Braces adjustment',    specialty: 'Orthodontics',      doctorId: 'd2', price: 450,  insurable: true  },
+  { treatment: 'Retainer fitting',     specialty: 'Orthodontics',      doctorId: 'd2', price: 1200, insurable: true  },
+  { treatment: 'Root canal treatment', specialty: 'Endodontics',       doctorId: 'd3', price: 2500, insurable: true  },
+  { treatment: 'Teeth whitening',      specialty: 'Cosmetic Dentistry', doctorId: 'd4', price: 1500, insurable: false },
+  { treatment: 'Veneer fitting',       specialty: 'Cosmetic Dentistry', doctorId: 'd4', price: 4500, insurable: false },
+  { treatment: 'Botox',                specialty: 'Aesthetic Medicine', doctorId: 'd5', price: 1800, insurable: false },
+  { treatment: 'Dermal filler',        specialty: 'Aesthetic Medicine', doctorId: 'd6', price: 2400, insurable: false },
+  { treatment: 'Hydrafacial',          specialty: 'Aesthetic Medicine', doctorId: 'd5', price: 1200, insurable: false },
+  { treatment: 'Chemical peel',        specialty: 'Aesthetic Medicine', doctorId: 'd6', price: 900,  insurable: false },
+];
+const DOCTOR_NAME_BY_ID = Object.fromEntries(INIT_DOCTORS.map(d => [d.id, d.name]));
+const METHODS = ['Card', 'Cash', 'Apple Pay', 'NAPS'];
+
+function buildProcedureLog() {
+  const out = [];
+  const start = new Date(2026, 3, 1);   // 01 Apr 2026
+  const end   = new Date(2026, 4, 24);  // 24 May 2026
+  let i = 0;
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    if (d.getDay() === 5) continue;      // Friday — clinic closed
+    const iso = isoDate(d);
+    const nRec = 2 + (i % 3);            // 2–4 procedures per open day
+    for (let k = 0; k < nRec; k++) {
+      const tx = REPORT_TX[(i * 5 + k * 3) % REPORT_TX.length];
+      const pt = REPORT_PATIENTS[(i * 3 + k * 7) % REPORT_PATIENTS.length];
+      const useIns = tx.insurable && pt.insurer && ((i + k) % 2 === 0);
+      const insurer = useIns ? pt.insurer : null;
+      const insured = useIns ? Math.round(tx.price * 0.8) : 0;
+      const selfPay = tx.price - insured;
+      const hh = 9 + ((i + k) % 8);
+      const mm = (k % 2) === 0 ? '00' : '30';
+      out.push({
+        id: `px-${i}-${k}`,
+        date: iso,
+        time: `${String(hh).padStart(2, '0')}:${mm}`,
+        patient: pt.name,
+        fileNo: pt.fileNo,
+        doctorId: tx.doctorId,
+        doctor: DOCTOR_NAME_BY_ID[tx.doctorId] || 'Unknown',
+        treatment: tx.treatment,
+        specialty: tx.specialty,
+        amount: tx.price,
+        insurer,
+        insured,
+        selfPay,
+        method: insurer ? 'Insurance' : METHODS[(i + k) % METHODS.length],
+      });
+      i++;
+    }
+  }
+  return out;
+}
+const PROCEDURE_LOG = buildProcedureLog();
+
 const S = {
   fontFamily: "'Manrope', 'Noto Sans Arabic', system-ui, sans-serif",
   background: '#EAEDEB',
@@ -262,8 +359,11 @@ export default function AdminPrototype() {
   const [doctors, setDoctors]     = useState(INIT_DOCTORS);
   const [nurses, setNurses]       = useState(INIT_NURSES);
   const [trainees, setTrainees]   = useState(INIT_TRAINEES);
+  const [receptionists, setReceptionists] = useState(INIT_RECEPTIONISTS);
   const treatments = useTreatments();
   const setTreatments = up => saveTreatments(typeof up==='function' ? up(getTreatments()) : up);
+  const patients = usePatients();
+  useSchedules(); // re-render when any staff schedule changes
   const [transactions, setTransactions] = useState(DAILY_TRANSACTIONS);
 
   // Period-aware data — recomputes whenever Week/Month/Quarter changes
@@ -358,7 +458,7 @@ export default function AdminPrototype() {
           </div>
         </div>
         <div style={{ display: 'flex', padding: '0 24px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
-          {[['dashboard','Dashboard'],['reports','Reports'],['daily','Daily report'],['settings','Settings']].map(([id, label]) => (
+          {[['dashboard','Dashboard'],['patients','Patients'],['reports','Reports'],['daily','Daily report'],['settings','Settings']].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               padding: '9px 18px', fontSize: 13, fontWeight: tab === id ? 700 : 500,
               color: tab === id ? '#fff' : '#5A8A7A',
@@ -407,9 +507,10 @@ export default function AdminPrototype() {
           </div>
         </main>
       )}
+      {tab === 'patients' && <PatientsTab patients={patients} />}
       {tab === 'reports'  && <ReportsTab doctors={doctors} />}
       {tab === 'daily'    && <DailyTab   transactions={transactions} setTransactions={setTransactions} doctors={doctors} />}
-      {tab === 'settings' && <SettingsTab doctors={doctors} setDoctors={setDoctors} nurses={nurses} setNurses={setNurses} trainees={trainees} setTrainees={setTrainees} treatments={treatments} setTreatments={setTreatments} />}
+      {tab === 'settings' && <SettingsTab doctors={doctors} setDoctors={setDoctors} nurses={nurses} setNurses={setNurses} trainees={trainees} setTrainees={setTrainees} receptionists={receptionists} setReceptionists={setReceptionists} treatments={treatments} setTreatments={setTreatments} />}
     </div>
   );
 }
@@ -711,130 +812,301 @@ function MethodBadge({ method }) {
 }
 
 // ─── Reports tab ──────────────────────────────────────────────────────────────
+// Every procedure across all patients & doctors. Filter by doctor, by treatment,
+// by date range — in any combination — then view as a procedure log, rolled up by
+// treatment or doctor, or as daily/weekly/monthly revenue. Every view downloads to
+// CSV or Excel.
 function ReportsTab({ doctors }) {
-  const [view, setView]     = useState('treatment');
-  const [from, setFrom]     = useState('2026-05-01');
-  const [to, setTo]         = useState('2026-05-24');
-  const [sortBy, setSortBy] = useState('revenue');
-  const REF = 24;
-  const days  = useMemo(() => { const d = Math.round((new Date(to) - new Date(from)) / 86400000) + 1; return isNaN(d) || d < 1 ? REF : d; }, [from, to]);
-  const scale = days / REF;
-  const scaled = useMemo(() => TREATMENT_REPORT.map(t => ({ ...t, count: Math.round(t.count * scale), revenue: Math.round(t.revenue * scale), insured: Math.round(t.insured * scale), selfPay: Math.round(t.selfPay * scale) })), [scale]);
-  const sorted = useMemo(() => [...scaled].sort((a, b) => b[sortBy] - a[sortBy]), [scaled, sortBy]);
-  const totR = scaled.reduce((s,t)=>s+t.revenue,0), totC = scaled.reduce((s,t)=>s+t.count,0), totI = scaled.reduce((s,t)=>s+t.insured,0), totS = scaled.reduce((s,t)=>s+t.selfPay,0);
-  const docR = useMemo(() => doctors.map(d => ({ ...d, treatments: Math.round(d.revenue / d.ticket * scale), revenue: Math.round(d.revenue * scale), insured: Math.round(d.revenue * .35 * scale), selfPay: Math.round(d.revenue * .65 * scale) })), [doctors, scale]);
-  const PRESETS = [['Today','2026-05-24','2026-05-24'],['This week','2026-05-18','2026-05-24'],['This month','2026-05-01','2026-05-24'],['Last month','2026-04-01','2026-04-30']];
+  const [view, setView]   = useState('procedures'); // procedures | treatment | doctor | revenue
+  const [from, setFrom]   = useState('2026-05-01');
+  const [to, setTo]       = useState('2026-05-24');
+  const [docFilter, setDocFilter] = useState('all'); // doctorId | 'all'
+  const [txFilter, setTxFilter]   = useState('all'); // treatment name | 'all'
+  const [grain, setGrain]         = useState('daily'); // daily | weekly | monthly
+  const [sortBy, setSortBy]       = useState('revenue');
+
+  const treatmentNames = useMemo(() => Array.from(new Set(PROCEDURE_LOG.map(r => r.treatment))).sort(), []);
+  const docName = id => (doctors.find(d => d.id === id)?.name) || DOCTOR_NAME_BY_ID[id] || id;
+
+  // All three filters applied together.
+  const rows = useMemo(() => PROCEDURE_LOG.filter(r =>
+    r.date >= from && r.date <= to &&
+    (docFilter === 'all' || r.doctorId === docFilter) &&
+    (txFilter === 'all'  || r.treatment === txFilter)
+  ), [from, to, docFilter, txFilter]);
+
+  const totAmt  = rows.reduce((s, r) => s + r.amount, 0);
+  const totIns  = rows.reduce((s, r) => s + r.insured, 0);
+  const totSelf = rows.reduce((s, r) => s + r.selfPay, 0);
+  const days = useMemo(() => { const d = Math.round((new Date(to) - new Date(from)) / 86400000) + 1; return isNaN(d) || d < 1 ? 0 : d; }, [from, to]);
+
+  const byTreatment = useMemo(() => {
+    const m = new Map();
+    rows.forEach(r => {
+      const e = m.get(r.treatment) || { name: r.treatment, specialty: r.specialty, count: 0, revenue: 0, insured: 0, selfPay: 0 };
+      e.count++; e.revenue += r.amount; e.insured += r.insured; e.selfPay += r.selfPay;
+      m.set(r.treatment, e);
+    });
+    return Array.from(m.values()).map(e => ({ ...e, avgTicket: e.count ? Math.round(e.revenue / e.count) : 0 }));
+  }, [rows]);
+  const byTreatmentSorted = useMemo(() => [...byTreatment].sort((a, b) => (b[sortBy] ?? 0) - (a[sortBy] ?? 0)), [byTreatment, sortBy]);
+
+  const byDoctor = useMemo(() => {
+    const m = new Map();
+    rows.forEach(r => {
+      const e = m.get(r.doctorId) || { doctorId: r.doctorId, name: r.doctor, count: 0, revenue: 0, insured: 0, selfPay: 0 };
+      e.count++; e.revenue += r.amount; e.insured += r.insured; e.selfPay += r.selfPay;
+      m.set(r.doctorId, e);
+    });
+    return Array.from(m.values()).map(e => ({ ...e, avgTicket: e.count ? Math.round(e.revenue / e.count) : 0 })).sort((a, b) => b.revenue - a.revenue);
+  }, [rows]);
+
+  const revenueRows = useMemo(() => {
+    const m = new Map();
+    rows.forEach(r => {
+      let key, label;
+      if (grain === 'daily') { key = r.date; label = fmtDay(r.date); }
+      else if (grain === 'weekly') { key = weekStartISO(r.date); label = 'Week of ' + fmtDay(key); }
+      else { key = r.date.slice(0, 7); const mo = parseInt(key.slice(5, 7), 10); label = `${MONTHS[mo - 1]} ${key.slice(0, 4)}`; }
+      const e = m.get(key) || { key, label, count: 0, revenue: 0, insured: 0, selfPay: 0 };
+      e.count++; e.revenue += r.amount; e.insured += r.insured; e.selfPay += r.selfPay;
+      m.set(key, e);
+    });
+    return Array.from(m.values()).sort((a, b) => a.key.localeCompare(b.key));
+  }, [rows, grain]);
+  const maxRev = Math.max(1, ...revenueRows.map(r => r.revenue));
+
+  const PRESETS = [['This week', '2026-05-18', '2026-05-24'], ['This month', '2026-05-01', '2026-05-24'], ['Last month', '2026-04-01', '2026-04-30'], ['Apr–May', '2026-04-01', '2026-05-24']];
+
   // ── Download (CSV or XLSX) ─────────────────────────────────────────────────
   const buildReport = () => {
-    const dateRange = `${from}_to_${to}`;
-    if (view === 'treatment') {
-      const headers = ['Treatment','Specialty','Count','Revenue (QAR)','Avg ticket (QAR)','Insured (QAR)','Self-pay (QAR)'];
-      const rows = sorted.map(t => [t.name, t.specialty, t.count, t.revenue, t.avgTicket, t.insured, t.selfPay]);
-      rows.push(['Total','', totC, totR, totC>0?Math.round(totR/totC):0, totI, totS]);
-      return { headers, rows, base: `treatment-report_${dateRange}`, sheet: 'Treatments' };
+    const range = `${from}_to_${to}`;
+    if (view === 'procedures') {
+      const headers = ['Date', 'Time', 'Patient', 'File #', 'Doctor', 'Treatment', 'Specialty', 'Amount (QAR)', 'Insured (QAR)', 'Self-pay (QAR)', 'Method', 'Insurer'];
+      const body = rows.map(r => [r.date, r.time, r.patient, r.fileNo, r.doctor, r.treatment, r.specialty, r.amount, r.insured, r.selfPay, r.method, r.insurer || '']);
+      body.push(['Total', '', '', '', '', '', '', totAmt, totIns, totSelf, '', '']);
+      return { headers, rows: body, base: `procedures_${range}`, sheet: 'Procedures' };
     }
-    const headers = ['Doctor','Specialty','Procedures','Revenue (QAR)','Avg ticket (QAR)','Insured (QAR)','Self-pay (QAR)','Utilisation (%)','No-shows'];
-    const rows = docR.map(d => [d.name, d.specialty, d.treatments, d.revenue, d.ticket, d.insured, d.selfPay, d.utilization, d.noshow]);
-    rows.push(['Total','', docR.reduce((s,d)=>s+d.treatments,0), docR.reduce((s,d)=>s+d.revenue,0), '', docR.reduce((s,d)=>s+d.insured,0), docR.reduce((s,d)=>s+d.selfPay,0), '', '']);
-    return { headers, rows, base: `doctor-report_${dateRange}`, sheet: 'Doctors' };
+    if (view === 'treatment') {
+      const headers = ['Treatment', 'Specialty', 'Count', 'Revenue (QAR)', 'Avg ticket (QAR)', 'Insured (QAR)', 'Self-pay (QAR)'];
+      const body = byTreatmentSorted.map(t => [t.name, t.specialty, t.count, t.revenue, t.avgTicket, t.insured, t.selfPay]);
+      body.push(['Total', '', rows.length, totAmt, rows.length ? Math.round(totAmt / rows.length) : 0, totIns, totSelf]);
+      return { headers, rows: body, base: `treatment-report_${range}`, sheet: 'Treatments' };
+    }
+    if (view === 'doctor') {
+      const headers = ['Doctor', 'Procedures', 'Revenue (QAR)', 'Avg ticket (QAR)', 'Insured (QAR)', 'Self-pay (QAR)'];
+      const body = byDoctor.map(d => [d.name, d.count, d.revenue, d.avgTicket, d.insured, d.selfPay]);
+      body.push(['Total', rows.length, totAmt, rows.length ? Math.round(totAmt / rows.length) : 0, totIns, totSelf]);
+      return { headers, rows: body, base: `doctor-report_${range}`, sheet: 'Doctors' };
+    }
+    const headers = [grain === 'daily' ? 'Day' : grain === 'weekly' ? 'Week' : 'Month', 'Procedures', 'Revenue (QAR)', 'Insured (QAR)', 'Self-pay (QAR)'];
+    const body = revenueRows.map(r => [r.label, r.count, r.revenue, r.insured, r.selfPay]);
+    body.push(['Total', rows.length, totAmt, totIns, totSelf]);
+    return { headers, rows: body, base: `revenue-${grain}_${range}`, sheet: 'Revenue' };
   };
   const handleCSV  = () => { const r = buildReport(); downloadCSV(`${r.base}.csv`, r.headers, r.rows); };
   const handleXLSX = () => { const r = buildReport(); downloadXLSX(`${r.base}.xlsx`, r.sheet, r.headers, r.rows); };
 
   const cell = { fontSize: 12.5, padding: '10px 8px 10px 0' };
-  const hcell = { fontSize:12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', padding: '0 8px 10px 0', cursor: 'pointer' };
+  const hcell = { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', padding: '0 8px 10px 0' };
+  const selStyle = { width: 'auto', minWidth: 120, padding: '6px 10px', fontSize: 12.5 };
+  const VIEWS = [['procedures', <ClipboardList size={13} />, 'Procedures'], ['treatment', <BarChart3 size={13} />, 'By treatment'], ['doctor', <Users size={13} />, 'By doctor'], ['revenue', <Banknote size={13} />, 'Revenue']];
+  const activeDoc = docFilter === 'all' ? 'All doctors' : docName(docFilter).replace('Dr. ', 'Dr. ');
+  const titleByView = { procedures: 'Procedure log', treatment: 'Treatment report', doctor: 'Doctor report', revenue: `${grain[0].toUpperCase() + grain.slice(1)} revenue` };
+
   return (
     <main style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Calendar size={15} color="#4E6860" />
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={{ width: 140 }} />
-          <span style={{ color: '#5A7870' }}>→</span>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} style={{ width: 140 }} />
+      {/* ── Filter bar ── */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={15} color="#4E6860" />
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={{ width: 140 }} />
+            <span style={{ color: '#5A7870' }}>→</span>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} style={{ width: 140 }} />
+          </div>
+          <div style={{ width: 1, height: 20, background: '#DCE4E0' }} />
+          {PRESETS.map(([lbl, f, t]) => {
+            const on = from === f && to === t;
+            return <button key={lbl} onClick={() => { setFrom(f); setTo(t); }} style={{ fontSize: 12, fontWeight: on ? 700 : 500, padding: '5px 12px', borderRadius: 8, border: `1px solid ${on ? CLINIC_CONFIG.primaryColor : 'transparent'}`, background: on ? '#EAF5F0' : 'transparent', color: on ? CLINIC_CONFIG.primaryColor : '#6A8880' }}>{lbl}</button>;
+          })}
+          <span style={{ fontSize: 12, color: '#5A7870', fontWeight: 600 }}>{days}d</span>
+          <div style={{ marginLeft: 'auto' }}><DownloadMenu onCSV={handleCSV} onXLSX={handleXLSX} disabled={rows.length === 0} /></div>
         </div>
-        <div style={{ width: 1, height: 20, background: '#DCE4E0' }} />
-        {PRESETS.map(([lbl, f, t]) => {
-          const on = from === f && to === t;
-          return <button key={lbl} onClick={() => { setFrom(f); setTo(t); }} style={{ fontSize: 12, fontWeight: on ? 700 : 500, padding: '5px 12px', borderRadius: 8, border: `1px solid ${on ? CLINIC_CONFIG.primaryColor : 'transparent'}`, background: on ? '#EAF5F0' : 'transparent', color: on ? CLINIC_CONFIG.primaryColor : '#6A8880' }}>{lbl}</button>;
-        })}
-        <span style={{ fontSize:12, color: '#5A7870', fontWeight: 600 }}>{days}d</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ display: 'flex', borderRadius: 9, overflow: 'hidden', border: '1px solid #DCE4E0' }}>
-            {[['treatment', <BarChart3 size={13} />, 'By treatment'],['doctor', <Users size={13} />, 'By doctor']].map(([id, icon, lbl]) => (
-              <button key={id} onClick={() => setView(id)} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: view === id ? CLINIC_CONFIG.primaryColor : '#fff', color: view === id ? '#fff' : '#6A8880', cursor: 'pointer' }}>{icon}{lbl}</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#4E6860' }}>Doctor</span>
+            <select value={docFilter} onChange={e => setDocFilter(e.target.value)} style={selStyle}>
+              <option value="all">All doctors</option>
+              {doctors.map(d => <option key={d.id} value={d.id}>{d.name.replace('Dr. ', '')}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#4E6860' }}>Treatment</span>
+            <select value={txFilter} onChange={e => setTxFilter(e.target.value)} style={selStyle}>
+              <option value="all">All treatments</option>
+              {treatmentNames.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          {(docFilter !== 'all' || txFilter !== 'all') && (
+            <button onClick={() => { setDocFilter('all'); setTxFilter('all'); }} style={{ fontSize: 12, fontWeight: 600, padding: '5px 10px', borderRadius: 8, border: '1px solid #DCE4E0', background: '#F5F8F7', color: '#6A8880', display: 'flex', alignItems: 'center', gap: 4 }}><X size={12} />Clear filters</button>
+          )}
+          {view === 'revenue' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#4E6860' }}>Group by</span>
+              <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #DCE4E0' }}>
+                {['daily', 'weekly', 'monthly'].map(g => (
+                  <button key={g} onClick={() => setGrain(g)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', textTransform: 'capitalize', background: grain === g ? CLINIC_CONFIG.primaryColor : '#fff', color: grain === g ? '#fff' : '#6A8880' }}>{g}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', borderRadius: 9, overflow: 'hidden', border: '1px solid #DCE4E0' }}>
+            {VIEWS.map(([id, icon, lbl]) => (
+              <button key={id} onClick={() => setView(id)} style={{ padding: '7px 12px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: view === id ? CLINIC_CONFIG.primaryColor : '#fff', color: view === id ? '#fff' : '#6A8880' }}>{icon}{lbl}</button>
             ))}
           </div>
-          <DownloadMenu onCSV={handleCSV} onXLSX={handleXLSX} />
         </div>
       </div>
-      <Card title={view === 'treatment' ? 'Treatment report' : 'Doctor report'} sub={`${from} → ${to} · ${view === 'treatment' ? totC + ' procedures' : doctors.length + ' doctors'}`}>
-        <div style={{ overflowX: 'auto' }}>
-          {view === 'treatment' ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
-                  {[['Treatment',null],['Specialty',null],['Count','count'],['Revenue','revenue'],['Avg ticket','avgTicket'],['Insured','insured'],['Self-pay','selfPay']].map(([l,k]) => (
-                    <th key={l} onClick={() => k && setSortBy(k)} style={{ ...hcell, textAlign: 'left', color: sortBy === k ? CLINIC_CONFIG.primaryColor : '#4E6860' }}>{l}{sortBy===k?' ↓':''}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map(t => (
-                  <tr key={t.name} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
-                    <td style={{ ...cell, fontWeight: 600 }}>{t.name}</td>
-                    <td style={{ ...cell, color: '#4E6860' }}>{t.specialty.replace(' Medicine','').replace(' Dentistry','')}</td>
-                    <td style={cell}>{t.count}</td>
-                    <td style={{ ...cell, fontWeight: 700 }}>{qar(t.revenue)}</td>
-                    <td style={{ ...cell, color: '#5A7A70' }}>{qar(t.avgTicket)}</td>
-                    <td style={{ ...cell, color: '#1D4ED8' }}>{t.insured > 0 ? qar(t.insured) : <span style={{color:'#C8D8D0'}}>—</span>}</td>
-                    <td style={cell}>{qar(t.selfPay)}</td>
+
+      {/* ── Summary KPIs (respect current filters) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {[{ l: 'Procedures', v: rows.length.toLocaleString(), c: '#111814' }, { l: 'Revenue', v: qar(totAmt), c: '#0A6040' }, { l: 'Insurance', v: qar(totIns), c: '#1D4ED8' }, { l: 'Self-pay', v: qar(totSelf), c: '#111814' }].map(k => (
+          <div key={k.l} style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', padding: '14px 18px', boxShadow: '0 1px 2px rgba(15,31,26,.06)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#4E6860', marginBottom: 6 }}>{k.l}</div>
+            <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-.8px', color: k.c, lineHeight: 1 }}>{k.v}</div>
+          </div>
+        ))}
+      </div>
+
+      <Card title={titleByView[view]} sub={`${from} → ${to} · ${activeDoc}${txFilter !== 'all' ? ' · ' + txFilter : ''}`}>
+        {rows.length === 0 ? (
+          <div style={{ padding: '28px 8px', textAlign: 'center', fontSize: 13, color: '#6A8880', fontWeight: 600 }}>No procedures match these filters.</div>
+        ) : (
+          <div style={{ overflowX: 'auto', maxHeight: view === 'procedures' ? 520 : 'none', overflowY: view === 'procedures' ? 'auto' : 'visible' }}>
+            {view === 'procedures' && (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+                    {['Date', 'Time', 'Patient', 'File #', 'Doctor', 'Treatment', 'Amount', 'Method', 'Insurer'].map(l => <th key={l} style={{ ...hcell, textAlign: 'left', position: 'sticky', top: 0, background: '#fff' }}>{l}</th>)}
                   </tr>
-                ))}
-                <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
-                  <td style={cell}>Total</td><td/>
-                  <td style={cell}>{totC}</td>
-                  <td style={cell}>{qar(totR)}</td>
-                  <td style={{ ...cell, color: '#4E6860' }}>{qar(Math.round(totR/totC))}</td>
-                  <td style={{ ...cell, color: '#1D4ED8' }}>{qar(totI)}</td>
-                  <td style={cell}>{qar(totS)}</td>
-                </tr>
-              </tbody>
-            </table>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
-                  {['Doctor','Specialty','Procedures','Revenue','Avg ticket','Insured','Self-pay','Util.','No-shows'].map(l => (
-                    <th key={l} style={{ ...hcell, textAlign: 'left' }}>{l}</th>
+                </thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.id} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
+                      <td style={{ ...cell, color: '#4E6860', fontFamily: "'IBM Plex Mono',monospace" }}>{r.date}</td>
+                      <td style={{ ...cell, color: '#4E6860', fontFamily: "'IBM Plex Mono',monospace" }}>{r.time}</td>
+                      <td style={{ ...cell, fontWeight: 600 }}>{r.patient}</td>
+                      <td style={{ ...cell, fontSize: 12, color: '#4E6860', fontFamily: "'IBM Plex Mono',monospace" }}>{r.fileNo}</td>
+                      <td style={{ ...cell, color: '#5A7A70' }}>{r.doctor.replace('Dr. ', '')}</td>
+                      <td style={cell}>{r.treatment}</td>
+                      <td style={{ ...cell, fontWeight: 700 }}>{qar(r.amount)}</td>
+                      <td style={cell}><MethodBadge method={r.method} /></td>
+                      <td style={{ ...cell, color: '#4E6860' }}>{r.insurer || '—'}</td>
+                    </tr>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {docR.map(d => (
-                  <tr key={d.id} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
-                    <td style={{ ...cell, fontWeight: 600 }}>{d.name}</td>
-                    <td style={{ ...cell, color: '#4E6860' }}>{d.specialty.replace(' Medicine','').replace(' Dentistry','')}</td>
-                    <td style={cell}>{d.treatments}</td>
-                    <td style={{ ...cell, fontWeight: 700 }}>{qar(d.revenue)}</td>
-                    <td style={{ ...cell, color: '#5A7A70' }}>{qar(d.ticket)}</td>
-                    <td style={{ ...cell, color: '#1D4ED8' }}>{qar(d.insured)}</td>
-                    <td style={cell}>{qar(d.selfPay)}</td>
-                    <td style={cell}><span style={{ fontSize:12, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: d.utilization>=80?'#D4F1E4':d.utilization>=65?'#FEF3DC':'#FDDDD9', color: d.utilization>=80?'#0A6040':d.utilization>=65?'#92600A':'#C04030' }}>{d.utilization}%</span></td>
-                    <td style={cell}>{d.noshow}</td>
+                  <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
+                    <td colSpan={6} style={cell}>Total · {rows.length} procedures</td>
+                    <td style={cell}>{qar(totAmt)}</td><td /><td />
                   </tr>
-                ))}
-                <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
-                  <td style={cell}>Total</td><td/>
-                  <td style={cell}>{docR.reduce((s,d)=>s+d.treatments,0)}</td>
-                  <td style={cell}>{qar(docR.reduce((s,d)=>s+d.revenue,0))}</td>
-                  <td/><td style={{...cell,color:'#1D4ED8'}}>{qar(docR.reduce((s,d)=>s+d.insured,0))}</td>
-                  <td style={cell}>{qar(docR.reduce((s,d)=>s+d.selfPay,0))}</td>
-                  <td/><td/>
-                </tr>
-              </tbody>
-            </table>
-          )}
-        </div>
+                </tbody>
+              </table>
+            )}
+            {view === 'treatment' && (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+                    {[['Treatment', null], ['Specialty', null], ['Count', 'count'], ['Revenue', 'revenue'], ['Avg ticket', 'avgTicket'], ['Insured', 'insured'], ['Self-pay', 'selfPay']].map(([l, k]) => (
+                      <th key={l} onClick={() => k && setSortBy(k)} style={{ ...hcell, textAlign: 'left', cursor: k ? 'pointer' : 'default', color: sortBy === k ? CLINIC_CONFIG.primaryColor : '#4E6860' }}>{l}{sortBy === k ? ' ↓' : ''}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {byTreatmentSorted.map(t => (
+                    <tr key={t.name} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
+                      <td style={{ ...cell, fontWeight: 600 }}>{t.name}</td>
+                      <td style={{ ...cell, color: '#4E6860' }}>{t.specialty.replace(' Medicine', '').replace(' Dentistry', '')}</td>
+                      <td style={cell}>{t.count}</td>
+                      <td style={{ ...cell, fontWeight: 700 }}>{qar(t.revenue)}</td>
+                      <td style={{ ...cell, color: '#5A7A70' }}>{qar(t.avgTicket)}</td>
+                      <td style={{ ...cell, color: '#1D4ED8' }}>{t.insured > 0 ? qar(t.insured) : <span style={{ color: '#C8D8D0' }}>—</span>}</td>
+                      <td style={cell}>{qar(t.selfPay)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
+                    <td style={cell}>Total</td><td />
+                    <td style={cell}>{rows.length}</td>
+                    <td style={cell}>{qar(totAmt)}</td>
+                    <td style={{ ...cell, color: '#4E6860' }}>{qar(rows.length ? Math.round(totAmt / rows.length) : 0)}</td>
+                    <td style={{ ...cell, color: '#1D4ED8' }}>{qar(totIns)}</td>
+                    <td style={cell}>{qar(totSelf)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+            {view === 'doctor' && (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+                    {['Doctor', 'Procedures', 'Revenue', 'Avg ticket', 'Insured', 'Self-pay'].map(l => <th key={l} style={{ ...hcell, textAlign: 'left' }}>{l}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {byDoctor.map(d => (
+                    <tr key={d.doctorId} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
+                      <td style={{ ...cell, fontWeight: 600 }}>{d.name}</td>
+                      <td style={cell}>{d.count}</td>
+                      <td style={{ ...cell, fontWeight: 700 }}>{qar(d.revenue)}</td>
+                      <td style={{ ...cell, color: '#5A7A70' }}>{qar(d.avgTicket)}</td>
+                      <td style={{ ...cell, color: '#1D4ED8' }}>{d.insured > 0 ? qar(d.insured) : <span style={{ color: '#C8D8D0' }}>—</span>}</td>
+                      <td style={cell}>{qar(d.selfPay)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
+                    <td style={cell}>Total</td>
+                    <td style={cell}>{rows.length}</td>
+                    <td style={cell}>{qar(totAmt)}</td>
+                    <td style={{ ...cell, color: '#4E6860' }}>{qar(rows.length ? Math.round(totAmt / rows.length) : 0)}</td>
+                    <td style={{ ...cell, color: '#1D4ED8' }}>{qar(totIns)}</td>
+                    <td style={cell}>{qar(totSelf)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+            {view === 'revenue' && (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+                    {[grain === 'daily' ? 'Day' : grain === 'weekly' ? 'Week' : 'Month', 'Procedures', 'Revenue', '', 'Insurance', 'Self-pay'].map((l, i) => <th key={i} style={{ ...hcell, textAlign: 'left' }}>{l}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {revenueRows.map(r => (
+                    <tr key={r.key} className="trow" style={{ borderBottom: '1px solid #EEF2F0' }}>
+                      <td style={{ ...cell, fontWeight: 600 }}>{r.label}</td>
+                      <td style={cell}>{r.count}</td>
+                      <td style={{ ...cell, fontWeight: 700, width: 110 }}>{qar(r.revenue)}</td>
+                      <td style={{ ...cell, width: 200 }}>
+                        <div style={{ height: 7, borderRadius: 4, background: '#EEF2F0', overflow: 'hidden' }}>
+                          <div style={{ width: `${(r.revenue / maxRev) * 100}%`, height: '100%', borderRadius: 4, background: CLINIC_CONFIG.primaryColor }} />
+                        </div>
+                      </td>
+                      <td style={{ ...cell, color: '#1D4ED8' }}>{r.insured > 0 ? qar(r.insured) : <span style={{ color: '#C8D8D0' }}>—</span>}</td>
+                      <td style={cell}>{qar(r.selfPay)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '2px solid #DCE4E0', fontWeight: 700 }}>
+                    <td style={cell}>Total</td>
+                    <td style={cell}>{rows.length}</td>
+                    <td style={cell}>{qar(totAmt)}</td><td />
+                    <td style={{ ...cell, color: '#1D4ED8' }}>{qar(totIns)}</td>
+                    <td style={cell}>{qar(totSelf)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </Card>
     </main>
   );
@@ -990,9 +1262,9 @@ const SPEC_LIST = ['General Dentistry','Orthodontics','Endodontics','Cosmetic De
 const COL_LIST  = ['rose','amber','teal','violet','sky','emerald'];
 const COL_HEX   = { rose:'#FCA5A5',amber:'#FCD34D',teal:'#5EEAD4',violet:'#C4B5FD',sky:'#7DD3FC',emerald:'#6EE7B7' };
 
-function SettingsTab({ doctors, setDoctors, nurses, setNurses, trainees, setTrainees, treatments, setTreatments }) {
+function SettingsTab({ doctors, setDoctors, nurses, setNurses, trainees, setTrainees, receptionists, setReceptionists, treatments, setTreatments }) {
   const [sec, setSec] = useState('doctors');
-  const SECS = [['doctors','Doctors & calendar'],['trainees','Trainees'],['nurses','Nurses'],['treatments','Treatments']];
+  const SECS = [['doctors','Doctors & calendar'],['trainees','Trainees'],['nurses','Nurses'],['receptionists','Receptionists'],['schedules','Schedules'],['treatments','Treatments']];
   return (
     <main style={{ padding: '16px 24px', display: 'flex', gap: 16 }}>
       <div style={{ width: 200, flexShrink: 0 }}>
@@ -1005,10 +1277,12 @@ function SettingsTab({ doctors, setDoctors, nurses, setNurses, trainees, setTrai
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        {sec==='doctors'    && <DoctorSettings    doctors={doctors}    setDoctors={setDoctors} />}
-        {sec==='trainees'   && <TraineeSettings   trainees={trainees}  setTrainees={setTrainees} doctors={doctors} />}
-        {sec==='nurses'     && <NurseSettings     nurses={nurses}      setNurses={setNurses} />}
-        {sec==='treatments' && <TreatmentSettings treatments={treatments} setTreatments={setTreatments} />}
+        {sec==='doctors'       && <DoctorSettings    doctors={doctors}    setDoctors={setDoctors} />}
+        {sec==='trainees'      && <TraineeSettings   trainees={trainees}  setTrainees={setTrainees} doctors={doctors} />}
+        {sec==='nurses'        && <NurseSettings     nurses={nurses}      setNurses={setNurses} />}
+        {sec==='receptionists' && <ReceptionistSettings receptionists={receptionists} setReceptionists={setReceptionists} />}
+        {sec==='schedules'     && <ScheduleSettings  doctors={doctors} trainees={trainees} nurses={nurses} receptionists={receptionists} />}
+        {sec==='treatments'    && <TreatmentSettings treatments={treatments} setTreatments={setTreatments} />}
       </div>
     </main>
   );
@@ -1240,15 +1514,27 @@ function TreatmentSettings({ treatments, setTreatments }) {
         <div style={{ fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#4E6860',marginBottom:8 }}>Insurance pricing</div>
         <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
           {form.insurers.length===0&&<div style={{ fontSize:12.5,fontWeight:600,color:'#6A8880' }}>No insurance pricing &mdash; cash only.</div>}
-          {form.insurers.map((row,i)=>(
-            <div key={i} style={{ display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 32px',gap:8,alignItems:'center' }}>
-              <select value={row.name} onChange={e=>setIns(i,{name:e.target.value})}>{TREATMENT_INSURERS.map(n=><option key={n}>{n}</option>)}</select>
-              <input type="number" value={row.insurancePrice} onChange={e=>setIns(i,{insurancePrice:num(e.target.value)})} placeholder="Ins. price" style={{fontFamily:"'IBM Plex Mono',monospace"}} title="Insurance price (QAR)" />
-              <input type="number" value={row.copayPct} onChange={e=>setIns(i,{copayPct:num(e.target.value)})} placeholder="Copay %" style={{fontFamily:"'IBM Plex Mono',monospace"}} title="Copay %" />
-              <button onClick={()=>delIns(i)} style={{ width:30,height:30,borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',color:'#9A3412',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><X size={13}/></button>
+          {form.insurers.length>0&&(
+            <div style={{ display:'grid',gridTemplateColumns:'1.2fr 1fr .8fr 1fr 32px',gap:8,alignItems:'center' }}>
+              {['Insurer','Gross (QAR)','Copay %','Net (QAR)',''].map((l,i)=>(
+                <div key={i} style={{ fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#4E6860' }}>{l}</div>
+              ))}
             </div>
-          ))}
+          )}
+          {form.insurers.map((row,i)=>{
+            const net = Math.max(0, Math.round((row.insurancePrice||0) * (1 - (row.copayPct||0)/100)));
+            return (
+            <div key={i} style={{ display:'grid',gridTemplateColumns:'1.2fr 1fr .8fr 1fr 32px',gap:8,alignItems:'center' }}>
+              <select value={row.name} onChange={e=>setIns(i,{name:e.target.value})}>{TREATMENT_INSURERS.map(n=><option key={n}>{n}</option>)}</select>
+              <input type="number" value={row.insurancePrice} onChange={e=>setIns(i,{insurancePrice:num(e.target.value)})} placeholder="0" style={{fontFamily:"'IBM Plex Mono',monospace"}} title="Gross — approved / list price billed to the insurer (QAR)" />
+              <input type="number" value={row.copayPct} onChange={e=>setIns(i,{copayPct:num(e.target.value)})} placeholder="0" style={{fontFamily:"'IBM Plex Mono',monospace"}} title="Patient copay as a percentage of gross" />
+              <input type="text" value={net.toLocaleString()} readOnly tabIndex={-1} style={{fontFamily:"'IBM Plex Mono',monospace",background:'#EEF3F1',color:'#0A6040',fontWeight:700,cursor:'default'}} title="Net payable by the insurer = Gross × (1 − Copay%). Auto-calculated." />
+              <button onClick={()=>delIns(i)} title="Remove insurer" style={{ width:30,height:30,borderRadius:7,border:'1px solid #DCE4E0',background:'#F5F8F7',color:'#9A3412',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}><X size={13}/></button>
+            </div>
+            );
+          })}
           <DashedAddBtn onClick={addInsurer}><Plus size={13}/>Add insurer price</DashedAddBtn>
+          {form.insurers.length>0&&<div style={{ fontSize:11.5,color:'#6A8880',fontWeight:500 }}>Net = Gross × (1 − Copay%) — the amount the insurer reimburses; the patient pays the copay. Net updates automatically.</div>}
         </div>
       </div>
 
@@ -1288,6 +1574,322 @@ function TreatmentSettings({ treatments, setTreatments }) {
           </div>
         </SettingsCard>
       ))}
+    </div>
+  );
+}
+
+// ─── Patients tab ─────────────────────────────────────────────────────────────
+// The clinic's patient file index — searchable by name, phone, patient ID (QID)
+// or file number. Click a row to open the record (insurer, allergies, history).
+function PatientsTab({ patients }) {
+  const [q, setQ]           = useState('');
+  const [openId, setOpenId] = useState(null);
+  const query  = q.trim();
+  const norm   = s => (s || '').toLowerCase();
+  const digits = s => (s || '').replace(/\D/g, '');
+  const filtered = useMemo(() => {
+    if (!query) return patients;
+    const ql = norm(query), qd = digits(query);
+    return patients.filter(p =>
+      norm(p.nameEn).includes(ql) ||
+      norm(p.fileNo).includes(ql) ||
+      (p.qid || '').includes(query) ||
+      (!!qd && (p.qid || '').includes(qd)) ||
+      (!!qd && digits(p.phone).includes(qd))
+    );
+  }, [patients, query]);
+
+  const buildList = () => {
+    const headers = ['Name', 'File #', 'Patient ID (QID)', 'Phone', 'Gender', 'DOB', 'Insurer', 'Policy', 'Last visit', 'Balance (QAR)', 'Allergies', 'Conditions'];
+    const rows = filtered.map(p => [p.nameEn, p.fileNo, p.qid || '', p.phone || '', p.gender || '', p.dob || '', p.insurer || '', p.policy || '', p.lastVisit || '', p.balance || 0, (p.allergies || []).join('; '), (p.conditions || []).join('; ')]);
+    return { headers, rows, base: 'patient-records', sheet: 'Patients' };
+  };
+  const handleCSV  = () => { const r = buildList(); downloadCSV(`${r.base}.csv`, r.headers, r.rows); };
+  const handleXLSX = () => { const r = buildList(); downloadXLSX(`${r.base}.xlsx`, r.sheet, r.headers, r.rows); };
+
+  const cell  = { fontSize: 12.5, padding: '10px 8px 10px 0', verticalAlign: 'middle' };
+  const hcell = { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', textAlign: 'left', padding: '0 8px 10px 0' };
+  const initials = n => (n || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+  const withBalance = filtered.filter(p => (p.balance || 0) > 0).length;
+
+  return (
+    <main style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 260 }}>
+          <Search size={16} color="#4E6860" style={{ flexShrink: 0 }} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name, phone, patient ID (QID) or file number…" style={{ width: '100%' }} />
+          {q && <button onClick={() => setQ('')} style={{ background: 'transparent', border: 'none', color: '#6A8880', display: 'flex', alignItems: 'center' }}><X size={15} /></button>}
+        </div>
+        <span style={{ fontSize: 12.5, color: '#5A7870', fontWeight: 600 }}>{filtered.length} of {patients.length} patients</span>
+        <DownloadMenu onCSV={handleCSV} onXLSX={handleXLSX} disabled={filtered.length === 0} />
+      </div>
+
+      <Card title="Patient records" sub={`${patients.length} on file · ${withBalance} with an outstanding balance`}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1.5px solid #DCE4E0' }}>
+                {['Patient', 'File #', 'Patient ID', 'Phone', 'Insurer', 'Last visit', 'Balance', ''].map(h => <th key={h} style={hcell}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(p => {
+                const open = openId === p.id;
+                const age = patientAge(p.dob);
+                return (
+                  <React.Fragment key={p.id}>
+                    <tr className="trow" onClick={() => setOpenId(open ? null : p.id)} style={{ borderBottom: '1px solid #EEF2F0', cursor: 'pointer' }}>
+                      <td style={cell}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#E8F3F0', color: '#0C6B5A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{initials(p.nameEn)}</div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#111814', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {p.nameEn || 'Unnamed patient'}
+                              {p.allergies?.length > 0 && <AlertTriangle size={12} color="#DC4F38" title={`Allergies: ${p.allergies.join(', ')}`} />}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: '#6A8880', fontWeight: 600 }}>{[age != null ? `${age} yrs` : null, p.gender].filter(Boolean).join(' · ')}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ ...cell, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: '#4E6860' }}>{p.fileNo}</td>
+                      <td style={{ ...cell, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: '#4E6860' }}>{p.qid || '—'}</td>
+                      <td style={{ ...cell, color: '#3A5248' }}>{p.phone || '—'}</td>
+                      <td style={cell}>{p.insurer && p.insurer !== 'Cash/Card' ? <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EFF6FF', color: '#1D4ED8' }}>{p.insurer}</span> : <span style={{ fontSize: 12, color: '#6A8880', fontWeight: 600 }}>Cash</span>}</td>
+                      <td style={{ ...cell, color: '#4E6860' }}>{p.lastVisit || '—'}</td>
+                      <td style={{ ...cell, fontWeight: 700, color: (p.balance || 0) > 0 ? '#C04030' : '#0A6040' }}>{(p.balance || 0) > 0 ? qar(p.balance) : '—'}</td>
+                      <td style={cell}>{open ? <ChevronUp size={15} color="#6A8880" /> : <ChevronDown size={15} color="#6A8880" />}</td>
+                    </tr>
+                    {open && (
+                      <tr style={{ background: '#F7FAF9', borderBottom: '1px solid #EEF2F0' }}>
+                        <td colSpan={8} style={{ padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 12 }}>
+                            <PatientMeta label="Date of birth" value={p.dob || '—'} />
+                            <PatientMeta label="Insurance" value={p.insurer && p.insurer !== 'Cash/Card' ? `${p.insurer}${p.policy ? ' · ' + p.policy : ''}` : 'Cash / card'} />
+                            <PatientMeta label="Eligibility" value={p.eligible === true ? 'Verified' : p.eligible === false ? 'Not eligible' : 'N/A'} />
+                            <PatientMeta label="Balance" value={(p.balance || 0) > 0 ? qar(p.balance) : 'Settled'} />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                            {(p.allergies || []).map(a => <span key={a} style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: '#FEE2E2', color: '#991B1B' }}>⚠ {a}</span>)}
+                            {(p.conditions || []).map(c => <span key={c} style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: '#EEF2F0', color: '#3A5048' }}>{c}</span>)}
+                            {(p.allergies || []).length === 0 && (p.conditions || []).length === 0 && <span style={{ fontSize: 12.5, color: '#6A8880', fontWeight: 600 }}>No known allergies or conditions.</span>}
+                          </div>
+                          {p.notes && <div style={{ fontSize: 12.5, color: '#3A5248', fontStyle: 'italic', marginBottom: 12 }}>Note: {p.notes}</div>}
+                          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', marginBottom: 6 }}>Encounter history</div>
+                          {(p.encounterHistory || []).length > 0 ? (
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <tbody>
+                                {p.encounterHistory.map((h, i) => (
+                                  <tr key={i} style={{ borderBottom: '1px solid #E8EDEA' }}>
+                                    <td style={{ ...cell, width: 100, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: '#4E6860' }}>{h.date}</td>
+                                    <td style={{ ...cell, width: 200, color: '#5A7A70' }}>{h.doctor.replace('Dr. ', '')}</td>
+                                    <td style={{ ...cell, fontWeight: 600 }}>{h.procedure}</td>
+                                    <td style={{ ...cell, color: '#6A8880' }}>{h.notes}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : <div style={{ fontSize: 12.5, color: '#6A8880', fontWeight: 600 }}>No recorded encounters.</div>}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={8} style={{ padding: '28px 8px', textAlign: 'center', fontSize: 13, color: '#6A8880', fontWeight: 600 }}>No patients match “{query}”.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </main>
+  );
+}
+function PatientMeta({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#6A8880', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#111814' }}>{value}</div>
+    </div>
+  );
+}
+
+// ─── Receptionist settings ────────────────────────────────────────────────────
+const DESK_LIST  = ['Front desk', 'Aesthetic wing', 'Billing'];
+const SHIFT_LIST = ['Morning', 'Evening', 'Rotating'];
+function ReceptionistSettings({ receptionists, setReceptionists }) {
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const BLANK = { name: '', desk: 'Front desk', phone: '', shift: 'Morning' };
+  const [form, setForm] = useState(BLANK);
+  const cancel = () => { setAdding(false); setEditing(null); setForm(BLANK); };
+  const startEdit = r => { setEditing(r.id); setForm({ name: r.name, desk: r.desk, phone: r.phone || '', shift: r.shift }); setAdding(false); };
+  const save = () => {
+    if (!form.name) return;
+    if (editing) setReceptionists(prev => prev.map(r => r.id === editing ? { ...r, ...form } : r));
+    else setReceptionists(prev => [...prev, { id: `r${Date.now()}`, ...form, active: true }]);
+    cancel();
+  };
+  return (
+    <SettingsCard title="Receptionists" sub="Front-desk staff who book appointments, check patients in and take payment">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+        {receptionists.map(r => (
+          <div key={r.id}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: '1px solid #DCE4E0', background: r.active ? '#fff' : '#F8FAF9', opacity: r.active ? 1 : .55 }}>
+              <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#E8F3F0', color: '#0C6B5A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Headset size={16} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#111814' }}>{r.name}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: '#EDE9FE', color: '#5B21B6' }}>{r.shift}</span>
+                </div>
+                <div style={{ fontSize: 12, color: '#4E6860', marginTop: 2 }}>{r.desk}{r.phone ? <> · <span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{r.phone}</span></> : null}</div>
+              </div>
+              <button onClick={() => startEdit(r)} style={{ fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 7, border: '1px solid #DCE4E0', background: '#F5F8F7', color: '#4A6860', display: 'flex', alignItems: 'center', gap: 4 }}><Edit3 size={11} />Edit</button>
+              <ActiveBadge active={r.active} onToggle={() => setReceptionists(prev => prev.map(x => x.id === r.id ? { ...x, active: !x.active } : x))} />
+            </div>
+            {editing === r.id && <RecForm form={form} setForm={setForm} onCancel={cancel} onSave={save} saveLabel="Save changes" />}
+          </div>
+        ))}
+        {receptionists.length === 0 && <div style={{ fontSize: 12.5, color: '#4E6860', fontStyle: 'italic', padding: '8px 0' }}>No receptionists added yet.</div>}
+      </div>
+      {!adding && !editing && <DashedAddBtn onClick={() => { setForm(BLANK); setAdding(true); }}><UserPlus size={14} />Add receptionist</DashedAddBtn>}
+      {adding && <RecForm form={form} setForm={setForm} onCancel={cancel} onSave={save} saveLabel="Add receptionist" />}
+    </SettingsCard>
+  );
+}
+function RecForm({ form, setForm, onCancel, onSave, saveLabel }) {
+  return (
+    <FormBox>
+      <FormGrid>
+        <FormField label="Full name"><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Receptionist name" /></FormField>
+        <FormField label="Phone"><input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+974 …" style={{ fontFamily: "'IBM Plex Mono',monospace" }} /></FormField>
+        <FormField label="Desk"><select value={form.desk} onChange={e => setForm({ ...form, desk: e.target.value })}>{DESK_LIST.map(d => <option key={d}>{d}</option>)}</select></FormField>
+        <FormField label="Shift"><select value={form.shift} onChange={e => setForm({ ...form, shift: e.target.value })}>{SHIFT_LIST.map(s => <option key={s}>{s}</option>)}</select></FormField>
+      </FormGrid>
+      <FormActions onCancel={onCancel} onSave={onSave} saveLabel={saveLabel} disabled={!form.name} />
+    </FormBox>
+  );
+}
+
+// ─── Schedule settings ────────────────────────────────────────────────────────
+// Set working hours, breaks, off-days and vacations per staff member. Uses the
+// same schedule shape the Reception booking calendar reads, so a doctor's edits
+// here immediately change which slots are bookable there.
+function ScheduleSettings({ doctors, trainees, nurses, receptionists }) {
+  useSchedules(); // re-render when a schedule is saved
+  const [group, setGroup]     = useState('doctors');
+  const [editing, setEditing] = useState(null);
+  const GROUPS = { doctors, trainees, nurses, receptionists };
+  const TABS = [['doctors', 'Doctors'], ['trainees', 'Trainees'], ['nurses', 'Nurses'], ['receptionists', 'Receptionists']];
+  const staff = GROUPS[group] || [];
+
+  return (
+    <SettingsCard title="Staff schedules" sub="Working hours, breaks, off-days and vacations. Doctor schedules drive bookable slots in the reception calendar.">
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+        {TABS.map(([id, lbl]) => {
+          const on = group === id;
+          return (
+            <button key={id} onClick={() => { setGroup(id); setEditing(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, fontSize: 12.5, fontWeight: on ? 700 : 600, border: `1px solid ${on ? CLINIC_CONFIG.primaryColor : '#DCE4E0'}`, background: on ? '#EAF5F0' : '#fff', color: on ? CLINIC_CONFIG.primaryColor : '#5A7870' }}>
+              {lbl}<span style={{ fontSize: 11, fontWeight: 700, padding: '0 6px', borderRadius: 10, background: on ? '#D4EBE3' : '#EEF2F0', color: on ? '#0A6040' : '#6A8880' }}>{(GROUPS[id] || []).length}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {staff.map(s => <ScheduleRow key={s.id} staff={s} editing={editing === s.id} onEdit={() => setEditing(s.id)} onClose={() => setEditing(null)} />)}
+        {staff.length === 0 && <div style={{ fontSize: 12.5, color: '#4E6860', fontStyle: 'italic', padding: '8px 0' }}>No staff in this group.</div>}
+      </div>
+      <div style={{ marginTop: 12, fontSize: 12, color: '#4E6860', display: 'flex', alignItems: 'center', gap: 6 }}><CalendarDays size={13} />Off-days, breaks and vacations grey out the matching slots when reception books an appointment.</div>
+    </SettingsCard>
+  );
+}
+function ScheduleRow({ staff, editing, onEdit, onClose }) {
+  const s = getSchedule(staff.id);
+  const av = AVATAR_COLORS[staff.color] || { bg: '#E8F3F0', fg: '#0C6B5A' };
+  const initials = staff.name.split(' ').filter(w => !w.startsWith('Dr.') && !/(Nurse|Trainee)/.test(w)).map(w => w[0]).slice(0, 2).join('') || staff.name.slice(0, 2).toUpperCase();
+  return (
+    <div style={{ borderRadius: 10, border: '1px solid #DCE4E0', background: staff.active === false ? '#F8FAF9' : '#fff', opacity: staff.active === false ? .6 : 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px' }}>
+        <div style={{ width: 34, height: 34, borderRadius: '50%', background: av.bg, color: av.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{initials}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111814' }}>{staff.name}{staff.specialty ? <span style={{ fontSize: 12, fontWeight: 600, color: '#5A7870' }}> · {staff.specialty}</span> : null}</div>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, fontWeight: 600, color: '#3D5850', marginTop: 3 }}>
+            <span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{s.workStart}–{s.workEnd}</span>
+            {s.offDays.length > 0 && <span style={{ color: '#C05820' }}>Off: {s.offDays.map(cap).join(', ')}</span>}
+            {s.breaks.length > 0 && <span>Break: {s.breaks.map(b => `${b.start}–${b.end} ${b.label}`).join(', ')}</span>}
+            {s.vacations.length > 0 && s.vacations.map(v => <span key={v.start} style={{ color: '#8B5CF6' }}>Leave: {v.start} → {v.end}{v.reason ? ` (${v.reason})` : ''}</span>)}
+          </div>
+        </div>
+        <button onClick={editing ? onClose : onEdit} style={{ fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 7, border: '1px solid #DCE4E0', background: editing ? '#EAF5F0' : '#F5F8F7', color: '#4A6860', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}><Clock size={11} />{editing ? 'Close' : 'Edit hours'}</button>
+      </div>
+      {editing && <ScheduleEditor staff={staff} onClose={onClose} />}
+    </div>
+  );
+}
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function ScheduleEditor({ staff, onClose }) {
+  const [form, setForm] = useState(() => {
+    const s = getSchedule(staff.id);
+    return { workStart: s.workStart, workEnd: s.workEnd, offDays: [...s.offDays], breaks: s.breaks.map(b => ({ ...b })), vacations: s.vacations.map(v => ({ ...v })) };
+  });
+  const toggleDay = d => setForm(f => ({ ...f, offDays: f.offDays.includes(d) ? f.offDays.filter(x => x !== d) : [...f.offDays, d] }));
+  const addBreak  = () => setForm(f => ({ ...f, breaks: [...f.breaks, { start: '13:00', end: '14:00', label: 'Break' }] }));
+  const setBreak  = (i, patch) => setForm(f => ({ ...f, breaks: f.breaks.map((b, idx) => idx === i ? { ...b, ...patch } : b) }));
+  const delBreak  = i => setForm(f => ({ ...f, breaks: f.breaks.filter((_, idx) => idx !== i) }));
+  const addVac    = () => setForm(f => ({ ...f, vacations: [...f.vacations, { start: '', end: '', reason: '' }] }));
+  const setVac    = (i, patch) => setForm(f => ({ ...f, vacations: f.vacations.map((v, idx) => idx === i ? { ...v, ...patch } : v) }));
+  const delVac    = i => setForm(f => ({ ...f, vacations: f.vacations.filter((_, idx) => idx !== i) }));
+  const save = () => {
+    setSchedule(staff.id, {
+      workStart: form.workStart, workEnd: form.workEnd,
+      offDays: [...form.offDays],
+      breaks: form.breaks.filter(b => b.start && b.end).map(b => ({ ...b, label: b.label || 'Break' })),
+      vacations: form.vacations.filter(v => v.start && v.end).map(v => ({ ...v, reason: v.reason || 'Leave' })),
+    });
+    onClose();
+  };
+  const timeCell = { fontFamily: "'IBM Plex Mono',monospace" };
+  return (
+    <div style={{ padding: 16, borderTop: '1px solid #DCE4E0', background: '#F5F8F7', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <FormGrid>
+        <FormField label="Shift start"><input type="time" value={form.workStart} onChange={e => setForm({ ...form, workStart: e.target.value })} style={timeCell} /></FormField>
+        <FormField label="Shift end"><input type="time" value={form.workEnd} onChange={e => setForm({ ...form, workEnd: e.target.value })} style={timeCell} /></FormField>
+      </FormGrid>
+      <FormField label="Off days">
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+          {WEEK_DAYS.map(d => {
+            const on = form.offDays.includes(d);
+            return <button key={d} onClick={() => toggleDay(d)} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: on ? 700 : 600, border: `1px solid ${on ? '#DC4F38' : '#DCE4E0'}`, background: on ? '#FEE2E2' : '#fff', color: on ? '#991B1B' : '#5A7870' }}>{cap(d).slice(0, 3)}</button>;
+          })}
+        </div>
+      </FormField>
+      <FormField label="Breaks">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          {form.breaks.map((b, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr 32px', gap: 8, alignItems: 'center' }}>
+              <input type="time" value={b.start} onChange={e => setBreak(i, { start: e.target.value })} style={timeCell} />
+              <input type="time" value={b.end} onChange={e => setBreak(i, { end: e.target.value })} style={timeCell} />
+              <input value={b.label} onChange={e => setBreak(i, { label: e.target.value })} placeholder="Label (e.g. Lunch)" />
+              <button onClick={() => delBreak(i)} title="Remove break" style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid #DCE4E0', background: '#fff', color: '#9A3412', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={13} /></button>
+            </div>
+          ))}
+          <DashedAddBtn onClick={addBreak}><Coffee size={13} />Add break</DashedAddBtn>
+        </div>
+      </FormField>
+      <FormField label="Vacations / leave">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          {form.vacations.map((v, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr 32px', gap: 8, alignItems: 'center' }}>
+              <input type="date" value={v.start} onChange={e => setVac(i, { start: e.target.value })} />
+              <input type="date" value={v.end} onChange={e => setVac(i, { end: e.target.value })} />
+              <input value={v.reason} onChange={e => setVac(i, { reason: e.target.value })} placeholder="Reason (e.g. Annual leave)" />
+              <button onClick={() => delVac(i)} title="Remove leave" style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid #DCE4E0', background: '#fff', color: '#9A3412', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={13} /></button>
+            </div>
+          ))}
+          <DashedAddBtn onClick={addVac}><Plane size={13} />Add vacation</DashedAddBtn>
+        </div>
+      </FormField>
+      <FormActions onCancel={onClose} onSave={save} saveLabel="Save schedule" disabled={!form.workStart || !form.workEnd} />
     </div>
   );
 }

@@ -5,6 +5,8 @@ import {
   FileText, X, Save, Globe, Edit3, CalendarDays, MessageSquare, Send, Inbox, CheckCheck, PhoneOff,
   ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser} from 'lucide-react';
 import { addConsent, findConsent, useConsents } from './consentStore';
+import { getSchedule, useSchedules } from './scheduleStore';
+import { usePatients, getPatients, savePatients } from './patientStore';
 
 // ─── Clinic branding ─────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -46,14 +48,9 @@ const PROCEDURES = {
   'Aesthetic Medicine': [{ name:'Aesthetic consult',dur:30,price:200,needsNurse:false},{name:'Botox',dur:45,price:1800,needsNurse:true},{name:'Dermal filler',dur:60,price:2400,needsNurse:true},{name:'Chemical peel',dur:60,price:900,needsNurse:true},{name:'Hydrafacial',dur:60,price:1200,needsNurse:true,nurseOnly:true},{name:'Laser hair removal',dur:45,price:800,needsNurse:true,nurseOnly:true}],
 };
 const ALL_PROCEDURES = Object.values(PROCEDURES).flat();
-const MOCK_PATIENTS = [
-  { id:'p1', waConsent:true, fileNo:'YC-2024-0142', qid:'28934567812', nameEn:'Aisha Al-Kuwari',     nameAr:'عائشة الكواري',    phone:'+974 5512 4488', dob:'1989-03-14', insurer:'QLM',       policy:'QLM-447821',  eligible:true,  lastVisit:'2026-02-14', allergies:['Penicillin (rash)','Latex'],   conditions:['Type 2 diabetes (controlled)','Hypertension'], notes:'Prefers afternoon. Anxious about dental work.',   encounterHistory:[{date:'2026-02-14',doctor:'Dr. Layla Al-Mahmoud',procedure:'Cleaning & polish',notes:'Mild gingivitis lower right.'},{date:'2025-11-22',doctor:'Dr. Reem Al-Thani',procedure:'Botox -- glabellar',notes:'20U. Pleased at follow-up.'},{date:'2025-08-03',doctor:'Dr. Layla Al-Mahmoud',procedure:'Consultation + X-rays',notes:'Referred to endodontics.'}] },
-  { id:'p2', waConsent:true, fileNo:'YC-2024-0089', qid:'29612039874', nameEn:'James Patterson',      nameAr:'جيمس باترسون',     phone:'+974 7011 9923', dob:'1985-11-02', insurer:'Cash/Card', policy:null,          eligible:null,  lastVisit:'2025-11-08', allergies:[],                              conditions:[],                                              notes:'',                                                encounterHistory:[{date:'2025-11-08',doctor:'Dr. Omar Al-Sayed',procedure:'Braces adjustment',notes:'Progressing well.'}] },
-  { id:'p3', waConsent:false, fileNo:'YC-2025-0317', qid:'28701445129', nameEn:'Fatima Al-Mansoori',   nameAr:'فاطمة المنصوري',   phone:'+974 3344 7712', dob:'1992-07-22', insurer:'AXA',       policy:'AXA-Q-998812',eligible:true,  lastVisit:'2026-04-30', allergies:['Sulfa drugs'],                conditions:[],                                              notes:'Pregnant (24 weeks). Avoid X-rays.',              encounterHistory:[{date:'2026-04-30',doctor:'Dr. Reem Al-Thani',procedure:'Hydrafacial',notes:'Good outcome.'}] },
-  { id:'p4', waConsent:true, fileNo:'YC-2023-0318', qid:'30123456783', nameEn:'Sara Al-Jaber',        nameAr:'سارة الجابر',      phone:'+974 5545 3344', dob:'1974-01-30', insurer:'QLM',     policy:'QLM-330918',  eligible:true,  lastVisit:'2026-06-20', allergies:[],            conditions:['Osteoporosis'],                            notes:'Crown in progress (#25, #26).',                  encounterHistory:[{date:'2026-06-20',doctor:'Dr. Layla Al-Mahmoud',procedure:'Crown #25 seat',notes:'Seated, occlusion checked.'},{date:'2026-06-05',doctor:'Dr. Layla Al-Mahmoud',procedure:'Crown #25 prep',notes:'Impression taken.'}] },
-  { id:'p6', waConsent:true, fileNo:'YC-2025-0387', qid:'29876543215', nameEn:'Nora Al-Thani',        nameAr:'نورة آل ثاني',     phone:'+974 5567 9900', dob:'1995-09-08', insurer:'QLM',     policy:'QLM-665201',  eligible:true,  lastVisit:'2026-06-24', allergies:[],            conditions:[],                                          notes:'',                                               encounterHistory:[{date:'2026-06-24',doctor:'Dr. Layla Al-Mahmoud',procedure:'Cleaning + fluoride',notes:'Good oral hygiene.'}] },
-  { id:'p7', waConsent:true, fileNo:'YC-2022-0056', qid:'27654321096', nameEn:'Ali Hassan Al-Marri',  nameAr:'علي حسن المري',    phone:'+974 5578 1234', dob:'1971-02-25', insurer:'Allianz', policy:'ALZ-443098',  eligible:true,  lastVisit:'2026-06-24', allergies:['Codeine'],   conditions:['Hypertension','Ischemic heart disease'],   notes:'Cardiac history — confirm clearance before sedation.', encounterHistory:[{date:'2026-06-24',doctor:'Dr. Layla Al-Mahmoud',procedure:'Emergency consultation',notes:'Reviewed broken crown #36.'}] },
-];
+// Patient records now live in the shared patientStore (also read/written by the
+// Admin portal's Patients tab). Seeded there; new patients registered here appear
+// in Admin, and vice-versa. See usePatients()/savePatients() in the root component.
 const STATUS_CFG = {
   booked:           { label:'Booked',         labelAr:'محجوز',   dot:'#A0B0AA', chip:['#E8EDEB','#2A3830']  },
   confirmed:        { label:'Confirmed',      labelAr:'مؤكد',    dot:'#3B82F6', chip:['#EFF6FF','#1D4ED8']  },
@@ -72,14 +69,9 @@ const DOC_COLORS = {
   sky:     { left:'#38BDF8', bg:'#F0F9FF', initBg:'#E0F2FE', initFg:'#075985' },
   emerald: { left:'#34D399', bg:'#ECFDF5', initBg:'#A7F3D0', initFg:'#064E3B' },
 };
-const DOCTOR_SCHEDULES = {
-  d1:{ workStart:'09:00', workEnd:'17:00', offDays:['friday'],             breaks:[{start:'13:00',end:'14:00',label:'Lunch'}], vacations:[] },
-  d2:{ workStart:'10:00', workEnd:'18:00', offDays:['friday','saturday'],  breaks:[{start:'13:00',end:'14:00',label:'Lunch'}], vacations:[{start:'2026-06-15',end:'2026-06-22',reason:'Annual leave'}] },
-  d3:{ workStart:'09:00', workEnd:'18:00', offDays:['friday'],             breaks:[{start:'12:30',end:'13:30',label:'Prayer + lunch'}], vacations:[] },
-  d4:{ workStart:'11:00', workEnd:'18:00', offDays:['friday','sunday'],    breaks:[{start:'13:00',end:'14:00',label:'Lunch'}], vacations:[] },
-  d5:{ workStart:'12:00', workEnd:'18:00', offDays:['friday'],             breaks:[], vacations:[{start:'2026-05-28',end:'2026-05-30',reason:'Conference'}] },
-  d6:{ workStart:'09:00', workEnd:'17:00', offDays:['friday'],             breaks:[{start:'13:00',end:'14:00',label:'Lunch'}], vacations:[] },
-};
+// Doctor schedules now live in the shared scheduleStore (edited in Admin → Settings
+// → Schedules). getSchedule(id) returns the current working hours / breaks / off-days
+// / vacations, so admin edits change which slots are bookable here.
 const TIME_SLOTS = Array.from({length:18},(_,i)=>{ const h=9+Math.floor(i/2); const m=i%2===0?'00':'30'; return `${String(h).padStart(2,'0')}:${m}`; });
 const SEED_APPOINTMENTS = [
   {id:'a1',doctorId:'d1',patientId:'p3',start:'09:00',date:'2026-05-24',dur:45,procedure:'Cleaning & polish',    status:'payment-done',  nurseId:'n2',notes:'Standard cleaning.'},
@@ -139,7 +131,7 @@ const dayOfWeek          = d    => toDate(d).toLocaleDateString('en-GB',{weekday
 const slotToMin          = slot => { const [h,m]=slot.split(':').map(Number); return h*60+m; };
 
 function isSlotBlocked(doctorId, date, slot) {
-  const s=DOCTOR_SCHEDULES[doctorId]; if(!s) return false;
+  const s=getSchedule(doctorId); if(!s) return false;
   if(s.offDays.includes(dayOfWeek(date))) return true;
   const ds=fmtISO(date);
   if(s.vacations.some(v=>ds>=v.start&&ds<=v.end)) return true;
@@ -148,7 +140,7 @@ function isSlotBlocked(doctorId, date, slot) {
   return s.breaks.some(b=>sm>=slotToMin(b.start)&&sm<slotToMin(b.end));
 }
 function blockedReason(doctorId, date, slot) {
-  const s=DOCTOR_SCHEDULES[doctorId]; if(!s) return null;
+  const s=getSchedule(doctorId); if(!s) return null;
   if(s.offDays.includes(dayOfWeek(date))) return `Off on ${dayOfWeek(date).charAt(0).toUpperCase()+dayOfWeek(date).slice(1)}`;
   const ds=fmtISO(date);
   for(const v of s.vacations) if(ds>=v.start&&ds<=v.end) return v.reason;
@@ -404,7 +396,8 @@ async function runMorningReminderBatch({ appointments, patients, doctors, today,
 export default function ReceptionPrototype() {
   const [date,setDate]               = useState(new Date(2026,4,24));
   const [appointments,setAppts]      = useState(SEED_APPOINTMENTS);
-  const [patients,setPatients]       = useState(MOCK_PATIENTS);
+  const patients                     = usePatients();
+  const setPatients                  = up => savePatients(typeof up==='function' ? up(getPatients()) : up);
   const [bookingModal,setBookingModal] = useState(null);
   const [detailModal,setDetailModal] = useState(null);
   const [showSchedules,setShowSched] = useState(false);
@@ -415,6 +408,7 @@ export default function ReceptionPrototype() {
   const [dragOver,setDragOver]       = useState(null);
   const [waInbox,setWaInbox]         = useState([]);         // sent + received messages
   const [showWAPanel,setShowWAPanel] = useState(false);
+  useSchedules(); // re-render the calendar when Admin edits a doctor's schedule
   const isAr = locale==='ar';
 
   // Run morning reminder batch — called manually or on schedule.
@@ -1687,7 +1681,7 @@ function DoctorScheduleModal({ onClose }) {
       <ModalHeader title="Doctor schedules" sub="Working hours, breaks, off-days, vacations" onClose={onClose}/>
       <div style={{padding:'20px 24px',display:'flex',flexDirection:'column',gap:12}}>
         {DOCTORS.map(doc=>{
-          const s=DOCTOR_SCHEDULES[doc.id];
+          const s=getSchedule(doc.id);
           const dc=DOC_COLORS[doc.color];
           return(
             <div key={doc.id} style={{padding:'12px 16px',borderRadius:10,border:'1px solid #DCE4E0',background:'#fff',borderLeft:`3px solid ${dc.left}`}}>
