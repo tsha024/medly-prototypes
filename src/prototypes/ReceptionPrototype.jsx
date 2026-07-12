@@ -3,11 +3,13 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Calendar, Bell, Settings,
   Search, Plus, User, Clock, Shield, AlertTriangle, CheckCircle2,
   FileText, X, Save, Globe, Edit3, CalendarDays, MessageSquare, Send, Inbox, CheckCheck, PhoneOff,
-  ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser, History} from 'lucide-react';
+  ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser} from 'lucide-react';
 import { addConsent, findConsent, useConsents } from './consentStore';
 import { getSchedule, useSchedules } from './scheduleStore';
 import { usePatients, getPatients, savePatients } from './patientStore';
-import { logChange, useAuditLog, auditLogFor } from './auditLogStore';
+import { logChange, useAuditLog } from './auditLogStore';
+import { useClinicConfig } from './clinicConfigStore';
+import PatientFile from './PatientFile';
 
 // ─── Clinic branding ─────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -416,6 +418,7 @@ export default function ReceptionPrototype() {
   const [showWAPanel,setShowWAPanel] = useState(false);
   useSchedules(); // re-render the calendar when Admin edits a doctor's schedule
   useAuditLog();  // re-render when a change-log entry is appended
+  const cfg = useClinicConfig();     // clinic branding — set once at installation, shown everywhere
   const isAr = locale==='ar';
 
   // Run morning reminder batch — called manually or on schedule.
@@ -575,10 +578,10 @@ export default function ReceptionPrototype() {
       <header style={{background:CLINIC_CONFIG.headerBg,borderBottom:'1px solid rgba(255,255,255,.07)'}}>
         <div style={{padding:'0 24px',height:54,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
-            {CLINIC_CONFIG.logoUrl?<img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{height:34}}/>:<MedlyLogo/>}
+            {cfg.logoUrl?<img src={cfg.logoUrl} alt={cfg.name} style={{height:34,maxWidth:120,objectFit:'contain'}}/>:<MedlyLogo/>}
             <div>
               <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>· reception</span></div>
-              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{isAr?CLINIC_CONFIG.nameAr:CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
+              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{isAr?cfg.nameAr:cfg.name} · {cfg.city}</div>
             </div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -792,7 +795,19 @@ export default function ReceptionPrototype() {
       {bookingModal&&<BookingModal isAr={isAr} doctor={DOCTORS.find(d=>d.id===bookingModal.doctorId)} slot={bookingModal.slot} date={date} patients={patients} onClose={()=>setBookingModal(null)} onConfirm={addAppt} onAddPatient={addPatient} onUpdatePatient={updatePatient}/>}
       {detailModal&&<AppointmentDetail isAr={isAr} appointment={detailModal} patient={patients.find(p=>p.id===detailModal.patientId)} onClose={()=>setDetailModal(null)} onUpdate={patch=>applyApptDetailChange(detailModal,patch)} onViewFile={p=>{setDetailModal(null);setFileViewer(p);}}/>}
       {showSchedules&&<DoctorScheduleModal onClose={()=>setShowSched(false)}/>}
-      {fileViewer&&<PatientFileViewer patient={fileViewer} onUpdate={updatePatient} onClose={()=>setFileViewer(null)}/>}
+      {fileViewer&&<PatientFile patient={fileViewer} role="reception" variant="overlay" onClose={()=>setFileViewer(null)}
+        onSaveNotes={notes=>{
+          updatePatient(fileViewer.id,{notes});
+          logChange({ qid:fileViewer.qid, fileNo:fileViewer.fileNo, patientName:fileViewer.nameEn,
+            action:'Reception notes updated', detail: notes.trim()||'(cleared)', actor:CURRENT_RECEPTIONIST.name });
+        }}
+        onSaveInsurance={patch=>{
+          const lbl = (ins,pol) => ins ? ins+(pol?` / ${pol}`:'') : 'Self-pay';
+          const before = lbl(fileViewer.insurer, fileViewer.policy), after = lbl(patch.insurer, patch.policy);
+          updatePatient(fileViewer.id,patch);
+          logChange({ qid:fileViewer.qid, fileNo:fileViewer.fileNo, patientName:fileViewer.nameEn,
+            action: fileViewer.insurer?'Insurance updated':'Insurance added', detail:`${before} → ${after}`, actor:CURRENT_RECEPTIONIST.name });
+        }}/>}
     </div>
   );
 }
@@ -1617,151 +1632,6 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
         <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:2}}>
           <GhostBtn onClick={onClose}>Cancel</GhostBtn>
           <PrimaryBtn onClick={submit} disabled={!canSign}><ShieldCheck size={13}/>Sign &amp; save consent</PrimaryBtn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Patient File Viewer ──────────────────────────────────────────────────────
-function PatientFileViewer({ patient, onUpdate, onClose }) {
-  const [notes, setNotes] = useState(patient.notes||'');
-  const [saved, setSaved] = useState(false);
-  const [insurer, setInsurer] = useState(patient.insurer||'');
-  const [policy, setPolicy]   = useState(patient.policy||'');
-  const [insSaved, setInsSaved] = useState(false);
-  const logPatient = (action,detail) => logChange({ qid:patient.qid, fileNo:patient.fileNo, patientName:patient.nameEn, action, detail, actor:CURRENT_RECEPTIONIST.name });
-  const saveNotes = () => {
-    onUpdate(patient.id,{notes});
-    logPatient('Reception notes updated', notes.trim() || '(cleared)');
-    setSaved(true); setTimeout(()=>setSaved(false),2000);
-  };
-  const insuranceLbl = (ins,pol) => ins ? ins+(pol?` / ${pol}`:'') : 'Self-pay';
-  const insuranceChanged = insurer!==(patient.insurer||'') || policy!==(patient.policy||'');
-  const saveInsurance = () => {
-    onUpdate(patient.id,{insurer,policy});
-    logPatient(patient.insurer?'Insurance updated':'Insurance added', `${insuranceLbl(patient.insurer,patient.policy)} → ${insuranceLbl(insurer,policy)}`);
-    setInsSaved(true); setTimeout(()=>setInsSaved(false),2000);
-  };
-  const log = auditLogFor(patient);
-  return(
-    <Modal onClose={onClose} width={700}>
-      <ModalHeader title={patient.nameEn} sub={patient.isInternational ? `${patient.fileNo} · ${patient.countryOfResidence||'International'} visitor` : (patient.fileNo + (patient.qid ? ' · QID '+patient.qid : ' · QID pending'))} onClose={onClose}/>
-      <div style={{padding:'20px 24px',display:'flex',flexDirection:'column',gap:16}}>
-        {(!patient.qid || !patient.dob) && (
-          <div style={{padding:'10px 14px',background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:9,display:'flex',alignItems:'flex-start',gap:8}}>
-            <AlertTriangle size={14} color="#D97706" style={{flexShrink:0,marginTop:1}}/>
-            <div>
-              <div style={{fontSize:12.5,fontWeight:700,color:'#78400A'}}>Patient record incomplete</div>
-              <div style={{fontSize:12,fontWeight:600,color:'#92600A',marginTop:2}}>
-                {[!patient.qid&&'Qatar ID',!patient.dob&&'Date of birth'].filter(Boolean).join(' · ')} missing — please complete on arrival.
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Identity */}
-        <div>
-          <SectionLabel>Patient details</SectionLabel>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            {[
-            patient.isInternational ? ['Passport', patient.idNumber ? `${patient.idCountry} · ${patient.idNumber}` : '—'] : ['Arabic name', patient.nameAr||'—'],
-            ['Date of birth', patient.dob||'—'],
-            ['Phone', patient.phone],
-            ['Insurance', patient.insurer ? patient.insurer+(patient.policy?` / ${patient.policy}`:'') : (patient.insurerCategory ? 'Pending' : 'Self-pay')],
-            patient.isInternational ? ['Country of residence', patient.countryOfResidence||'—'] : ['Last visit', patient.lastVisit||'—'],
-            patient.isInternational && patient.departureDate ? ['Departs Qatar', patient.departureDate] : ['File number', patient.fileNo],
-          ].filter(Boolean).map(([l,v])=>(
-              <div key={l} style={{padding:'8px 12px',background:'#F5F8F7',borderRadius:8,border:'1px solid #DCE4E0'}}>
-                <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#6A8880',marginBottom:3}}>{l}</div>
-                <div style={{fontSize:13,fontWeight:600,color:'#111814',fontFamily:l==='File number'||l==='Date of birth'?"'IBM Plex Mono',monospace":'inherit'}}>{v}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Alerts */}
-        {(patient.allergies?.length>0)&&(
-          <div style={{padding:'12px 14px',background:'#FEF4F2',border:'1px solid #FECACA',borderRadius:10,display:'flex',gap:10}}>
-            <AlertTriangle size={16} color="#DC4F38" style={{flexShrink:0,marginTop:1}}/>
-            <div><div style={{fontSize:12.5,fontWeight:700,color:'#B02A1E',marginBottom:3}}>Allergies</div>{patient.allergies.map(a=><div key={a} style={{fontSize:12.5,fontWeight:600,color:'#B02A1E',marginBottom:1}}>· {a}</div>)}</div>
-          </div>
-        )}
-        {patient.conditions?.length>0&&(
-          <div><SectionLabel>Medical conditions</SectionLabel>
-            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-              {patient.conditions.map(c=><span key={c} style={{padding:'4px 10px',borderRadius:8,border:'1px solid #DCE4E0',background:'#F5F8F7',fontSize:12.5,fontWeight:600,color:'#3D5850'}}>{c}</span>)}
-            </div>
-          </div>
-        )}
-
-        {/* Encounter history */}
-        {patient.encounterHistory?.length>0&&(
-          <div>
-            <SectionLabel>Encounter history</SectionLabel>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {patient.encounterHistory.map((e,i)=>(
-                <div key={i} className="trow" style={{padding:'10px 14px',borderRadius:8,border:'1px solid #EEF2F0',background:'#fff',display:'flex',gap:14,alignItems:'flex-start'}}>
-                  <div style={{fontSize:12,fontWeight:700,color:'#5A7870',width:80,flexShrink:0}}>{e.date}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{e.procedure}</div>
-                    <div style={{fontSize:12,color:'#5A7870',marginTop:1,fontWeight:600}}>{e.doctor}</div>
-                    {e.notes&&<div style={{fontSize:12,color:'#4E6860',marginTop:2,fontStyle:'italic',fontWeight:600}}>{e.notes}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Insurance */}
-        <div>
-          <SectionLabel>Insurance</SectionLabel>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            <FormField label="Insurer">
-              <input value={insurer} onChange={e=>{setInsurer(e.target.value);setInsSaved(false);}} placeholder="Self-pay"/>
-            </FormField>
-            <FormField label="Policy #">
-              <input value={policy} onChange={e=>{setPolicy(e.target.value);setInsSaved(false);}} placeholder="—"/>
-            </FormField>
-          </div>
-          <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
-            <PrimaryBtn onClick={saveInsurance} disabled={!insuranceChanged&&!insSaved} style={{padding:'7px 14px',fontSize:12,background:insSaved?'#0A6040':undefined}}>
-              {insSaved?<><CheckCircle2 size={12}/>Saved</>:<><Save size={12}/>Save insurance</>}
-            </PrimaryBtn>
-          </div>
-        </div>
-
-        {/* Reception notes */}
-        <div>
-          <SectionLabel>Reception notes</SectionLabel>
-          <textarea value={notes} onChange={e=>{setNotes(e.target.value);setSaved(false);}} rows={3} style={{resize:'none'}}/>
-          <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
-            <PrimaryBtn onClick={saveNotes} disabled={notes===patient.notes&&!saved} style={{padding:'7px 14px',fontSize:12,background:saved?'#0A6040':undefined}}>
-              {saved?<><CheckCircle2 size={12}/>Saved</>:<><Save size={12}/>Save notes</>}
-            </PrimaryBtn>
-          </div>
-        </div>
-
-        {/* Change log — who changed what, and when */}
-        <div>
-          <SectionLabel>Change log</SectionLabel>
-          {log.length>0 ? (
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {log.map(e=>(
-                <div key={e.id} className="trow" style={{padding:'9px 14px',borderRadius:8,border:'1px solid #EEF2F0',background:'#fff',display:'flex',gap:14,alignItems:'flex-start'}}>
-                  <History size={13} color="#6A8880" style={{flexShrink:0,marginTop:2}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12.5,fontWeight:700,color:'#111814'}}>{e.action}</div>
-                    {e.detail&&<div style={{fontSize:12,color:'#4E6860',marginTop:1,fontWeight:600}}>{e.detail}</div>}
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:11.5,fontWeight:700,color:'#5A7870'}}>{new Date(e.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
-                    <div style={{fontSize:11,color:'#8AA8A0',marginTop:1,fontWeight:600}}>{e.actor}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <div style={{fontSize:12.5,color:'#6A8880',fontWeight:600}}>No changes recorded yet.</div>}
         </div>
       </div>
     </Modal>

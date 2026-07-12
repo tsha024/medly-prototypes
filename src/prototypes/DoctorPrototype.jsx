@@ -2,14 +2,15 @@ import React, { useState, useRef } from 'react';
 import {
   ChevronLeft, ChevronDown, ChevronRight, Shield, AlertTriangle,
   CheckCircle2, FileText, Plus, Edit3, Save, X, Bell, Pill,
-  Stethoscope, Sparkles, Tag, ExternalLink, AlertCircle, Receipt,
+  Stethoscope, Sparkles, Tag, ExternalLink, Receipt,
   Calendar, Search, BarChart2, Users,
-  ShieldCheck, ShieldAlert, Upload, Download, FileSignature, PenLine, History
+  ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
 import { useTreatments, insurerPricing } from './treatmentStore';
 import { setChargesForQid } from './chargeStore';
-import { useAuditLog, auditLogFor } from './auditLogStore';
+import { useClinicConfig } from './clinicConfigStore';
+import PatientFile, { buildDocuments } from './PatientFile';
 
 const CLINIC_CONFIG = {
   name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
@@ -83,7 +84,9 @@ const CURRENT_DOCTOR = {
   initials:'LA', qchp:'QCHP-D-002847',
 };
 
-const ALL_PATIENTS = [
+// Exported so other portals (Admin) can look up the same patient records —
+// one file, one dataset, no matter who opens it.
+export const ALL_PATIENTS = [
   { id:'p1', qid:'28934567812', nameEn:'Aisha Al-Kuwari',     nameAr:'عائشة الكواري', age:37, sex:'F', dob:'1989-03-14', nationality:'Qatari', marital:'Married', phone:'+974 5512 4488', email:'aisha.kuwari@gmail.com', address:'Al Waab, Doha', insurer:'QLM',     insNo:'QLM-884512', fileNo:'YC-2024-0142', registered:'2024-02-10', bloodType:'O+',  allergies:['Penicillin','Latex'], conditions:['Type 2 diabetes','Hypertension'], lastVisit:'2026-06-26',
     encounters:[
       { date:'2026-06-25', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Root canal',        tooth:'16', note:'prep stage', fee:900 },
@@ -226,29 +229,9 @@ const ALL_PATIENTS = [
     ] },
 ];
 
-// ─── Patient document builder (medical history, consent forms, others) ─────────
-const DOC_TYPE = {
-  medical: { label:'Medical history', bg:'#EFF6FF', color:'#1D4ED8', Icon:FileText },
-  consent: { label:'Consent form',    bg:'#F0FAF6', color:'#0C6B5A', Icon:FileSignature },
-  other:   { label:'Other',           bg:'#FAF5FF', color:'#7C3AED', Icon:FileText },
-};
-
-function buildDocuments(p) {
-  const out = [];
-  out.push({ id:p.id+'-md', type:'medical', name:'Medical history & intake form', date:p.registered, fileType:'PDF', sizeKB:128, uploadedBy:'Reception' });
-  if (p.conditions && p.conditions.length) {
-    const cd = (p.encounters && p.encounters[0]) ? p.encounters[0].date : p.registered;
-    out.push({ id:p.id+'-md2', type:'medical', name:'Medical clearance — '+p.conditions[0], date:cd, fileType:'PDF', sizeKB:96, uploadedBy:(p.encounters&&p.encounters[0])?p.encounters[0].doctor:'Clinic' });
-  }
-  (p.encounters||[]).forEach((e,i)=>{
-    const label = e.treatment + (e.tooth ? ' #'+e.tooth : '');
-    out.push({ id:p.id+'-c'+i, type:'consent', name:'Consent — '+label, treatment:label, date:e.date, fileType:'PDF', sizeKB:84+i, uploadedBy:'Reception', signed:true, signMethod:(i%2===0?'iPad':'DigiSign') });
-    if (/x-ray|check/i.test(e.treatment+' '+(e.note||''))) {
-      out.push({ id:p.id+'-x'+i, type:'other', name:'Radiograph — '+(e.tooth?('#'+e.tooth):'panoramic'), date:e.date, fileType:'JPG', sizeKB:540+i*7, uploadedBy:e.doctor });
-    }
-  });
-  return out;
-}
+// Patient documents (medical history, consent forms, radiographs) are built by
+// the shared PatientFile module, so the Doctor portal, Reception and search all
+// surface the same set of documents on the file.
 ALL_PATIENTS.forEach(p=>{ p.documents = buildDocuments(p); });
 
 // Map appointment patientId -> QID (the shared key with the Reception portal)
@@ -328,6 +311,7 @@ export default function DoctorPortalPrototype() {
   const [viewingEnc, setViewingEnc]           = useState(null);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [activeApt, setActiveApt]             = useState(null);
+  const cfg = useClinicConfig();     // clinic branding — set once at installation, shown everywhere
   const isDental = mode === 'dental';
 
   const openEncounter = apt => { if (apt?.kind) setMode(apt.kind); setActiveApt(apt||null); setView('encounter'); setViewingEnc(null); };
@@ -364,10 +348,10 @@ export default function DoctorPortalPrototype() {
             ) : (
               <div style={{width:44,height:44}}/>
             )}
-            {CLINIC_CONFIG.logoUrl?<img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{height:34}}/>:<MedlyLogo/>}
+            {cfg.logoUrl?<img src={cfg.logoUrl} alt={cfg.name} style={{height:34,maxWidth:120,objectFit:'contain'}}/>:<MedlyLogo/>}
             <div>
               <div style={{fontSize:16,fontWeight:800,letterSpacing:'-.5px',color:'#fff',lineHeight:1}}>medly <span style={{color:'#4EB896',fontWeight:500}}>&#xB7; clinical</span></div>
-              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{CLINIC_CONFIG.name} &#xB7; {CLINIC_CONFIG.city}</div>
+              <div style={{fontSize:12,color:'#8ECFBB',marginTop:3,fontWeight:600}}>{cfg.name} &#xB7; {cfg.city}</div>
             </div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -401,7 +385,13 @@ export default function DoctorPortalPrototype() {
         </>
       )}
       {view === 'patientFile' && selectedPatient && (
-        <PatientFileView patient={selectedPatient} onBack={goHome} onOpenEncounter={openEncounter}/>
+        <PatientFile
+          patient={selectedPatient}
+          role="doctor"
+          variant="page"
+          todayAppointment={MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===selectedPatient.id)||null}
+          onOpenEncounter={openEncounter}
+        />
       )}
     </div>
   );
@@ -702,293 +692,6 @@ function RangeReportTab() {
             ))}
           </div>
         ))
-      )}
-    </div>
-  );
-}
-
-// ─── Patient File View ─────────────────────────────────────────────────────────
-function PatientFileView({ patient, onBack, onOpenEncounter }) {
-  const [tab, setTab] = useState('overview');
-  const [docFilter, setDocFilter] = useState('all');
-  useConsents();
-  useAuditLog();
-  const activityLog = auditLogFor(patient);
-  const todayApt  = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===patient.id);
-  // Consents captured at Reception (shared store) attach to the patient file here.
-  const recConsents = consentsForQid(patient.qid).map(cc=>({
-    id:cc.id, type:'consent', name:'Consent — '+cc.treatment, treatment:cc.treatment, date:cc.date,
-    fileType:'PDF', sizeKB:90, uploadedBy:(cc.capturedBy||'Reception'), signed:true, signMethod:cc.method, source:'reception',
-  }));
-  const recTreat    = new Set(recConsents.map(cc=>normalizeTreatment(cc.treatment)));
-  const builtinDocs = (patient.documents||[]).filter(d=> !(d.type==='consent' && recTreat.has(normalizeTreatment(d.treatment||d.name))));
-  const allDocs     = [...recConsents, ...builtinDocs].sort((a,b)=>b.date.localeCompare(a.date));
-  const docFiltered = docFilter==='all' ? allDocs : allDocs.filter(d=>d.type===docFilter);
-  const encs      = (patient.encounters||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
-  const pays      = (patient.payments||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
-  const initials  = patient.nameEn.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
-  const totalBilled  = pays.reduce((s,p)=>s+p.amount,0);
-  const outstanding  = pays.filter(p=>p.status!=='paid').reduce((s,p)=>s+p.patientPaid,0);
-  const PAY_ST = {
-    paid:    {bg:'#D1FAE5',color:'#065F46',label:'Paid'},
-    pending: {bg:'#FEF3C7',color:'#92600A',label:'Pending'},
-    partial: {bg:'#FFEDD5',color:'#9A3412',label:'Partial'},
-  };
-  const TABS = [['overview','Overview'],['encounters','Encounters'],['payments','Payments'],['documents','Documents'],['activity','Activity'],['details','Personal']];
-  const Row = ({label,value,mono}) => (
-    <div style={{display:'flex',justifyContent:'space-between',gap:16,padding:'9px 0',borderBottom:'1px solid #EEF2F0'}}>
-      <span style={{fontSize:12.5,fontWeight:600,color:'#5A7870',flexShrink:0}}>{label}</span>
-      <span style={{fontSize:13,fontWeight:600,color:'#111814',textAlign:'right',fontFamily:mono?"'IBM Plex Mono',monospace":'inherit'}}>{value}</span>
-    </div>
-  );
-  return (
-    <div style={{maxWidth:860,margin:'0 auto',padding:'20px 24px'}}>
-      {/* Patient header */}
-      <div style={{...card,padding:'18px 20px',marginBottom:16,display:'flex',alignItems:'flex-start',gap:16,flexWrap:'wrap'}}>
-        <div style={{width:52,height:52,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{initials}</div>
-        <div style={{flex:1,minWidth:200}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-            <span style={{fontSize:17,fontWeight:800,color:'#111814',letterSpacing:'-.3px'}}>{patient.nameEn}</span>
-            {patient.nameAr&&<span style={{fontSize:14,fontWeight:600,color:'#5A7870',fontFamily:"'Noto Sans Arabic',sans-serif"}}>{patient.nameAr}</span>}
-          </div>
-          <div style={{fontSize:12.5,fontWeight:600,color:'#5A7870',marginTop:4,display:'flex',gap:12,flexWrap:'wrap'}}>
-            <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{patient.qid}</span>
-            <span>&#xB7;</span><span>{patient.age}y {patient.sex}</span>
-            <span>&#xB7;</span><span>{patient.bloodType}</span>
-            <span>&#xB7;</span><span style={{color:'#0A6040'}}>{patient.insurer}</span>
-            <span>&#xB7;</span><span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{patient.fileNo}</span>
-          </div>
-          {patient.allergies.length>0&&(
-            <div style={{display:'flex',alignItems:'center',gap:6,marginTop:7}}>
-              <AlertTriangle size={12} color="#DC4F38"/>
-              <span style={{fontSize:12,fontWeight:600,color:'#B02A1E'}}>Allergies: {patient.allergies.join(', ')}</span>
-            </div>
-          )}
-          {patient.conditions.length>0&&(
-            <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:5}}>Conditions: {patient.conditions.join(' &#xB7; ')}</div>
-          )}
-        </div>
-        <div style={{textAlign:'right',flexShrink:0}}>
-          <div style={{fontSize:24,fontWeight:800,color:'#111814',letterSpacing:'-0.5px'}}>{encs.length}</div>
-          <div style={{fontSize:11,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em'}}>Encounters</div>
-        </div>
-      </div>
-
-      {/* Today CTA + consent gate */}
-      {todayApt&&(()=>{
-        const cs = consentState(patient.qid, todayApt.procedure, todayApt.consent);
-        const ok = cs==='signed';
-        return (
-          <div style={{marginBottom:16}}>
-            {!ok&&(
-              <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 16px',background:'#FEF2F2',border:'1px solid #FBC9C2',borderRadius:'12px 12px 0 0',borderBottom:'none'}}>
-                <ShieldAlert size={17} color="#DC2626" style={{flexShrink:0,marginTop:1}}/>
-                <div>
-                  <div style={{fontSize:13,fontWeight:800,color:'#991B1B'}}>{cs==='pending'?'Consent form awaiting signature':'No signed consent form on file'}</div>
-                  <div style={{fontSize:12,fontWeight:600,color:'#B02A1E',marginTop:2,lineHeight:1.45}}>Do not begin treatment until the consent form for &#x201C;{todayApt.procedure}&#x201D; is signed at reception.</div>
-                </div>
-              </div>
-            )}
-            <div style={{padding:'13px 18px',background:ok?'#F0FAF6':'#FFF7F6',border:'1px solid '+(ok?'#B8DDD6':'#FBC9C2'),borderRadius:ok?12:'0 0 12px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
-              <div>
-                <div style={{fontSize:13.5,fontWeight:700,color:ok?'#0A6040':'#9A3412'}}>Today &#xB7; {todayApt.time} &#x2014; {todayApt.procedure}</div>
-                <div style={{display:'flex',alignItems:'center',gap:6,marginTop:3}}>
-                  {ok?<ShieldCheck size={13} color="#0A6040"/>:<ShieldAlert size={13} color="#DC2626"/>}
-                  <span style={{fontSize:12,fontWeight:700,color:ok?'#0A6040':'#991B1B'}}>{ok?'Consent signed & uploaded':cs==='pending'?'Consent pending signature':'Consent missing'}</span>
-                  <span style={{fontSize:12,fontWeight:600,color:'#8AA8A0',textTransform:'capitalize'}}>&#xB7; {todayApt.status}</span>
-                </div>
-              </div>
-              {ok?(
-                <PrimaryBtn onClick={()=>onOpenEncounter(todayApt)}><FileText size={13}/>Open encounter</PrimaryBtn>
-              ):(
-                <button onClick={()=>onOpenEncounter(todayApt)} style={{display:'inline-flex',alignItems:'center',gap:7,padding:'9px 16px',borderRadius:9,border:'1px solid #E4A8A0',background:'#fff',color:'#9A3412',fontSize:13,fontWeight:700,cursor:'pointer'}}><AlertTriangle size={13}/>Open anyway</button>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Sub-tabs */}
-      <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
-        {TABS.map(([id,lbl])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{padding:'7px 16px',fontSize:12.5,fontWeight:tab===id?700:600,borderRadius:8,border:'1px solid '+(tab===id?CLINIC_CONFIG.primaryColor:'#DCE4E0'),background:tab===id?CLINIC_CONFIG.primaryColor:'#fff',color:tab===id?'#fff':'#4A6860',cursor:'pointer'}}>{lbl}</button>
-        ))}
-      </div>
-
-      {/* Overview */}
-      {tab==='overview'&&(
-        <div style={{display:'flex',flexDirection:'column',gap:14}}>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
-            {[['Total billed','QAR '+totalBilled.toLocaleString(),'#111814'],['Outstanding','QAR '+outstanding.toLocaleString(),outstanding>0?'#9A3412':'#065F46'],['Patient since',fmtDateShort(patient.registered),'#1D4ED8']].map(([l,v,col])=>(
-              <div key={l} style={{padding:'12px 16px',background:'#fff',borderRadius:12,border:'1px solid #DCE4E0'}}>
-                <div style={{fontSize:18,fontWeight:800,color:col,letterSpacing:'-0.4px'}}>{v}</div>
-                <div style={{fontSize:11,fontWeight:700,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.06em',marginTop:3}}>{l}</div>
-              </div>
-            ))}
-          </div>
-          <div style={card}>
-            <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Recent encounters</div></div>
-            {encs.slice(0,3).map((e,i)=>(
-              <div key={i} style={{display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderBottom:i<Math.min(encs.length,3)-1?'1px solid #EEF2F0':'none'}}>
-                <div style={{width:84,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:600,color:'#5A7870',flexShrink:0}}>{fmtDateShort(e.date)}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{e.treatment}{e.tooth&&<span style={{fontWeight:600,color:'#5A7870'}}> &#xB7; #{e.tooth}</span>}</div>
-                  <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',marginTop:1}}>{e.doctor}{e.note&&' &#xB7; '+e.note}</div>
-                </div>
-                <span style={{fontSize:10.5,fontWeight:700,padding:'2px 8px',borderRadius:10,background:e.kind==='aesthetic'?'#FCE7F3':'#E0F2FE',color:e.kind==='aesthetic'?'#9D174D':'#075985',textTransform:'capitalize'}}>{e.kind}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Encounters */}
-      {tab==='encounters'&&(
-        <div style={card}>
-          <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Encounter history</div><span style={{fontSize:12,fontWeight:600,color:'#8AA8A0'}}>{encs.length} total</span></div>
-          {encs.length===0?(
-            <div style={{padding:'36px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No encounters recorded</div>
-          ):encs.map((e,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:14,padding:'13px 18px',borderBottom:i<encs.length-1?'1px solid #EEF2F0':'none'}}>
-              <div style={{width:10,height:10,borderRadius:'50%',background:e.kind==='aesthetic'?'#EC4899':'#34D399',flexShrink:0}}/>
-              <div style={{width:84,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:600,color:'#5A7870',flexShrink:0}}>{fmtDateShort(e.date)}</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{e.treatment}{e.tooth&&<span style={{fontSize:11.5,fontWeight:600,padding:'1px 6px',borderRadius:5,background:'#EEF3F1',color:'#2E4840',fontFamily:"'IBM Plex Mono',monospace",marginLeft:8}}>#{e.tooth}</span>}</div>
-                <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',marginTop:2}}>{e.doctor}{e.note&&' &#xB7; '+e.note}</div>
-              </div>
-              <div style={{fontSize:13,fontWeight:800,color:'#111814',letterSpacing:'-0.3px',flexShrink:0}}>QAR {e.fee.toLocaleString()}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Payments */}
-      {tab==='payments'&&(
-        <div style={card}>
-          <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Payment history</div><span style={{fontSize:12,fontWeight:600,color:'#8AA8A0'}}>QAR {totalBilled.toLocaleString()} billed</span></div>
-          {pays.length===0?(
-            <div style={{padding:'36px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No payments recorded</div>
-          ):pays.map((p,i)=>{
-            const st=PAY_ST[p.status]||PAY_ST.paid;
-            return (
-              <div key={i} style={{padding:'13px 18px',borderBottom:i<pays.length-1?'1px solid #EEF2F0':'none'}}>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{p.description}</div>
-                    <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',marginTop:2}}>
-                      <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.invoiceNo}</span>
-                      <span style={{margin:'0 6px'}}>&#xB7;</span>{fmtDateShort(p.date)}
-                      <span style={{margin:'0 6px'}}>&#xB7;</span>{p.method}
-                    </div>
-                  </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontSize:13.5,fontWeight:800,color:'#111814',letterSpacing:'-0.3px'}}>QAR {p.amount.toLocaleString()}</div>
-                    <span style={{fontSize:10.5,fontWeight:700,padding:'2px 8px',borderRadius:10,background:st.bg,color:st.color,display:'inline-block',marginTop:3}}>{st.label}</span>
-                  </div>
-                </div>
-                <div style={{display:'flex',gap:16,marginTop:7,fontSize:11.5,fontWeight:600,color:'#5A7870'}}>
-                  <span>Insurer paid: <span style={{color:'#0A6040'}}>QAR {p.insurerPaid.toLocaleString()}</span></span>
-                  <span>Patient paid: <span style={{color:'#111814'}}>QAR {p.patientPaid.toLocaleString()}</span></span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Documents */}
-      {tab==='documents'&&(
-        <div style={{display:'flex',flexDirection:'column',gap:14}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-            <div style={{display:'flex',borderRadius:8,overflow:'hidden',border:'1px solid #DCE4E0'}}>
-              {[['all','All'],['medical','Medical history'],['consent','Consent forms'],['other','Others']].map(([k,lbl])=>{
-                const n = k==='all'?allDocs.length:allDocs.filter(d=>d.type===k).length;
-                return <button key={k} onClick={()=>setDocFilter(k)} style={{padding:'6px 13px',fontSize:12.5,fontWeight:docFilter===k?700:500,border:'none',background:docFilter===k?CLINIC_CONFIG.primaryColor:'#fff',color:docFilter===k?'#fff':'#4A6860',cursor:'pointer',whiteSpace:'nowrap'}}>{lbl} <span style={{opacity:.65,fontWeight:700}}>{n}</span></button>;
-              })}
-            </div>
-            <div style={{flex:1}}/>
-            <button style={{display:'inline-flex',alignItems:'center',gap:7,padding:'7px 14px',borderRadius:8,border:'1px dashed #9BC0B6',background:'#F0FAF6',color:'#0C6B5A',fontSize:12.5,fontWeight:700,cursor:'pointer'}}><Upload size={13}/>Upload document</button>
-          </div>
-          <div style={card}>
-            {docFiltered.length===0?(
-              <div style={{padding:'40px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No documents in this category</div>
-            ):docFiltered.map((d,i)=>{
-              const meta = DOC_TYPE[d.type]||DOC_TYPE.other; const DI=meta.Icon;
-              return (
-                <div key={d.id} style={{display:'flex',alignItems:'center',gap:13,padding:'13px 18px',borderBottom:i<docFiltered.length-1?'1px solid #EEF2F0':'none'}}>
-                  <div style={{width:38,height:38,borderRadius:9,background:meta.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><DI size={17} color={meta.color}/></div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#111814',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.name}</div>
-                    <div style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0',marginTop:2,display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
-                      <span style={{padding:'1px 7px',borderRadius:10,background:meta.bg,color:meta.color,fontWeight:700}}>{meta.label}</span>
-                      <span className="mono">{d.fileType} &#xB7; {d.sizeKB} KB</span>
-                      <span>&#xB7;</span><span>{fmtDateShort(d.date)}</span>
-                      <span>&#xB7;</span><span>{d.uploadedBy}</span>
-                      {d.source==='reception'&&<span style={{padding:'1px 7px',borderRadius:10,background:'#EEF6FF',color:'#1D4ED8',fontWeight:700}}>via Reception</span>}
-                    </div>
-                  </div>
-                  {d.type==='consent'&&(d.signed?(
-                    <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:20,background:'#D1FAE5',color:'#065F46',flexShrink:0,whiteSpace:'nowrap'}}><PenLine size={11}/>Signed &#xB7; {d.signMethod}</span>
-                  ):(
-                    <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:20,background:'#FEF3C7',color:'#92600A',flexShrink:0,whiteSpace:'nowrap'}}><AlertCircle size={11}/>Awaiting signature</span>
-                  ))}
-                  <button title="Download" style={{width:32,height:32,borderRadius:7,border:'1px solid #DCE4E0',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}><Download size={14} color="#5A7870"/></button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Activity / change log — who changed what, and when */}
-      {tab==='activity'&&(
-        <div style={card}>
-          {activityLog.length===0?(
-            <div style={{padding:'40px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No changes recorded for this patient yet</div>
-          ):activityLog.map((e,i)=>(
-            <div key={e.id} style={{display:'flex',alignItems:'flex-start',gap:13,padding:'13px 18px',borderBottom:i<activityLog.length-1?'1px solid #EEF2F0':'none'}}>
-              <div style={{width:32,height:32,borderRadius:9,background:'#EEF2F0',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><History size={15} color="#5A7870"/></div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{e.action}</div>
-                {e.detail&&<div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>{e.detail}</div>}
-              </div>
-              <div style={{textAlign:'right',flexShrink:0}}>
-                <div style={{fontSize:11.5,fontWeight:700,color:'#5A7870'}}>{new Date(e.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
-                <div style={{fontSize:11,fontWeight:600,color:'#8AA8A0',marginTop:1}}>{e.actor}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Personal details */}
-      {tab==='details'&&(
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-          <div style={card}>
-            <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Personal</div></div>
-            <div style={{padding:'4px 18px 12px'}}>
-              <Row label="Full name" value={patient.nameEn}/>
-              <Row label="QID" value={patient.qid} mono/>
-              <Row label="Date of birth" value={fmtDate(patient.dob)} mono/>
-              <Row label="Age / Sex" value={patient.age+'y · '+patient.sex}/>
-              <Row label="Nationality" value={patient.nationality}/>
-              <Row label="Marital status" value={patient.marital}/>
-              <Row label="Blood type" value={patient.bloodType}/>
-            </div>
-          </div>
-          <div style={card}>
-            <div style={cardHd}><div style={{fontSize:14,fontWeight:700}}>Contact &amp; insurance</div></div>
-            <div style={{padding:'4px 18px 12px'}}>
-              <Row label="Phone" value={patient.phone} mono/>
-              <Row label="Email" value={patient.email}/>
-              <Row label="Address" value={patient.address}/>
-              <Row label="Insurer" value={patient.insurer}/>
-              <Row label="Insurance no." value={patient.insNo} mono/>
-              <Row label="File number" value={patient.fileNo} mono/>
-              <Row label="Registered" value={fmtDate(patient.registered)} mono/>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

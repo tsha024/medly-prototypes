@@ -4,12 +4,13 @@ import {
   ArrowUpRight, ArrowDownRight, Banknote, Shield, Bell, ChevronDown,
   ChevronUp, AlertCircle, CheckCircle2, Plus, Edit3, Save,
   X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Download,
-  Search, Clock, Trash2, CalendarDays, Coffee, Plane, Phone, ClipboardList, Headset, History
+  Search, Clock, Trash2, CalendarDays, Coffee, Plane, Phone, ClipboardList, Headset, ImagePlus
 } from 'lucide-react';
 import { useTreatments, saveTreatments, getTreatments, TREATMENT_INSURERS } from './treatmentStore';
 import { useSchedules, getSchedule, setSchedule, WEEK_DAYS, defaultSchedule } from './scheduleStore';
 import { usePatients, patientAge } from './patientStore';
-import { useAuditLog, auditLogFor } from './auditLogStore';
+import { useClinicConfig, setClinicConfig, resetClinicConfig } from './clinicConfigStore';
+import PatientFile from './PatientFile';
 
 // ─── Clinic branding ──────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -366,6 +367,8 @@ export default function AdminPrototype() {
   const patients = usePatients();
   useSchedules(); // re-render when any staff schedule changes
   const [transactions, setTransactions] = useState(DAILY_TRANSACTIONS);
+  const cfg = useClinicConfig();     // clinic branding — set once at installation, shown everywhere
+  const [openPatient, setOpenPatient] = useState(null);
 
   // Period-aware data — recomputes whenever Week/Month/Quarter changes
   const periodData    = REVENUE_BY_PERIOD[period];
@@ -426,14 +429,14 @@ export default function AdminPrototype() {
       <header style={{ background: CLINIC_CONFIG.headerBg, borderBottom: '1px solid rgba(255,255,255,.07)' }}>
         <div style={{ padding: '0 24px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {CLINIC_CONFIG.logoUrl
-              ? <img src={CLINIC_CONFIG.logoUrl} alt={CLINIC_CONFIG.name} style={{ height: 34 }} />
+            {cfg.logoUrl
+              ? <img src={cfg.logoUrl} alt={cfg.name} style={{ height: 34, maxWidth: 120, objectFit: 'contain' }} />
               : <MedlyLogo />}
             <div>
               <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-.5px', color: '#fff', lineHeight: 1 }}>
                 medly <span style={{ color: '#4EB896', fontWeight: 500 }}>· admin</span>
               </div>
-              <div style={{ fontSize:12, color: '#8ECFBB', marginTop: 3, fontWeight: 600 }}>{CLINIC_CONFIG.name} · {CLINIC_CONFIG.city}</div>
+              <div style={{ fontSize:12, color: '#8ECFBB', marginTop: 3, fontWeight: 600 }}>{cfg.name} · {cfg.city}</div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -508,10 +511,13 @@ export default function AdminPrototype() {
           </div>
         </main>
       )}
-      {tab === 'patients' && <PatientsTab patients={patients} />}
+      {tab === 'patients' && <PatientsTab patients={patients} onOpenPatient={setOpenPatient} />}
       {tab === 'reports'  && <ReportsTab doctors={doctors} />}
       {tab === 'daily'    && <DailyTab   transactions={transactions} setTransactions={setTransactions} doctors={doctors} />}
       {tab === 'settings' && <SettingsTab doctors={doctors} setDoctors={setDoctors} nurses={nurses} setNurses={setNurses} trainees={trainees} setTrainees={setTrainees} receptionists={receptionists} setReceptionists={setReceptionists} treatments={treatments} setTreatments={setTreatments} />}
+      {openPatient && (
+        <PatientFile patient={openPatient} role="admin" variant="overlay" onClose={() => setOpenPatient(null)} />
+      )}
     </div>
   );
 }
@@ -1264,20 +1270,26 @@ const COL_LIST  = ['rose','amber','teal','violet','sky','emerald'];
 const COL_HEX   = { rose:'#FCA5A5',amber:'#FCD34D',teal:'#5EEAD4',violet:'#C4B5FD',sky:'#7DD3FC',emerald:'#6EE7B7' };
 
 function SettingsTab({ doctors, setDoctors, nurses, setNurses, trainees, setTrainees, receptionists, setReceptionists, treatments, setTreatments }) {
-  const [sec, setSec] = useState('doctors');
-  const SECS = [['doctors','Doctors & calendar'],['trainees','Trainees'],['nurses','Nurses'],['receptionists','Receptionists'],['schedules','Schedules'],['treatments','Treatments']];
+  const cfg = useClinicConfig();
+  const [sec, setSec] = useState(cfg.configured ? 'doctors' : 'branding');
+  const SECS = [['branding','Clinic branding'],['doctors','Doctors & calendar'],['trainees','Trainees'],['nurses','Nurses'],['receptionists','Receptionists'],['schedules','Schedules'],['treatments','Treatments']];
   return (
     <main style={{ padding: '16px 24px', display: 'flex', gap: 16 }}>
       <div style={{ width: 200, flexShrink: 0 }}>
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #DCE4E0', overflow: 'hidden' }}>
           {SECS.map(([id, lbl]) => (
             <button key={id} onClick={()=>setSec(id)} className={sec===id?'':'settings-nav-btn'} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', fontSize: 13, fontWeight: sec===id?700:500, border: 'none', borderBottom: '1px solid #EEF2F0', background: sec===id?CLINIC_CONFIG.primaryColor:'transparent', color: sec===id?'#fff':'#2A3830', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {lbl}{sec===id&&<ChevronRight size={14} style={{opacity:.7}}/>}
+              <span style={{ display:'flex', alignItems:'center', gap:7 }}>
+                {lbl}
+                {id==='branding' && !cfg.configured && <span title="Required — not yet set up" style={{ width:6, height:6, borderRadius:'50%', background: sec===id?'#fff':'#DC4F38', flexShrink:0 }}/>}
+              </span>
+              {sec===id&&<ChevronRight size={14} style={{opacity:.7}}/>}
             </button>
           ))}
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
+        {sec==='branding'      && <ClinicBrandingSettings cfg={cfg} />}
         {sec==='doctors'       && <DoctorSettings    doctors={doctors}    setDoctors={setDoctors} />}
         {sec==='trainees'      && <TraineeSettings   trainees={trainees}  setTrainees={setTrainees} doctors={doctors} />}
         {sec==='nurses'        && <NurseSettings     nurses={nurses}      setNurses={setNurses} />}
@@ -1286,6 +1298,124 @@ function SettingsTab({ doctors, setDoctors, nurses, setNurses, trainees, setTrai
         {sec==='treatments'    && <TreatmentSettings treatments={treatments} setTreatments={setTreatments} />}
       </div>
     </main>
+  );
+}
+
+// Resize/compress an uploaded image before it's stored — keeps the header thumbnail,
+// PDF letterhead and watermark all sharp without bloating localStorage.
+function readAndResizeLogo(file, maxDim = 480) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onerror = () => reject(new Error('Could not read image'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function ClinicBrandingSettings({ cfg }) {
+  const [form, setForm] = useState({
+    name: cfg.name, nameAr: cfg.nameAr, tagline: cfg.tagline, city: cfg.city,
+    address: cfg.address, phone: cfg.phone, email: cfg.email, license: cfg.license, logoUrl: cfg.logoUrl,
+  });
+  const [logoErr, setLogoErr] = useState('');
+  const dirty = JSON.stringify(form) !== JSON.stringify({ name: cfg.name, nameAr: cfg.nameAr, tagline: cfg.tagline, city: cfg.city, address: cfg.address, phone: cfg.phone, email: cfg.email, license: cfg.license, logoUrl: cfg.logoUrl });
+
+  const handleLogo = async e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { setLogoErr('Please choose an image file (PNG, JPG or SVG).'); return; }
+    if (file.size > 4 * 1024 * 1024) { setLogoErr('Logo must be under 4MB.'); return; }
+    try {
+      const dataUrl = await readAndResizeLogo(file);
+      setLogoErr('');
+      setForm(f => ({ ...f, logoUrl: dataUrl }));
+    } catch {
+      setLogoErr('Could not read that image — try a different file.');
+    }
+  };
+
+  const save = () => setClinicConfig(form);
+
+  return (
+    <>
+      {!cfg.configured ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', background: '#FEF9EC', border: '1px solid #FDE68A', borderRadius: 10, marginBottom: 14 }}>
+          <AlertTriangle size={16} color="#D97706" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#78400A' }}>Required at installation</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: '#92600A', marginTop: 2, lineHeight: 1.5 }}>Set your clinic's logo and details once — they appear in the header of every portal (Reception, Doctor, Admin, Checkout) and on the letterhead of any patient file exported as a PDF.</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 16px', background: '#F0FAF6', border: '1px solid #B8DDD6', borderRadius: 10, marginBottom: 14 }}>
+          <CheckCircle2 size={15} color="#0A6040" style={{ flexShrink: 0 }} />
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: '#0A6040' }}>Branding configured{cfg.updatedAt ? ` · last updated ${cfg.updatedAt}` : ''}</div>
+        </div>
+      )}
+
+      <SettingsCard title="Logo" sub="Used in the app header, and as the watermark on exported patient file PDFs">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 88, height: 88, borderRadius: 12, border: '1.5px dashed #C8D4CF', background: '#F5F8F7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+            {form.logoUrl ? <img src={form.logoUrl} alt="Clinic logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <MedlyLogo size={40} />}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: '1px solid #DCE4E0', background: '#fff', fontSize: 12.5, fontWeight: 700, color: '#2A4840', cursor: 'pointer' }}>
+                <ImagePlus size={13} />Upload logo
+                <input type="file" accept="image/*" onChange={handleLogo} style={{ display: 'none' }} />
+              </label>
+              {form.logoUrl && (
+                <GhostBtn onClick={() => setForm(f => ({ ...f, logoUrl: null }))}><Trash2 size={13} />Remove</GhostBtn>
+              )}
+            </div>
+            <div style={{ fontSize: 11.5, color: '#8AA8A0', fontWeight: 600 }}>PNG, JPG or SVG · square or wide logos both work</div>
+            {logoErr && <div style={{ fontSize: 11.5, color: '#B02A1E', fontWeight: 700 }}>{logoErr}</div>}
+          </div>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title="Clinic details" sub="Shown in the header and on the patient file PDF letterhead">
+        <FormGrid>
+          <FormField label="Clinic name (English)"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Yasmeen Clinic" /></FormField>
+          <FormField label="Clinic name (Arabic)"><input value={form.nameAr} onChange={e=>setForm({...form,nameAr:e.target.value})} placeholder="عيادة الياسمين" style={{fontFamily:"'Noto Sans Arabic',sans-serif"}} dir="rtl" /></FormField>
+          <FormField label="Tagline / specialty"><input value={form.tagline} onChange={e=>setForm({...form,tagline:e.target.value})} placeholder="Dental & Aesthetic Medicine" /></FormField>
+          <FormField label="City"><input value={form.city} onChange={e=>setForm({...form,city:e.target.value})} placeholder="Doha, Qatar" /></FormField>
+          <FormField label="Address"><input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Street, building, area" /></FormField>
+          <FormField label="License / CR number"><input value={form.license} onChange={e=>setForm({...form,license:e.target.value})} placeholder="MOPH-CL-XXXXX" style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+          <FormField label="Phone"><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+974 XXXX XXXX" style={{fontFamily:"'IBM Plex Mono',monospace"}} /></FormField>
+          <FormField label="Email"><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="info@clinic.qa" /></FormField>
+        </FormGrid>
+      </SettingsCard>
+
+      <SettingsCard title="Header preview" sub="This is exactly what appears at the top of every portal">
+        <div style={{ background: cfg.headerBg, borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {form.logoUrl ? <img src={form.logoUrl} alt={form.name} style={{ height: 30, maxWidth: 110, objectFit: 'contain' }} /> : <MedlyLogo size={30} />}
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '-.4px', color: '#fff', lineHeight: 1 }}>medly <span style={{ color: '#4EB896', fontWeight: 500 }}>· reception</span></div>
+            <div style={{ fontSize: 11, color: '#8ECFBB', marginTop: 3, fontWeight: 600 }}>{form.name || 'Clinic name'} · {form.city || 'City'}</div>
+          </div>
+        </div>
+      </SettingsCard>
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        {cfg.configured && <GhostBtn onClick={() => { resetClinicConfig(); setForm({ name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', tagline:'Dental & Aesthetic Medicine', city:'Doha, Qatar', address:'', phone:'', email:'', license:'', logoUrl:null }); }}>Reset to defaults</GhostBtn>}
+        <PrimaryBtn onClick={save} disabled={!dirty || !form.name}><Save size={13}/>Save branding</PrimaryBtn>
+      </div>
+    </>
   );
 }
 
@@ -1581,11 +1711,11 @@ function TreatmentSettings({ treatments, setTreatments }) {
 
 // ─── Patients tab ─────────────────────────────────────────────────────────────
 // The clinic's patient file index — searchable by name, phone, patient ID (QID)
-// or file number. Click a row to open the record (insurer, allergies, history).
-function PatientsTab({ patients }) {
+// or file number. Click a row to open the shared patient file (insurer,
+// allergies, encounters, documents, change log — same view every portal uses),
+// with PDF export.
+function PatientsTab({ patients, onOpenPatient }) {
   const [q, setQ]           = useState('');
-  const [openId, setOpenId] = useState(null);
-  useAuditLog(); // re-render when Reception logs a change (e.g. appointment/consent) that doesn't itself touch patientStore
   const query  = q.trim();
   const norm   = s => (s || '').toLowerCase();
   const digits = s => (s || '').replace(/\D/g, '');
@@ -1636,85 +1766,29 @@ function PatientsTab({ patients }) {
             </thead>
             <tbody>
               {filtered.map(p => {
-                const open = openId === p.id;
                 const age = patientAge(p.dob);
                 return (
-                  <React.Fragment key={p.id}>
-                    <tr className="trow" onClick={() => setOpenId(open ? null : p.id)} style={{ borderBottom: '1px solid #EEF2F0', cursor: 'pointer' }}>
-                      <td style={cell}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#E8F3F0', color: '#0C6B5A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{initials(p.nameEn)}</div>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#111814', display: 'flex', alignItems: 'center', gap: 6 }}>
-                              {p.nameEn || 'Unnamed patient'}
-                              {p.allergies?.length > 0 && <AlertTriangle size={12} color="#DC4F38" title={`Allergies: ${p.allergies.join(', ')}`} />}
-                            </div>
-                            <div style={{ fontSize: 11.5, color: '#6A8880', fontWeight: 600 }}>{[age != null ? `${age} yrs` : null, p.gender].filter(Boolean).join(' · ')}</div>
+                  <tr key={p.id} className="trow" onClick={() => onOpenPatient(p)} style={{ borderBottom: '1px solid #EEF2F0', cursor: 'pointer' }}>
+                    <td style={cell}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#E8F3F0', color: '#0C6B5A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{initials(p.nameEn)}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#111814', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {p.nameEn || 'Unnamed patient'}
+                            {p.allergies?.length > 0 && <AlertTriangle size={12} color="#DC4F38" title={`Allergies: ${p.allergies.join(', ')}`} />}
                           </div>
+                          <div style={{ fontSize: 11.5, color: '#6A8880', fontWeight: 600 }}>{[age != null ? `${age} yrs` : null, p.gender].filter(Boolean).join(' · ')}</div>
                         </div>
-                      </td>
-                      <td style={{ ...cell, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: '#4E6860' }}>{p.fileNo}</td>
-                      <td style={{ ...cell, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: '#4E6860' }}>{p.qid || '—'}</td>
-                      <td style={{ ...cell, color: '#3A5248' }}>{p.phone || '—'}</td>
-                      <td style={cell}>{p.insurer && p.insurer !== 'Cash/Card' ? <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EFF6FF', color: '#1D4ED8' }}>{p.insurer}</span> : <span style={{ fontSize: 12, color: '#6A8880', fontWeight: 600 }}>Cash</span>}</td>
-                      <td style={{ ...cell, color: '#4E6860' }}>{p.lastVisit || '—'}</td>
-                      <td style={{ ...cell, fontWeight: 700, color: (p.balance || 0) > 0 ? '#C04030' : '#0A6040' }}>{(p.balance || 0) > 0 ? qar(p.balance) : '—'}</td>
-                      <td style={cell}>{open ? <ChevronUp size={15} color="#6A8880" /> : <ChevronDown size={15} color="#6A8880" />}</td>
-                    </tr>
-                    {open && (
-                      <tr style={{ background: '#F7FAF9', borderBottom: '1px solid #EEF2F0' }}>
-                        <td colSpan={8} style={{ padding: '14px 16px' }}>
-                          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 12 }}>
-                            <PatientMeta label="Date of birth" value={p.dob || '—'} />
-                            <PatientMeta label="Insurance" value={p.insurer && p.insurer !== 'Cash/Card' ? `${p.insurer}${p.policy ? ' · ' + p.policy : ''}` : 'Cash / card'} />
-                            <PatientMeta label="Eligibility" value={p.eligible === true ? 'Verified' : p.eligible === false ? 'Not eligible' : 'N/A'} />
-                            <PatientMeta label="Balance" value={(p.balance || 0) > 0 ? qar(p.balance) : 'Settled'} />
-                          </div>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                            {(p.allergies || []).map(a => <span key={a} style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: '#FEE2E2', color: '#991B1B' }}>⚠ {a}</span>)}
-                            {(p.conditions || []).map(c => <span key={c} style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: '#EEF2F0', color: '#3A5048' }}>{c}</span>)}
-                            {(p.allergies || []).length === 0 && (p.conditions || []).length === 0 && <span style={{ fontSize: 12.5, color: '#6A8880', fontWeight: 600 }}>No known allergies or conditions.</span>}
-                          </div>
-                          {p.notes && <div style={{ fontSize: 12.5, color: '#3A5248', fontStyle: 'italic', marginBottom: 12 }}>Note: {p.notes}</div>}
-                          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', marginBottom: 6 }}>Encounter history</div>
-                          {(p.encounterHistory || []).length > 0 ? (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                              <tbody>
-                                {p.encounterHistory.map((h, i) => (
-                                  <tr key={i} style={{ borderBottom: '1px solid #E8EDEA' }}>
-                                    <td style={{ ...cell, width: 100, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: '#4E6860' }}>{h.date}</td>
-                                    <td style={{ ...cell, width: 200, color: '#5A7A70' }}>{h.doctor.replace('Dr. ', '')}</td>
-                                    <td style={{ ...cell, fontWeight: 600 }}>{h.procedure}</td>
-                                    <td style={{ ...cell, color: '#6A8880' }}>{h.notes}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          ) : <div style={{ fontSize: 12.5, color: '#6A8880', fontWeight: 600 }}>No recorded encounters.</div>}
-                          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', margin: '14px 0 6px' }}>Change log</div>
-                          {(() => {
-                            const log = auditLogFor(p);
-                            return log.length > 0 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {log.map(e => (
-                                  <div key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '7px 0', borderBottom: '1px solid #E8EDEA' }}>
-                                    <History size={13} color="#6A8880" style={{ flexShrink: 0, marginTop: 2 }} />
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#111814' }}>{e.action}</span>
-                                      {e.detail && <span style={{ fontSize: 12, color: '#6A8880', fontWeight: 600 }}> — {e.detail}</span>}
-                                    </div>
-                                    <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8AA8A0', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                      {new Date(e.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {e.actor}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : <div style={{ fontSize: 12.5, color: '#6A8880', fontWeight: 600 }}>No changes recorded.</div>;
-                          })()}
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
+                      </div>
+                    </td>
+                    <td style={{ ...cell, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: '#4E6860' }}>{p.fileNo}</td>
+                    <td style={{ ...cell, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: '#4E6860' }}>{p.qid || '—'}</td>
+                    <td style={{ ...cell, color: '#3A5248' }}>{p.phone || '—'}</td>
+                    <td style={cell}>{p.insurer && p.insurer !== 'Cash/Card' ? <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EFF6FF', color: '#1D4ED8' }}>{p.insurer}</span> : <span style={{ fontSize: 12, color: '#6A8880', fontWeight: 600 }}>Cash</span>}</td>
+                    <td style={{ ...cell, color: '#4E6860' }}>{p.lastVisit || '—'}</td>
+                    <td style={{ ...cell, fontWeight: 700, color: (p.balance || 0) > 0 ? '#C04030' : '#0A6040' }}>{(p.balance || 0) > 0 ? qar(p.balance) : '—'}</td>
+                    <td style={cell}><ChevronRight size={15} color="#C8D4CF" /></td>
+                  </tr>
                 );
               })}
               {filtered.length === 0 && (
@@ -1725,14 +1799,6 @@ function PatientsTab({ patients }) {
         </div>
       </Card>
     </main>
-  );
-}
-function PatientMeta({ label, value }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#6A8880', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#111814' }}>{value}</div>
-    </div>
   );
 }
 
