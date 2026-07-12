@@ -4,11 +4,12 @@ import {
   CheckCircle2, FileText, Plus, Edit3, Save, X, Bell, Pill,
   Stethoscope, Sparkles, Tag, ExternalLink, AlertCircle, Receipt,
   Calendar, Search, BarChart2, Users,
-  ShieldCheck, ShieldAlert, Upload, Download, FileSignature, PenLine
+  ShieldCheck, ShieldAlert, Upload, Download, FileSignature, PenLine, History
 } from 'lucide-react';
 import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
 import { useTreatments, insurerPricing } from './treatmentStore';
 import { setChargesForQid } from './chargeStore';
+import { useAuditLog, auditLogFor } from './auditLogStore';
 
 const CLINIC_CONFIG = {
   name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
@@ -711,6 +712,8 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
   const [tab, setTab] = useState('overview');
   const [docFilter, setDocFilter] = useState('all');
   useConsents();
+  useAuditLog();
+  const activityLog = auditLogFor(patient);
   const todayApt  = MY_SCHEDULE.find(a=>a.date===TODAY&&a.patientId===patient.id);
   // Consents captured at Reception (shared store) attach to the patient file here.
   const recConsents = consentsForQid(patient.qid).map(cc=>({
@@ -731,7 +734,7 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
     pending: {bg:'#FEF3C7',color:'#92600A',label:'Pending'},
     partial: {bg:'#FFEDD5',color:'#9A3412',label:'Partial'},
   };
-  const TABS = [['overview','Overview'],['encounters','Encounters'],['payments','Payments'],['documents','Documents'],['details','Personal']];
+  const TABS = [['overview','Overview'],['encounters','Encounters'],['payments','Payments'],['documents','Documents'],['activity','Activity'],['details','Personal']];
   const Row = ({label,value,mono}) => (
     <div style={{display:'flex',justifyContent:'space-between',gap:16,padding:'9px 0',borderBottom:'1px solid #EEF2F0'}}>
       <span style={{fontSize:12.5,fontWeight:600,color:'#5A7870',flexShrink:0}}>{label}</span>
@@ -934,6 +937,27 @@ function PatientFileView({ patient, onBack, onOpenEncounter }) {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Activity / change log — who changed what, and when */}
+      {tab==='activity'&&(
+        <div style={card}>
+          {activityLog.length===0?(
+            <div style={{padding:'40px 20px',textAlign:'center',color:'#5A7870',fontSize:13,fontWeight:600}}>No changes recorded for this patient yet</div>
+          ):activityLog.map((e,i)=>(
+            <div key={e.id} style={{display:'flex',alignItems:'flex-start',gap:13,padding:'13px 18px',borderBottom:i<activityLog.length-1?'1px solid #EEF2F0':'none'}}>
+              <div style={{width:32,height:32,borderRadius:9,background:'#EEF2F0',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><History size={15} color="#5A7870"/></div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{e.action}</div>
+                {e.detail&&<div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>{e.detail}</div>}
+              </div>
+              <div style={{textAlign:'right',flexShrink:0}}>
+                <div style={{fontSize:11.5,fontWeight:700,color:'#5A7870'}}>{new Date(e.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+                <div style={{fontSize:11,fontWeight:600,color:'#8AA8A0',marginTop:1}}>{e.actor}</div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

@@ -4,11 +4,12 @@ import {
   ArrowUpRight, ArrowDownRight, Banknote, Shield, Bell, ChevronDown,
   ChevronUp, AlertCircle, CheckCircle2, Plus, Edit3, Save,
   X, UserPlus, LayoutGrid, BarChart3, RefreshCw, Download,
-  Search, Clock, Trash2, CalendarDays, Coffee, Plane, Phone, ClipboardList, Headset
+  Search, Clock, Trash2, CalendarDays, Coffee, Plane, Phone, ClipboardList, Headset, History
 } from 'lucide-react';
 import { useTreatments, saveTreatments, getTreatments, TREATMENT_INSURERS } from './treatmentStore';
 import { useSchedules, getSchedule, setSchedule, WEEK_DAYS, defaultSchedule } from './scheduleStore';
 import { usePatients, patientAge } from './patientStore';
+import { useAuditLog, auditLogFor } from './auditLogStore';
 
 // ─── Clinic branding ──────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -1584,6 +1585,7 @@ function TreatmentSettings({ treatments, setTreatments }) {
 function PatientsTab({ patients }) {
   const [q, setQ]           = useState('');
   const [openId, setOpenId] = useState(null);
+  useAuditLog(); // re-render when Reception logs a change (e.g. appointment/consent) that doesn't itself touch patientStore
   const query  = q.trim();
   const norm   = s => (s || '').toLowerCase();
   const digits = s => (s || '').replace(/\D/g, '');
@@ -1689,6 +1691,26 @@ function PatientsTab({ patients }) {
                               </tbody>
                             </table>
                           ) : <div style={{ fontSize: 12.5, color: '#6A8880', fontWeight: 600 }}>No recorded encounters.</div>}
+                          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#4E6860', margin: '14px 0 6px' }}>Change log</div>
+                          {(() => {
+                            const log = auditLogFor(p);
+                            return log.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {log.map(e => (
+                                  <div key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '7px 0', borderBottom: '1px solid #E8EDEA' }}>
+                                    <History size={13} color="#6A8880" style={{ flexShrink: 0, marginTop: 2 }} />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#111814' }}>{e.action}</span>
+                                      {e.detail && <span style={{ fontSize: 12, color: '#6A8880', fontWeight: 600 }}> — {e.detail}</span>}
+                                    </div>
+                                    <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8AA8A0', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                      {new Date(e.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {e.actor}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : <div style={{ fontSize: 12.5, color: '#6A8880', fontWeight: 600 }}>No changes recorded.</div>;
+                          })()}
                         </td>
                       </tr>
                     )}

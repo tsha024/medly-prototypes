@@ -3,10 +3,11 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Calendar, Bell, Settings,
   Search, Plus, User, Clock, Shield, AlertTriangle, CheckCircle2,
   FileText, X, Save, Globe, Edit3, CalendarDays, MessageSquare, Send, Inbox, CheckCheck, PhoneOff,
-  ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser} from 'lucide-react';
+  ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser, History} from 'lucide-react';
 import { addConsent, findConsent, useConsents } from './consentStore';
 import { getSchedule, useSchedules } from './scheduleStore';
 import { usePatients, getPatients, savePatients } from './patientStore';
+import { logChange, useAuditLog, auditLogFor } from './auditLogStore';
 
 // ─── Clinic branding ─────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -40,6 +41,11 @@ const NURSES = [
   { id:'n3', name:'Nurse Mariam Hassan', specialty:'General'   },
   { id:'n4', name:'Nurse Aliya Rahman',  specialty:'Aesthetic' },
 ];
+// The front-desk staffer signed in at this terminal (shown in the header badge).
+// No login system exists yet, so this stands in for "whoever is on shift" — the
+// same identity Admin's Receptionists list knows as r1. Used to attribute
+// change-log entries by name instead of the generic "Reception" role.
+const CURRENT_RECEPTIONIST = { id:'r1', name:'Rania Mansour' };
 const PROCEDURES = {
   'General Dentistry':  [{ name:'Consultation',dur:30,price:250,needsNurse:false},{name:'Cleaning & polish',dur:45,price:400,needsNurse:true},{name:'Filling',dur:45,price:600,needsNurse:true},{name:'Extraction',dur:60,price:800,needsNurse:true},{name:'X-ray (bitewing)',dur:15,price:200,needsNurse:false}],
   'Orthodontics':       [{ name:'Ortho consult',dur:45,price:350,needsNurse:false},{name:'Braces adjustment',dur:30,price:450,needsNurse:true},{name:'Retainer fitting',dur:60,price:1200,needsNurse:true}],
@@ -409,6 +415,7 @@ export default function ReceptionPrototype() {
   const [waInbox,setWaInbox]         = useState([]);         // sent + received messages
   const [showWAPanel,setShowWAPanel] = useState(false);
   useSchedules(); // re-render the calendar when Admin edits a doctor's schedule
+  useAuditLog();  // re-render when a change-log entry is appended
   const isAr = locale==='ar';
 
   // Run morning reminder batch — called manually or on schedule.
@@ -477,15 +484,43 @@ export default function ReceptionPrototype() {
     // In the data model, providerType='nurse' marks it as nurse-led regardless.
     const aestheticDoctor = DOCTORS.find(d=>d.specialty==='Aesthetic Medicine');
     const effectiveDoctorId = apt.doctorId || aestheticDoctor?.id || DOCTORS[0].id;
-    setAppts(p=>[...p,{...apt,id:`a${Date.now()}`,status:'booked',date:apt.date?fmtISO(apt.date):fmtISO(date),doctorId:effectiveDoctorId}]);
+    const aptDate = apt.date?fmtISO(apt.date):fmtISO(date);
+    setAppts(p=>[...p,{...apt,id:`a${Date.now()}`,status:'booked',date:aptDate,doctorId:effectiveDoctorId}]);
     setBookingModal(null);
+    const bookedPatient = patients.find(p=>p.id===apt.patientId);
+    const bookedDoctor  = DOCTORS.find(d=>d.id===effectiveDoctorId);
+    logChange({ qid:bookedPatient?.qid, fileNo:bookedPatient?.fileNo, patientName:bookedPatient?.nameEn,
+      action:'Appointment booked', detail:`${apt.procedure||'Visit'} · ${aptDate} ${apt.start} with ${bookedDoctor?.nameEn||'—'}`,
+      actor:CURRENT_RECEPTIONIST.name });
   };
   const updateAppt = (id,patch) => setAppts(p=>p.map(a=>a.id===id?{...a,...patch}:a));
+  // Applied from the appointment detail modal — diffs against the appointment
+  // it was opened with so a reschedule or cancellation lands in the patient's
+  // change log alongside the status/notes update.
+  const applyApptDetailChange = (before,patch) => {
+    const changedPatient = patients.find(p=>p.id===before.patientId);
+    const logArgs = { qid:changedPatient?.qid, fileNo:changedPatient?.fileNo, patientName:changedPatient?.nameEn, actor:CURRENT_RECEPTIONIST.name };
+    const newDate=patch.date??before.date, newStart=patch.start??before.start, newDoctorId=patch.doctorId??before.doctorId;
+    if (newDate!==before.date || newStart!==before.start || newDoctorId!==before.doctorId) {
+      const oldDoc = DOCTORS.find(d=>d.id===before.doctorId)?.nameEn||'—';
+      const newDoc = DOCTORS.find(d=>d.id===newDoctorId)?.nameEn||'—';
+      logChange({ ...logArgs, action:'Appointment rescheduled',
+        detail:`${before.date} ${before.start} (${oldDoc}) → ${newDate} ${newStart} (${newDoc})` });
+    }
+    if (patch.status==='cancelled' && before.status!=='cancelled') {
+      logChange({ ...logArgs, action:'Appointment cancelled', detail:`${before.procedure||'Visit'} · ${before.date} ${before.start}` });
+    }
+    updateAppt(before.id,patch);
+    setDetailModal({...before,...patch});
+  };
   const addPatient = p    => {
     // Backward compat: surface the patient's QID at top level if they're a Qatar resident with one
     const qid = p.idType==='qid' ? p.idNumber : '';
     const fp = {...p, id:`p${Date.now()}`, fileNo:nextFileNumber(patients), qid, encounterHistory:[]};
     setPatients(prev=>[...prev,fp]);
+    logChange({ qid:fp.qid, fileNo:fp.fileNo, patientName:fp.nameEn, action:'Patient registered',
+      detail: fp.insurer ? `Insurer: ${fp.insurer}${fp.policy?' / '+fp.policy:''}` : 'Self-pay',
+      actor:CURRENT_RECEPTIONIST.name });
     return fp;
   };
   const updatePatient = (id,patch) => { setPatients(p=>p.map(x=>x.id===id?{...x,...patch}:x)); setFileViewer(p=>p&&p.id===id?{...p,...patch}:p); };
@@ -755,7 +790,7 @@ export default function ReceptionPrototype() {
       {/* ── MODALS ── */}
       {showWAPanel&&<WhatsAppPanel inbox={waInbox} setInbox={setWaInbox} patients={patients} appointments={appointments} runReminders={runReminders} simulateInbound={simulateInbound} onClose={()=>setShowWAPanel(false)}/>}
       {bookingModal&&<BookingModal isAr={isAr} doctor={DOCTORS.find(d=>d.id===bookingModal.doctorId)} slot={bookingModal.slot} date={date} patients={patients} onClose={()=>setBookingModal(null)} onConfirm={addAppt} onAddPatient={addPatient} onUpdatePatient={updatePatient}/>}
-      {detailModal&&<AppointmentDetail isAr={isAr} appointment={detailModal} patient={patients.find(p=>p.id===detailModal.patientId)} onClose={()=>setDetailModal(null)} onUpdate={patch=>{updateAppt(detailModal.id,patch);setDetailModal({...detailModal,...patch});}} onViewFile={p=>{setDetailModal(null);setFileViewer(p);}}/>}
+      {detailModal&&<AppointmentDetail isAr={isAr} appointment={detailModal} patient={patients.find(p=>p.id===detailModal.patientId)} onClose={()=>setDetailModal(null)} onUpdate={patch=>applyApptDetailChange(detailModal,patch)} onViewFile={p=>{setDetailModal(null);setFileViewer(p);}}/>}
       {showSchedules&&<DoctorScheduleModal onClose={()=>setShowSched(false)}/>}
       {fileViewer&&<PatientFileViewer patient={fileViewer} onUpdate={updatePatient} onClose={()=>setFileViewer(null)}/>}
     </div>
@@ -1484,6 +1519,9 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
     const methodLbl  = method==='ipad' ? 'iPad' : 'DigiSign';
     addConsent({ qid: patient?.qid||'', patientName: patient?.nameEn||'Patient', fileNo: patient?.fileNo||'',
                  treatment: appointment.procedure, date: dateStr, method: methodLbl, signedName, capturedBy, signedAt: dateStr });
+    logChange({ qid: patient?.qid, fileNo: patient?.fileNo, patientName: patient?.nameEn,
+      action:'Consent signed', detail:`${appointment.procedure} · ${methodLbl}`,
+      actor: capturedBy==='Reception' ? CURRENT_RECEPTIONIST.name : capturedBy });
     onSign({ signed:true, method: methodLbl, date:dateStr, treatment:appointment.procedure, signedName, capturedBy, signedAt:dateStr });
     onClose();
   };
@@ -1589,7 +1627,23 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
 function PatientFileViewer({ patient, onUpdate, onClose }) {
   const [notes, setNotes] = useState(patient.notes||'');
   const [saved, setSaved] = useState(false);
-  const saveNotes = () => { onUpdate(patient.id,{notes}); setSaved(true); setTimeout(()=>setSaved(false),2000); };
+  const [insurer, setInsurer] = useState(patient.insurer||'');
+  const [policy, setPolicy]   = useState(patient.policy||'');
+  const [insSaved, setInsSaved] = useState(false);
+  const logPatient = (action,detail) => logChange({ qid:patient.qid, fileNo:patient.fileNo, patientName:patient.nameEn, action, detail, actor:CURRENT_RECEPTIONIST.name });
+  const saveNotes = () => {
+    onUpdate(patient.id,{notes});
+    logPatient('Reception notes updated', notes.trim() || '(cleared)');
+    setSaved(true); setTimeout(()=>setSaved(false),2000);
+  };
+  const insuranceLbl = (ins,pol) => ins ? ins+(pol?` / ${pol}`:'') : 'Self-pay';
+  const insuranceChanged = insurer!==(patient.insurer||'') || policy!==(patient.policy||'');
+  const saveInsurance = () => {
+    onUpdate(patient.id,{insurer,policy});
+    logPatient(patient.insurer?'Insurance updated':'Insurance added', `${insuranceLbl(patient.insurer,patient.policy)} → ${insuranceLbl(insurer,policy)}`);
+    setInsSaved(true); setTimeout(()=>setInsSaved(false),2000);
+  };
+  const log = auditLogFor(patient);
   return(
     <Modal onClose={onClose} width={700}>
       <ModalHeader title={patient.nameEn} sub={patient.isInternational ? `${patient.fileNo} · ${patient.countryOfResidence||'International'} visitor` : (patient.fileNo + (patient.qid ? ' · QID '+patient.qid : ' · QID pending'))} onClose={onClose}/>
@@ -1659,6 +1713,24 @@ function PatientFileViewer({ patient, onUpdate, onClose }) {
           </div>
         )}
 
+        {/* Insurance */}
+        <div>
+          <SectionLabel>Insurance</SectionLabel>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <FormField label="Insurer">
+              <input value={insurer} onChange={e=>{setInsurer(e.target.value);setInsSaved(false);}} placeholder="Self-pay"/>
+            </FormField>
+            <FormField label="Policy #">
+              <input value={policy} onChange={e=>{setPolicy(e.target.value);setInsSaved(false);}} placeholder="—"/>
+            </FormField>
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+            <PrimaryBtn onClick={saveInsurance} disabled={!insuranceChanged&&!insSaved} style={{padding:'7px 14px',fontSize:12,background:insSaved?'#0A6040':undefined}}>
+              {insSaved?<><CheckCircle2 size={12}/>Saved</>:<><Save size={12}/>Save insurance</>}
+            </PrimaryBtn>
+          </div>
+        </div>
+
         {/* Reception notes */}
         <div>
           <SectionLabel>Reception notes</SectionLabel>
@@ -1668,6 +1740,28 @@ function PatientFileViewer({ patient, onUpdate, onClose }) {
               {saved?<><CheckCircle2 size={12}/>Saved</>:<><Save size={12}/>Save notes</>}
             </PrimaryBtn>
           </div>
+        </div>
+
+        {/* Change log — who changed what, and when */}
+        <div>
+          <SectionLabel>Change log</SectionLabel>
+          {log.length>0 ? (
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {log.map(e=>(
+                <div key={e.id} className="trow" style={{padding:'9px 14px',borderRadius:8,border:'1px solid #EEF2F0',background:'#fff',display:'flex',gap:14,alignItems:'flex-start'}}>
+                  <History size={13} color="#6A8880" style={{flexShrink:0,marginTop:2}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12.5,fontWeight:700,color:'#111814'}}>{e.action}</div>
+                    {e.detail&&<div style={{fontSize:12,color:'#4E6860',marginTop:1,fontWeight:600}}>{e.detail}</div>}
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontSize:11.5,fontWeight:700,color:'#5A7870'}}>{new Date(e.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+                    <div style={{fontSize:11,color:'#8AA8A0',marginTop:1,fontWeight:600}}>{e.actor}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <div style={{fontSize:12.5,color:'#6A8880',fontWeight:600}}>No changes recorded yet.</div>}
         </div>
       </div>
     </Modal>
