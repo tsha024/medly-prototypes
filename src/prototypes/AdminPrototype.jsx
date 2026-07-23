@@ -8,9 +8,9 @@ import {
 } from 'lucide-react';
 import { useTreatments, saveTreatments, getTreatments, TREATMENT_INSURERS } from './treatmentStore';
 import { useSchedules, getSchedule, setSchedule, WEEK_DAYS, defaultSchedule } from './scheduleStore';
-import { usePatients, patientAge } from './patientStore';
+import { usePatients, patientAge, isMinorPatient } from './patientStore';
 import { useClinicConfig, setClinicConfig, resetClinicConfig } from './clinicConfigStore';
-import PatientFile from './PatientFile';
+import PatientFile, { MinorBadge } from './PatientFile';
 
 // ─── Clinic branding ──────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -1732,8 +1732,8 @@ function PatientsTab({ patients, onOpenPatient }) {
   }, [patients, query]);
 
   const buildList = () => {
-    const headers = ['Name', 'File #', 'Patient ID (QID)', 'Phone', 'Gender', 'DOB', 'Insurer', 'Policy', 'Last visit', 'Balance (QAR)', 'Allergies', 'Conditions'];
-    const rows = filtered.map(p => [p.nameEn, p.fileNo, p.qid || '', p.phone || '', p.gender || '', p.dob || '', p.insurer || '', p.policy || '', p.lastVisit || '', p.balance || 0, (p.allergies || []).join('; '), (p.conditions || []).join('; ')]);
+    const headers = ['Name', 'File #', 'Patient ID (QID)', 'Phone', 'Gender', 'DOB', 'Guardian', 'Guardian phone', 'Insurer', 'Policy', 'Last visit', 'Balance (QAR)', 'Allergies', 'Conditions'];
+    const rows = filtered.map(p => [p.nameEn, p.fileNo, p.qid || '', p.phone || '', p.gender || '', p.dob || '', p.guardianName ? `${p.guardianName}${p.guardianRelation ? ` (${p.guardianRelation})` : ''}` : '', p.guardianPhone || '', p.insurer || '', p.policy || '', p.lastVisit || '', p.balance || 0, (p.allergies || []).join('; '), (p.conditions || []).join('; ')]);
     return { headers, rows, base: 'patient-records', sheet: 'Patients' };
   };
   const handleCSV  = () => { const r = buildList(); downloadCSV(`${r.base}.csv`, r.headers, r.rows); };
@@ -1775,6 +1775,7 @@ function PatientsTab({ patients, onOpenPatient }) {
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: '#111814', display: 'flex', alignItems: 'center', gap: 6 }}>
                             {p.nameEn || 'Unnamed patient'}
+                            {isMinorPatient(p) && <MinorBadge />}
                             {p.allergies?.length > 0 && <AlertTriangle size={12} color="#DC4F38" title={`Allergies: ${p.allergies.join(', ')}`} />}
                           </div>
                           <div style={{ fontSize: 11.5, color: '#6A8880', fontWeight: 600 }}>{[age != null ? `${age} yrs` : null, p.gender].filter(Boolean).join(' · ')}</div>

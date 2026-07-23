@@ -6,10 +6,10 @@ import {
   ShieldCheck, ShieldAlert, FileSignature, PenLine, Tablet, Eraser} from 'lucide-react';
 import { addConsent, findConsent, useConsents } from './consentStore';
 import { getSchedule, useSchedules } from './scheduleStore';
-import { usePatients, getPatients, savePatients } from './patientStore';
+import { usePatients, getPatients, savePatients, isMinorPatient } from './patientStore';
 import { logChange, useAuditLog } from './auditLogStore';
 import { useClinicConfig } from './clinicConfigStore';
-import PatientFile from './PatientFile';
+import PatientFile, { MinorBadge } from './PatientFile';
 
 // ─── Clinic branding ─────────────────────────────────────────────────────────
 const CLINIC_CONFIG = {
@@ -56,6 +56,10 @@ const PROCEDURES = {
   'Aesthetic Medicine': [{ name:'Aesthetic consult',dur:30,price:200,needsNurse:false},{name:'Botox',dur:45,price:1800,needsNurse:true},{name:'Dermal filler',dur:60,price:2400,needsNurse:true},{name:'Chemical peel',dur:60,price:900,needsNurse:true},{name:'Hydrafacial',dur:60,price:1200,needsNurse:true,nurseOnly:true},{name:'Laser hair removal',dur:45,price:800,needsNurse:true,nurseOnly:true}],
 };
 const ALL_PROCEDURES = Object.values(PROCEDURES).flat();
+// Aesthetic-medicine procedures are age-restricted — booking one for a minor
+// requires an explicit confirmation (guardian consent + clinical justification).
+const AESTHETIC_PROCEDURES = new Set(PROCEDURES['Aesthetic Medicine'].map(p=>p.name));
+const GUARDIAN_RELATIONS = ['Mother','Father','Legal guardian','Other'];
 // Patient records now live in the shared patientStore (also read/written by the
 // Admin portal's Patients tab). Seeded there; new patients registered here appear
 // in Admin, and vice-versa. See usePatients()/savePatients() in the root component.
@@ -91,6 +95,7 @@ const SEED_APPOINTMENTS = [
   {id:'a7',doctorId:'d1',patientId:'p4',start:'11:30',date:'2026-05-24',dur:60,procedure:'Crown prep — tooth #26',        status:'arrived',nurseId:'n2',notes:'Arrived — consent pending.'},
   {id:'a8',doctorId:'d1',patientId:'p6',start:'13:00',date:'2026-05-24',dur:60,procedure:'Scaling & root planing',        status:'arrived',nurseId:'n2',notes:'Arrived — consent pending.'},
   {id:'a9',doctorId:'d1',patientId:'p7',start:'16:00',date:'2026-05-24',dur:30,procedure:'Consultation + treatment plan', status:'arrived',nurseId:null,notes:'Cardiac history noted.'},
+  {id:'a10',doctorId:'d1',patientId:'p13',start:'15:00',date:'2026-05-24',dur:45,procedure:'Filling',status:'confirmed',nurseId:'n2',notes:'Child patient — mother attending.'},
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -212,6 +217,19 @@ const WA_CONFIG = {
       bodyEn: 'Hello {{1}}, you have an appointment tomorrow ({{6}}) with {{2}} at {{3}} for {{4}}. Reply CONFIRM, RESCHEDULE, or CANCEL. — {{5}}',
       bodyAr: 'مرحباً {{1}}، لديك موعد غداً ({{6}}) مع {{2}} في الساعة {{3}} لـ {{4}}. أرسل تأكيد أو تأجيل أو إلغاء. — {{5}}',
     },
+    // Pediatric variants — sent to the parent/guardian, {{7}} = child's name
+    appointment_reminder_child_today: {
+      name: 'appointment_reminder_child_today',
+      language: 'en',
+      bodyEn: 'Hello {{1}}, this is a reminder of your child {{7}}’s appointment today with {{2}} at {{3}} for {{4}}. Reply CONFIRM to confirm, RESCHEDULE to change, or CANCEL to cancel. — {{5}}',
+      bodyAr: 'مرحباً {{1}}، هذا تذكير بموعد طفلك {{7}} اليوم مع {{2}} في الساعة {{3}} لـ {{4}}. أرسل تأكيد للتأكيد، تأجيل للتغيير، أو إلغاء للإلغاء. — {{5}}',
+    },
+    appointment_reminder_child_tomorrow: {
+      name: 'appointment_reminder_child_tomorrow',
+      language: 'en',
+      bodyEn: 'Hello {{1}}, your child {{7}} has an appointment tomorrow ({{6}}) with {{2}} at {{3}} for {{4}}. Reply CONFIRM, RESCHEDULE, or CANCEL. — {{5}}',
+      bodyAr: 'مرحباً {{1}}، لدى طفلك {{7}} موعد غداً ({{6}}) مع {{2}} في الساعة {{3}} لـ {{4}}. أرسل تأكيد أو تأجيل أو إلغاء. — {{5}}',
+    },
     appointment_rescheduled: {
       name: 'appointment_rescheduled',
       language: 'en',
@@ -313,10 +331,15 @@ const PROVIDERS = {
   },
 };
 
-// Public send API — single appointment reminder
+// Public send API — single appointment reminder.
+// Minors: the message goes to the parent/guardian's phone, addressed to the
+// guardian, with the child named in the body ("your child …").
 async function sendAppointmentReminder({ patient, appointment, doctor, kind, locale='en' }) {
   // Hard checks before sending
-  if (!patient?.phone) return { ok:false, error:'Missing patient phone' };
+  const minor = isMinorPatient(patient);
+  const viaGuardian = minor && !!patient?.guardianPhone;
+  const to = viaGuardian ? patient.guardianPhone : patient?.phone;
+  if (!to) return { ok:false, error: minor ? 'Missing guardian/patient phone' : 'Missing patient phone' };
   if (patient.waConsent === false) return { ok:false, error:'Patient has opted out of WhatsApp' };
 
   const now = new Date();
@@ -326,20 +349,23 @@ async function sendAppointmentReminder({ patient, appointment, doctor, kind, loc
     return { ok:false, error:'Suppressed — outside permitted hours' };
   }
 
-  const templateKey = kind==='today' ? 'appointment_reminder_today' : 'appointment_reminder_tomorrow';
+  const templateKey = minor
+    ? (kind==='today' ? 'appointment_reminder_child_today' : 'appointment_reminder_child_tomorrow')
+    : (kind==='today' ? 'appointment_reminder_today' : 'appointment_reminder_tomorrow');
   const template = WA_CONFIG.templates[templateKey];
 
   const variables = {
-    v1: patient.nameEn,
+    v1: viaGuardian ? (patient.guardianName || 'Guardian') : patient.nameEn,
     v2: doctor?.nameEn || 'your doctor',
     v3: appointment.start,
     v4: appointment.procedure,
     v5: CLINIC_CONFIG.name,
     v6: appointment.date,
+    v7: patient.nameEn,
   };
 
   const provider = PROVIDERS[WA_CONFIG.provider] || PROVIDERS.mock;
-  const result = await provider.sendMessage({ to: patient.phone, template, variables, locale });
+  const result = await provider.sendMessage({ to, template, variables, locale });
 
   return {
     ...result,
@@ -347,6 +373,8 @@ async function sendAppointmentReminder({ patient, appointment, doctor, kind, loc
     patientId: patient.id,
     appointmentId: appointment.id,
     templateKey,
+    sentTo: to,
+    viaGuardian,
     body: renderTemplate(template, variables, locale),
   };
 }
@@ -360,9 +388,12 @@ function parseInboundReply({ from, body, appointments, patients }) {
   for (const [key, words] of Object.entries(WA_CONFIG.replyKeywords)) {
     if (words.some(w => normalised.includes(w.toLowerCase()))) { intent = key; break; }
   }
-  // Match phone → patient → upcoming appointment
+  // Match phone → patient → upcoming appointment.
+  // A guardian's phone also resolves to their child's record, so a parent
+  // replying to a pediatric reminder finds the child's appointment.
   const cleanPhone = from.replace(/[^\d]/g, '');
-  const patient = patients.find(p => p.phone?.replace(/[^\d]/g,'') === cleanPhone);
+  const patient = patients.find(p =>
+    [p.phone, p.guardianPhone].filter(Boolean).some(ph => ph.replace(/[^\d]/g,'') === cleanPhone));
   const upcoming = patient ? appointments
     .filter(a => a.patientId===patient.id && a.status!=='cancelled' && a.status!=='payment-done')
     .sort((a,b)=>(a.date||'').localeCompare(b.date||''))[0]
@@ -432,7 +463,9 @@ export default function ReceptionPrototype() {
   // In production this is wired to your provider's webhook endpoint.
   const simulateInbound = (patientId, body) => {
     const patient = patients.find(p => p.id === patientId);
-    const parsed = parseInboundReply({ from: patient?.phone || '', body, appointments, patients });
+    // Minors reply via the guardian's phone — that's the number the reminder went to
+    const fromPhone = patient ? ((isMinorPatient(patient) && patient.guardianPhone) || patient.phone || '') : '';
+    const parsed = parseInboundReply({ from: fromPhone, body, appointments, patients });
     setWaInbox(prev => [{
       direction: 'in',
       type: 'reply',
@@ -522,7 +555,8 @@ export default function ReceptionPrototype() {
     const fp = {...p, id:`p${Date.now()}`, fileNo:nextFileNumber(patients), qid, encounterHistory:[]};
     setPatients(prev=>[...prev,fp]);
     logChange({ qid:fp.qid, fileNo:fp.fileNo, patientName:fp.nameEn, action:'Patient registered',
-      detail: fp.insurer ? `Insurer: ${fp.insurer}${fp.policy?' / '+fp.policy:''}` : 'Self-pay',
+      detail: (fp.insurer ? `Insurer: ${fp.insurer}${fp.policy?' / '+fp.policy:''}` : 'Self-pay')
+        + (isMinorPatient(fp) ? ` · Child — guardian ${fp.guardianName||'—'} (${fp.guardianRelation||'Guardian'})` : ''),
       actor:CURRENT_RECEPTIONIST.name });
     return fp;
   };
@@ -607,7 +641,7 @@ export default function ReceptionPrototype() {
                     <button key={p.id} onClick={()=>{setFileViewer(p);setHSearch('');setHSearchOpen(false);}} style={{width:'100%',textAlign:'left',padding:'10px 14px',background:'transparent',border:'none',borderBottom:'1px solid #F0EDE8',cursor:'pointer',display:'flex',alignItems:'center',gap:10}}>
                       <div style={{width:44,height: 44,borderRadius:'50%',background:'#E8F3F0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{p.nameEn.split(' ').map(w=>w[0]).slice(0,2).join('')}</div>
                       <div>
-                        <div style={{fontSize:13,fontWeight:700,color:'#111814'}}>{p.nameEn}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:'#111814',display:'flex',alignItems:'center',gap:6}}>{p.nameEn}{isMinorPatient(p)&&<MinorBadge/>}</div>
                         <div style={{fontSize:12,color:'#6A8880',fontWeight:600}}>{p.fileNo} · {p.insurer||'Cash'}</div>
                       </div>
                       {p.allergies?.length>0&&<AlertTriangle size={12} color="#DC4F38" style={{marginLeft:'auto',flexShrink:0}}/>}
@@ -729,6 +763,7 @@ export default function ReceptionPrototype() {
                             {patient?.nameEn}
                             {patient?.isInternational && <span style={{fontSize:9.5,fontWeight:700,padding:'1px 5px',borderRadius:8,background:'#EFF6FF',color:'#1E40AF',flexShrink:0}}>INT&apos;L</span>}
                             {patient && !patient.isInternational && !patient.qid && <span style={{fontSize:9.5,fontWeight:700,padding:'1px 5px',borderRadius:8,background:'#FEF3C7',color:'#92400E',flexShrink:0}}>NEW</span>}
+                            {patient && isMinorPatient(patient) && <MinorBadge/>}
                           </div>
                           {/* Clickable status chip — advances without opening modal */}
                           <button className="status-chip-btn" onClick={e=>cycleStatus(e,apt.id,apt.status)} title={STATUS_NEXT[apt.status]?`→ ${STATUS_CFG[STATUS_NEXT[apt.status]]?.label}`:'Final status'} style={{flexShrink:0,border:'none',padding:0,background:'transparent'}}>
@@ -791,7 +826,7 @@ export default function ReceptionPrototype() {
       </main>
 
       {/* ── MODALS ── */}
-      {showWAPanel&&<WhatsAppPanel inbox={waInbox} setInbox={setWaInbox} patients={patients} appointments={appointments} runReminders={runReminders} simulateInbound={simulateInbound} onClose={()=>setShowWAPanel(false)}/>}
+      {showWAPanel&&<WhatsAppPanel inbox={waInbox} setInbox={setWaInbox} patients={patients} appointments={appointments} doctors={DOCTORS} runReminders={runReminders} simulateInbound={simulateInbound} onClose={()=>setShowWAPanel(false)}/>}
       {bookingModal&&<BookingModal isAr={isAr} doctor={DOCTORS.find(d=>d.id===bookingModal.doctorId)} slot={bookingModal.slot} date={date} patients={patients} onClose={()=>setBookingModal(null)} onConfirm={addAppt} onAddPatient={addPatient} onUpdatePatient={updatePatient}/>}
       {detailModal&&<AppointmentDetail isAr={isAr} appointment={detailModal} patient={patients.find(p=>p.id===detailModal.patientId)} onClose={()=>setDetailModal(null)} onUpdate={patch=>applyApptDetailChange(detailModal,patch)} onViewFile={p=>{setDetailModal(null);setFileViewer(p);}}/>}
       {showSchedules&&<DoctorScheduleModal onClose={()=>setShowSched(false)}/>}
@@ -875,9 +910,11 @@ function DatePickerPopover({ value, onSelect, onClose }) {
 }
 
 // ─── Booking Modal ────────────────────────────────────────────────────────────
-function WhatsAppPanel({ inbox, setInbox, patients, appointments, runReminders, simulateInbound, onClose }) {
+function WhatsAppPanel({ inbox, setInbox, patients, appointments, doctors, runReminders, simulateInbound, onClose }) {
   const [sending, setSending] = useState(false);
   const [composing, setComposing] = useState(null); // {patientId, body}
+  const [tab, setTab] = useState('all'); // 'all' | 'inbound'
+  const [doctorFilter, setDoctorFilter] = useState(''); // '' = all doctors — only applies within the Inbound replies tab
   const markAllRead = () => setInbox(p => p.map(m => ({ ...m, read: true })));
 
   // Mark inbound as read once panel opens
@@ -908,8 +945,47 @@ function WhatsAppPanel({ inbox, setInbox, patients, appointments, runReminders, 
 
   const fmtTime = ts => new Date(ts).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 
+  // Resolve the doctor tied to a message's appointment — used by the Inbound replies doctor filter
+  const doctorForMsg = m => {
+    const apt = appointments.find(a => a.id === m.appointmentId);
+    return apt ? doctors.find(d => d.id === apt.doctorId) : null;
+  };
+
+  const renderMsgCard = (m,i) => (
+    <div key={i} style={{marginBottom:12,padding:'12px 14px',borderRadius:10,border:'1px solid #DCE4E0',background:m.direction==='in'?'#F0FAF6':'#fff',borderLeft:`3px solid ${m.direction==='in'?'#0C6B5A':m.ok===false?'#DC4F38':'#3B82F6'}`}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+        {m.direction==='in' ? <Inbox size={13} color="#0A6040"/> : <Send size={13} color="#1E40AF"/>}
+        <span style={{fontSize:13,fontWeight:700,color:'#111814'}}>{m.patientName}</span>
+        <span style={{fontSize:12,fontWeight:600,color:'#5A7870',fontFamily:"'IBM Plex Mono',monospace"}}>{fmtTime(m.timestamp)}</span>
+        {m.direction==='in' && m.intent && intentBadge(m.intent)}
+        {m.direction==='out' && m.ok===false && <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,background:'#FDDDD9',color:'#B02A1E',letterSpacing:'.04em'}}>FAILED</span>}
+        {m.direction==='out' && m.ok===true && <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,background:'#DBEAFE',color:'#1E40AF',letterSpacing:'.04em'}}>DELIVERED</span>}
+        {m.viaGuardian && <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,background:'#FFE4E6',color:'#9F1239',letterSpacing:'.04em'}}>TO GUARDIAN</span>}
+        {m.direction==='out' && m.kind && <span style={{fontSize:11,fontWeight:600,color:'#5A7870'}}>· {m.kind}</span>}
+      </div>
+      {m.direction==='in' && doctorForMsg(m) && <div style={{fontSize:11.5,fontWeight:600,color:'#5A7870',marginBottom:6}}>With {doctorForMsg(m).nameEn}</div>}
+      <div style={{fontSize:12.5,fontWeight:500,color:'#2A3830',lineHeight:1.5,whiteSpace:'pre-wrap'}}>{m.body || m.rendered || m.error}</div>
+      {m.direction==='in' && m.intent==='reschedule' && (
+        <div style={{marginTop:8,padding:'8px 10px',background:'#fff',borderRadius:7,border:'1px solid #FDE68A',fontSize:12,color:'#78400A',fontWeight:600}}>
+          ⚠ Patient wants to reschedule — open the appointment in the calendar to find a new slot.
+        </div>
+      )}
+    </div>
+  );
+
+  const inboundMsgs     = inbox.filter(m => m.direction === 'in');
+  const inboundFiltered = doctorFilter ? inboundMsgs.filter(m => doctorForMsg(m)?.id === doctorFilter) : inboundMsgs;
+  const REPLY_GROUPS = [
+    { key:'confirm',    label:'Confirmations',       accent:'#0A6040', bg:'#EFFBF5' },
+    { key:'reschedule', label:'Reschedule requests',  accent:'#92600A', bg:'#FEFAEF' },
+    { key:'cancel',     label:'Cancellations',        accent:'#B02A1E', bg:'#FEF4F3' },
+  ];
+  const otherMsgs = inboundFiltered.filter(m => !['confirm','reschedule','cancel'].includes(m.intent));
+  // Only offer doctors who actually have inbound traffic, so the dropdown stays relevant
+  const doctorsWithReplies = doctors.filter(d => inboundMsgs.some(m => doctorForMsg(m)?.id === d.id));
+
   return (
-    <Modal onClose={onClose} width={680}>
+    <Modal onClose={onClose} width={860}>
       <ModalHeader title="WhatsApp reminders" sub={`Provider: ${WA_CONFIG.provider} · ${inbox.length} messages today`} onClose={onClose}/>
 
       {/* Top action bar */}
@@ -943,35 +1019,71 @@ function WhatsAppPanel({ inbox, setInbox, patients, appointments, runReminders, 
         </div>
       )}
 
-      {/* Inbox feed */}
-      <div style={{maxHeight:'50vh',overflowY:'auto',padding:'14px 24px'}}>
-        {inbox.length === 0 && (
-          <div style={{textAlign:'center',padding:'40px 20px',color:'#5A7870'}}>
-            <MessageSquare size={32} color="#B8C8C0" style={{margin:'0 auto 10px'}}/>
-            <div style={{fontSize:13.5,fontWeight:600,color:'#3D5850',marginBottom:4}}>No messages yet today</div>
-            <div style={{fontSize:12.5,color:'#5A7870',fontWeight:500}}>Click <strong>Send today\u2019s reminders now</strong> to dispatch the morning batch.</div>
-          </div>
-        )}
-        {inbox.map((m,i)=>(
-          <div key={i} style={{marginBottom:12,padding:'12px 14px',borderRadius:10,border:'1px solid #DCE4E0',background:m.direction==='in'?'#F0FAF6':'#fff',borderLeft:`3px solid ${m.direction==='in'?'#0C6B5A':m.ok===false?'#DC4F38':'#3B82F6'}`}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
-              {m.direction==='in' ? <Inbox size={13} color="#0A6040"/> : <Send size={13} color="#1E40AF"/>}
-              <span style={{fontSize:13,fontWeight:700,color:'#111814'}}>{m.patientName}</span>
-              <span style={{fontSize:12,fontWeight:600,color:'#5A7870',fontFamily:"'IBM Plex Mono',monospace"}}>{fmtTime(m.timestamp)}</span>
-              {m.direction==='in' && m.intent && intentBadge(m.intent)}
-              {m.direction==='out' && m.ok===false && <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,background:'#FDDDD9',color:'#B02A1E',letterSpacing:'.04em'}}>FAILED</span>}
-              {m.direction==='out' && m.ok===true && <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,background:'#DBEAFE',color:'#1E40AF',letterSpacing:'.04em'}}>DELIVERED</span>}
-              {m.direction==='out' && m.kind && <span style={{fontSize:11,fontWeight:600,color:'#5A7870'}}>· {m.kind}</span>}
-            </div>
-            <div style={{fontSize:12.5,fontWeight:500,color:'#2A3830',lineHeight:1.5,whiteSpace:'pre-wrap'}}>{m.body || m.rendered || m.error}</div>
-            {m.direction==='in' && m.intent==='reschedule' && (
-              <div style={{marginTop:8,padding:'8px 10px',background:'#fff',borderRadius:7,border:'1px solid #FDE68A',fontSize:12,color:'#78400A',fontWeight:600}}>
-                ⚠ Patient wants to reschedule — open the appointment in the calendar to find a new slot.
-              </div>
-            )}
-          </div>
+      {/* Tabs */}
+      <div style={{display:'flex',alignItems:'center',padding:'0 24px',borderBottom:'1px solid #EEF2F0',background:'#fff'}}>
+        {[['all','All messages'],['inbound',`Inbound replies${inboundMsgs.length?` (${inboundMsgs.length})`:''}`]].map(([key,label])=>(
+          <button key={key} onClick={()=>setTab(key)} style={{padding:'10px 4px',marginRight:22,background:'none',border:'none',borderBottom:tab===key?`2px solid ${CLINIC_CONFIG.primaryColor}`:'2px solid transparent',fontSize:13,fontWeight:700,color:tab===key?CLINIC_CONFIG.primaryColor:'#5A7870',cursor:'pointer'}}>{label}</button>
         ))}
       </div>
+
+      {tab==='all' ? (
+        /* All messages — flat, most-recent-first feed */
+        <div style={{maxHeight:'50vh',overflowY:'auto',padding:'14px 24px'}}>
+          {inbox.length === 0 && (
+            <div style={{textAlign:'center',padding:'40px 20px',color:'#5A7870'}}>
+              <MessageSquare size={32} color="#B8C8C0" style={{margin:'0 auto 10px'}}/>
+              <div style={{fontSize:13.5,fontWeight:600,color:'#3D5850',marginBottom:4}}>No messages yet today</div>
+              <div style={{fontSize:12.5,color:'#5A7870',fontWeight:500}}>Click <strong>Send today’s reminders now</strong> to dispatch the morning batch.</div>
+            </div>
+          )}
+          {inbox.map((m,i)=>renderMsgCard(m,i))}
+        </div>
+      ) : (
+        /* Inbound replies — grouped by intent, filterable by doctor */
+        <div style={{padding:'14px 24px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+            <span style={{fontSize:12,fontWeight:700,color:'#2E4840',textTransform:'uppercase',letterSpacing:'.06em'}}>Filter by doctor</span>
+            <select value={doctorFilter} onChange={e=>setDoctorFilter(e.target.value)} style={{width:'auto',minWidth:210,padding:'6px 10px',fontSize:12.5}}>
+              <option value="">All doctors</option>
+              {doctorsWithReplies.map(d=><option key={d.id} value={d.id}>{d.nameEn}</option>)}
+            </select>
+            {doctorFilter && <button onClick={()=>setDoctorFilter('')} style={{fontSize:12,fontWeight:600,color:'#5A7870',background:'none',border:'none',cursor:'pointer'}}>Clear</button>}
+          </div>
+
+          {inboundFiltered.length===0 ? (
+            <div style={{textAlign:'center',padding:'40px 20px',color:'#5A7870'}}>
+              <Inbox size={32} color="#B8C8C0" style={{margin:'0 auto 10px'}}/>
+              <div style={{fontSize:13.5,fontWeight:600,color:'#3D5850',marginBottom:4}}>No inbound replies{doctorFilter?' for this doctor':''} yet</div>
+              <div style={{fontSize:12.5,color:'#5A7870',fontWeight:500}}>Patient replies to reminders will land here, sorted into confirmations, reschedules, and cancellations.</div>
+            </div>
+          ) : (
+            <div style={{maxHeight:'50vh',overflowY:'auto'}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14}}>
+                {REPLY_GROUPS.map(g=>{
+                  const msgs = inboundFiltered.filter(m=>m.intent===g.key);
+                  return (
+                    <div key={g.key} style={{background:g.bg,borderRadius:10,border:`1px solid ${g.accent}22`,padding:10,minHeight:80}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                        <span style={{fontSize:11.5,fontWeight:800,color:g.accent,textTransform:'uppercase',letterSpacing:'.05em'}}>{g.label}</span>
+                        <span style={{fontSize:11,fontWeight:700,color:g.accent,background:'#fff',borderRadius:20,padding:'1px 7px'}}>{msgs.length}</span>
+                      </div>
+                      {msgs.length===0
+                        ? <div style={{fontSize:12,color:'#8AA8A0',fontWeight:500,padding:'8px 2px'}}>None</div>
+                        : msgs.map((m,i)=>renderMsgCard(m,i))}
+                    </div>
+                  );
+                })}
+              </div>
+              {otherMsgs.length>0 && (
+                <div style={{marginTop:14}}>
+                  <div style={{fontSize:11.5,fontWeight:800,color:'#5A7870',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Unclear / other</div>
+                  {otherMsgs.map((m,i)=>renderMsgCard(m,i))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Footer — provider config summary */}
       <div style={{padding:'12px 24px',background:'#F8FAF9',borderTop:'1px solid #DCE4E0',fontSize:11.5,color:'#5A7870',fontWeight:600,lineHeight:1.6}}>
@@ -1017,6 +1129,9 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
   }, [procObj?.name]);
   const handleConfirm = () => {
     if(!selectedPatient||!procObj) return;
+    // Age-restricted treatments: aesthetic procedures for a minor need an explicit override
+    if (isMinorPatient(selectedPatient) && AESTHETIC_PROCEDURES.has(procObj.name)
+        && !window.confirm(`Age-restricted treatment — ${selectedPatient.nameEn} is a minor. Book "${procObj.name}" anyway?`)) return;
     const payload = {
       patientId: selectedPatient.id,
       start: time,
@@ -1109,8 +1224,13 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
                           <span>{p.fileNo}</span>
                           {p.idType==='passport' && p.idNumber ? <span>· {p.idCountry} {p.idNumber}</span> : (p.qid||p.idNumber) ? <span>· {p.qid||p.idNumber}</span> : null}
                           {p.isInternational && <span style={{fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:10,background:'#EFF6FF',color:'#1E40AF'}}>INT&apos;L</span>}
+                          {isMinorPatient(p) && <MinorBadge/>}
                         </div>
-                        <div style={{fontSize:12,color:'#5A7870',marginTop:1,fontWeight:600}}>{p.phone} · {p.insurer}</div>
+                        <div style={{fontSize:12,color:'#5A7870',marginTop:1,fontWeight:600}}>
+                          {isMinorPatient(p) && p.guardianName
+                            ? <>{p.guardianPhone||p.phone||'—'} · Guardian: {p.guardianName} ({p.guardianRelation||'Guardian'})</>
+                            : <>{p.phone} · {p.insurer}</>}
+                        </div>
                       </div>
                       {(p.allergies?.length>0)&&<div style={{display:'flex',alignItems:'center',gap:4,padding:'3px 8px',borderRadius:8,background:'#FEF4F2',border:'1px solid #FECACA'}}>
                         <AlertTriangle size={11} color="#DC4F38"/>
@@ -1124,7 +1244,7 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
             )}
             {searchQ&&results.length===0&&(
               <div style={{padding:'14px',borderRadius:10,border:'1px solid #DCE4E0',background:'#F5F8F7',textAlign:'center',fontSize:13,color:'#5A7870',fontWeight:600}}>
-                No patient found — <button onClick={()=>setNewPatient({nameEn:'',nameAr:'',phone:'',dob:'',allergies:[],conditions:[],notes:'',eligible:null,lastVisit:null,encounterHistory:[],waConsent:true,isInternational:false,idType:'qid',idNumber:'',idCountry:'Qatar',passportPhotoName:null,passportPhotoUrl:null,countryOfResidence:'',referralSource:'',arrivalDate:'',departureDate:'',insurerCategory:'',insurer:'',policy:''})} style={{color:CLINIC_CONFIG.primaryColor,fontWeight:700,background:'none',border:'none',cursor:'pointer'}}>register new patient</button>
+                No patient found — <button onClick={()=>setNewPatient({nameEn:'',nameAr:'',phone:'',dob:'',allergies:[],conditions:[],notes:'',eligible:null,lastVisit:null,encounterHistory:[],waConsent:true,isInternational:false,idType:'qid',idNumber:'',idCountry:'Qatar',passportPhotoName:null,passportPhotoUrl:null,countryOfResidence:'',referralSource:'',arrivalDate:'',departureDate:'',insurerCategory:'',insurer:'',policy:'',patientType:'adult',guardianName:'',guardianRelation:'Mother',guardianPhone:'',guardianQid:''})} style={{color:CLINIC_CONFIG.primaryColor,fontWeight:700,background:'none',border:'none',cursor:'pointer'}}>register new patient</button>
               </div>
             )}
             {newPatient&&<NewPatientForm form={newPatient} setForm={setNewPatient} onSave={p=>{const np=onAddPatient(p);setSelectedPatient(np);setNewPatient(null);}} onCancel={()=>setNewPatient(null)}/>}
@@ -1264,6 +1384,20 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
                 </div>
               </div>
             )}
+            {isMinorPatient(selectedPatient)&&AESTHETIC_PROCEDURES.has(procObj.name)&&(
+              <div style={{padding:'10px 14px',background:'#FFF1F2',border:'1px solid #FECDD3',borderRadius:9,display:'flex',alignItems:'flex-start',gap:8}}>
+                <AlertTriangle size={14} color="#E11D48" style={{flexShrink:0,marginTop:1}}/>
+                <div>
+                  <div style={{fontSize:12.5,fontWeight:700,color:'#9F1239'}}>Age-restricted treatment — patient is a minor</div>
+                  <div style={{fontSize:12,fontWeight:600,color:'#9F1239',marginTop:2}}>Aesthetic-medicine procedures are age-restricted. Guardian consent and clinical justification are required before booking.</div>
+                </div>
+              </div>
+            )}
+            {isMinorPatient(selectedPatient)&&selectedPatient.guardianName&&(
+              <div style={{padding:'10px 14px',background:'#FFF1F2',border:'1px solid #FECDD3',borderRadius:9,fontSize:12.5,fontWeight:600,color:'#9F1239'}}>
+                Child patient — guardian: {selectedPatient.guardianName} ({selectedPatient.guardianRelation||'Guardian'}) · {selectedPatient.guardianPhone||'—'}. Reminders go to the guardian.
+              </div>
+            )}
             {selectedPatient.notes&&(
               <div style={{padding:'10px 14px',background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:9,fontSize:12.5,fontWeight:600,color:'#78400A'}}>
                 Note: {selectedPatient.notes}
@@ -1286,8 +1420,14 @@ function BookingModal({ isAr, doctor, slot, date, patients, onClose, onConfirm, 
 // QID / passport / DOB / insurance — all captured on arrival, not at booking.
 function NewPatientForm({ form, setForm, onSave, onCancel }) {
   const isIntl   = !!form.isInternational;
+  const isChild  = form.patientType === 'child';
   const phoneOk  = isIntl ? validateIntlPhone(form.phone||'') : validateQatarPhone(form.phone||'');
-  const canSave  = form.nameEn.trim() && phoneOk;
+  const guardianPhoneOk = isIntl ? validateIntlPhone(form.guardianPhone||'') : validateQatarPhone(form.guardianPhone||'');
+  // Adult: name + phone. Child: name + DOB + guardian name + valid guardian phone
+  // (the child's own phone is optional — messages go to the guardian).
+  const canSave  = isChild
+    ? !!(form.nameEn.trim() && form.dob && (form.guardianName||'').trim() && guardianPhoneOk && (!form.phone || phoneOk))
+    : !!(form.nameEn.trim() && phoneOk);
 
   const toggleIntl = (v) => {
     setForm({
@@ -1306,6 +1446,15 @@ function NewPatientForm({ form, setForm, onSave, onCancel }) {
         <span style={{fontSize:11.5,fontWeight:600,color:'#5A7870'}}>Other details captured on arrival</span>
       </div>
 
+      {/* Adult / Child — determines the required fields below */}
+      <div style={{display:'flex',gap:8}}>
+        {[['adult','Adult',User],['child','Child (under 18)',User]].map(([k,lbl,Ic])=>(
+          <button key={k} onClick={()=>setForm({...form,patientType:k})} style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'10px',borderRadius:9,border:'2px solid '+(form.patientType===k?(k==='child'?'#E11D48':CLINIC_CONFIG.primaryColor):'#DCE4E0'),background:form.patientType===k?(k==='child'?'#FFF1F2':'#F0FAF6'):'#fff',color:form.patientType===k?(k==='child'?'#9F1239':CLINIC_CONFIG.primaryColor):'#5A7870',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+            <Ic size={15}/>{lbl}
+          </button>
+        ))}
+      </div>
+
       {/* International toggle — top of form */}
       <label style={{display:'flex',alignItems:'center',gap:9,padding:'10px 12px',background:isIntl?'#EFF6FF':'#fff',border:`1.5px solid ${isIntl?'#3B82F6':'#DCE4E0'}`,borderRadius:9,cursor:'pointer'}}>
         <input type="checkbox" checked={isIntl} onChange={e=>toggleIntl(e.target.checked)} style={{width:16,height:16,cursor:'pointer',accentColor:'#3B82F6'}}/>
@@ -1315,21 +1464,49 @@ function NewPatientForm({ form, setForm, onSave, onCancel }) {
         </div>
       </label>
 
-      {/* Name + phone — the only required fields */}
+      {/* Name + phone — the only required fields for adults */}
       <Grid2>
-        <FormField label="Full name *" error={form.nameEn!==undefined&&!form.nameEn.trim()?'Required':undefined}>
+        <FormField label={isChild?"Child's full name *":'Full name *'} error={form.nameEn!==undefined&&!form.nameEn.trim()?'Required':undefined}>
           <input value={form.nameEn} onChange={e=>setForm({...form,nameEn:e.target.value})} placeholder="First Last"/>
         </FormField>
-        <FormField label="Mobile *" error={form.phone&&!phoneOk?(isIntl?'Format: +CC XXX XXXXXXX':'Format: +974 XXXX XXXX'):undefined}>
+        <FormField label={isChild?"Child's phone (optional)":'Mobile *'} error={form.phone&&!phoneOk?(isIntl?'Format: +CC XXX XXXXXXX':'Format: +974 XXXX XXXX'):undefined}>
           <input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder={isIntl?'+44 7700 900123':'+974 5XXX XXXX'}/>
         </FormField>
+        {isChild&&(
+          <FormField label="Date of birth *">
+            <input type="date" value={form.dob} onChange={e=>setForm({...form,dob:e.target.value})} style={{fontFamily:"'IBM Plex Mono',monospace"}}/>
+          </FormField>
+        )}
       </Grid2>
+
+      {/* Guardian — required for child patients: signs consent, receives messages */}
+      {isChild&&(
+        <div style={{padding:'12px 14px',background:'#FFF1F2',border:'1px solid #FECDD3',borderRadius:10,display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#9F1239'}}>Parent / Guardian — signs consent &amp; receives reminders</div>
+          <Grid2>
+            <FormField label="Guardian full name *">
+              <input value={form.guardianName} onChange={e=>setForm({...form,guardianName:e.target.value})} placeholder="Parent or legal guardian"/>
+            </FormField>
+            <FormField label="Relationship">
+              <select value={form.guardianRelation} onChange={e=>setForm({...form,guardianRelation:e.target.value})}>
+                {GUARDIAN_RELATIONS.map(r=><option key={r} value={r}>{r}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Guardian mobile *" error={form.guardianPhone&&!guardianPhoneOk?(isIntl?'Format: +CC XXX XXXXXXX':'Format: +974 XXXX XXXX'):undefined}>
+              <input value={form.guardianPhone} onChange={e=>setForm({...form,guardianPhone:e.target.value})} placeholder={isIntl?'+44 7700 900123':'+974 5XXX XXXX'}/>
+            </FormField>
+            <FormField label="Guardian QID (optional)">
+              <input value={form.guardianQid} onChange={e=>setForm({...form,guardianQid:e.target.value})} placeholder="11-digit QID" style={{fontFamily:"'IBM Plex Mono',monospace"}}/>
+            </FormField>
+          </Grid2>
+        </div>
+      )}
 
       {/* Reminder of what's pending */}
       <div style={{padding:'10px 12px',background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:8,fontSize:12,fontWeight:600,color:'#78400A',display:'flex',alignItems:'flex-start',gap:8}}>
         <AlertTriangle size={13} color="#D97706" style={{flexShrink:0,marginTop:1}}/>
         <div>
-          On arrival, collect: {isIntl ? 'passport (with photo), country of residence, insurance details, date of birth' : 'QID, date of birth, insurance details'}.
+          On arrival, collect: {isChild ? "child's QID or birth certificate, guardian QID, insurance details" : isIntl ? 'passport (with photo), country of residence, insurance details, date of birth' : 'QID, date of birth, insurance details'}.
         </div>
       </div>
 
@@ -1356,7 +1533,7 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
   const storeConsent  = patient ? findConsent(patient.qid, appointment.procedure) : null;
   const consentSigned = !!(appointment.consent && appointment.consent.signed) || !!storeConsent;
   const consentInfo   = (appointment.consent && appointment.consent.signed) ? appointment.consent
-                       : storeConsent ? {method:storeConsent.method, signedName:storeConsent.signedName, date:storeConsent.date} : null;
+                       : storeConsent ? {method:storeConsent.method, signedName:storeConsent.signedName, date:storeConsent.date, signerType:storeConsent.signerType, signerRelation:storeConsent.signerRelation} : null;
   const effectiveDoc = DOCTORS.find(d=>d.id===aptDoctorId);
   // Availability check for reschedules — only applies if this is a doctor appointment
   const reschedUnavail = aptDoctorId && appointment.providerType!=='nurse'
@@ -1374,7 +1551,7 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
         {/* Patient strip */}
         <div style={{padding:'12px 14px',background:'#F5F8F7',borderRadius:10,border:'1px solid #DCE4E0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div>
-            <div style={{fontSize:13.5,fontWeight:700,color:'#111814'}}>{patient?.nameEn}</div>
+            <div style={{fontSize:13.5,fontWeight:700,color:'#111814',display:'flex',alignItems:'center',gap:7}}>{patient?.nameEn}{patient&&isMinorPatient(patient)&&<MinorBadge/>}</div>
             <div style={{fontSize:12,color:'#5A7870',marginTop:2,fontWeight:600,fontFamily:"'IBM Plex Mono',monospace"}}>
               {patient?.fileNo}
               {patient?.idType==='qid' && patient?.idNumber && <> · QID {patient.idNumber}</>}
@@ -1384,6 +1561,7 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
             </div>
             {patient?.isInternational && <div style={{display:'inline-flex',alignItems:'center',gap:4,marginTop:4,padding:'2px 8px',borderRadius:12,background:'#EFF6FF',border:'1px solid #BFDBFE',fontSize:11,fontWeight:700,color:'#1E40AF'}}>International · {patient.countryOfResidence||'visiting'}</div>}
             {patient?.allergies?.length>0&&<div style={{display:'flex',alignItems:'center',gap:5,marginTop:4,fontSize:12,fontWeight:700,color:'#B02A1E'}}><AlertTriangle size={11}/>Allergies: {patient.allergies.join(', ')}</div>}
+            {patient&&isMinorPatient(patient)&&patient.guardianName&&<div style={{fontSize:12,fontWeight:600,color:'#9F1239',marginTop:4}}>Guardian: {patient.guardianName} ({patient.guardianRelation||'Guardian'}) · {patient.guardianPhone||'—'}</div>}
           </div>
           <button onClick={()=>patient&&onViewFile(patient)} style={{fontSize:12,fontWeight:600,color:CLINIC_CONFIG.primaryColor,background:'#F0FAF6',border:'1px solid #B8DDD6',padding:'5px 10px',borderRadius:7,display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
             <FileText size={12}/>View file
@@ -1413,7 +1591,7 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
               <ShieldCheck size={18} color="#0A6040" style={{flexShrink:0}}/>
               <div style={{flex:1}}>
                 <div style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>Consent signed &amp; uploaded</div>
-                <div style={{fontSize:11.5,fontWeight:600,color:'#3D6B5E',marginTop:1}}>{consentInfo?.method} · {consentInfo?.signedName} · {consentInfo?.date}</div>
+                <div style={{fontSize:11.5,fontWeight:600,color:'#3D6B5E',marginTop:1}}>{consentInfo?.method} · {consentInfo?.signedName}{consentInfo?.signerType==='guardian'&&<> (guardian{consentInfo?.signerRelation?` — ${consentInfo.signerRelation}`:''})</>} · {consentInfo?.date}</div>
               </div>
               <button onClick={()=>setConsentOpen(true)} style={{fontSize:12,fontWeight:700,color:'#0C6B5A',background:'none',border:'none',cursor:'pointer'}}>Re-capture</button>
             </div>
@@ -1507,8 +1685,12 @@ function AppointmentDetail({ isAr, appointment, patient, onClose, onUpdate, onVi
 
 // ─── Treatment consent capture (iPad signature / adopt & DigiSign) ─────────────
 function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
+  // Minors can't legally consent — the parent/guardian signs on their behalf.
+  const minor = isMinorPatient(patient);
   const [method, setMethod]       = useState('ipad');
-  const [typedName, setTypedName] = useState(patient?.nameEn || '');
+  const [guardianName, setGuardianName]         = useState(patient?.guardianName || '');
+  const [guardianRelation, setGuardianRelation] = useState(patient?.guardianRelation || 'Mother');
+  const [typedName, setTypedName] = useState(minor ? (patient?.guardianName || '') : (patient?.nameEn || ''));
   const [adopted, setAdopted]     = useState(false);
   const [agreed, setAgreed]       = useState(false);
   const [hasInk, setHasInk]       = useState(false);
@@ -1528,16 +1710,21 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
   const endDraw   = () => { drawing.current=false; };
   const clearInk  = () => { const cv=canvasRef.current, ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height); setHasInk(false); };
 
-  const canSign = method==='ipad' ? hasInk : (adopted && agreed);
+  const canSign = (method==='ipad' ? hasInk : (adopted && agreed)) && (!minor || !!guardianName.trim());
   const submit = () => {
-    const signedName = method==='ipad' ? (patient?.nameEn||'Patient') : typedName.trim();
+    const signedName = method==='ipad'
+      ? (minor ? guardianName.trim() : (patient?.nameEn||'Patient'))
+      : typedName.trim();
     const methodLbl  = method==='ipad' ? 'iPad' : 'DigiSign';
+    const signerType     = minor ? 'guardian' : 'patient';
+    const signerRelation = minor ? guardianRelation : undefined;
     addConsent({ qid: patient?.qid||'', patientName: patient?.nameEn||'Patient', fileNo: patient?.fileNo||'',
-                 treatment: appointment.procedure, date: dateStr, method: methodLbl, signedName, capturedBy, signedAt: dateStr });
+                 treatment: appointment.procedure, date: dateStr, method: methodLbl, signedName, capturedBy, signedAt: dateStr,
+                 signerType, signerRelation });
     logChange({ qid: patient?.qid, fileNo: patient?.fileNo, patientName: patient?.nameEn,
-      action:'Consent signed', detail:`${appointment.procedure} · ${methodLbl}`,
+      action:'Consent signed', detail:`${appointment.procedure} · ${methodLbl}${minor?` · signed by guardian ${signedName} (${guardianRelation})`:''}`,
       actor: capturedBy==='Reception' ? CURRENT_RECEPTIONIST.name : capturedBy });
-    onSign({ signed:true, method: methodLbl, date:dateStr, treatment:appointment.procedure, signedName, capturedBy, signedAt:dateStr });
+    onSign({ signed:true, method: methodLbl, date:dateStr, treatment:appointment.procedure, signedName, capturedBy, signedAt:dateStr, signerType, signerRelation });
     onClose();
   };
 
@@ -1563,17 +1750,43 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
           <span style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0'}}>before the doctor sees the patient</span>
         </div>
 
+        {/* Guardian signer — minors can't consent themselves */}
+        {minor&&(
+          <div style={{padding:'12px 14px',background:'#FFF1F2',border:'1px solid #FECDD3',borderRadius:10,display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <span style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#9F1239'}}>Guardian consent — patient is a minor</span>
+              <MinorBadge/>
+            </div>
+            <Grid2>
+              <FormField label="Guardian full name *">
+                <input value={guardianName} onChange={e=>setGuardianName(e.target.value)} placeholder="Parent or legal guardian"/>
+              </FormField>
+              <FormField label="Relationship">
+                <select value={guardianRelation} onChange={e=>setGuardianRelation(e.target.value)}>
+                  {GUARDIAN_RELATIONS.map(r=><option key={r} value={r}>{r}</option>)}
+                </select>
+              </FormField>
+            </Grid2>
+            <div style={{fontSize:11.5,fontWeight:600,color:'#9F1239'}}>Signed by the parent/legal guardian on behalf of the patient.</div>
+          </div>
+        )}
+
         {/* Auto-pulled from the system */}
         <div style={{display:'flex',flexWrap:'wrap',gap:14,padding:'13px 15px',background:'#F5F8F7',border:'1px solid #DCE4E0',borderRadius:10}}>
           <Field label="Date" value={dateStr}/>
           <Field label="Treatment" value={appointment.procedure}/>
           <Field label="Patient" value={patient?.nameEn||'—'}/>
           <Field label="Patient ID / QID" value={patient?.qid||patient?.fileNo||'—'}/>
+          <Field label="Signer" value={minor?`${guardianName||'Guardian'} (${guardianRelation})`:(patient?.nameEn||'—')}/>
         </div>
 
         {/* Consent statement */}
         <div style={{padding:'13px 15px',background:'#fff',border:'1px solid #DCE4E0',borderRadius:10,fontSize:12.5,fontWeight:500,color:'#3D5850',lineHeight:1.6,maxHeight:128,overflowY:'auto'}}>
-          I confirm that the nature, purpose, risks, benefits and alternatives of <b>{appointment.procedure}</b> have been explained to me by the treating clinician. I have had the opportunity to ask questions and I consent to the procedure being carried out at {CLINIC_CONFIG.name}. I understand the estimated costs and my insurance coverage where applicable.
+          {minor ? (
+            <>I, {guardianName.trim()||'the undersigned guardian'} ({guardianRelation}), as parent/legal guardian of <b>{patient?.nameEn||'the patient'}</b>, confirm that the nature, purpose, risks, benefits and alternatives of <b>{appointment.procedure}</b> have been explained to me by the treating clinician. I have had the opportunity to ask questions and I consent on behalf of the patient to the procedure being carried out at {CLINIC_CONFIG.name}. I understand the estimated costs and insurance coverage where applicable.</>
+          ) : (
+            <>I confirm that the nature, purpose, risks, benefits and alternatives of <b>{appointment.procedure}</b> have been explained to me by the treating clinician. I have had the opportunity to ask questions and I consent to the procedure being carried out at {CLINIC_CONFIG.name}. I understand the estimated costs and my insurance coverage where applicable.</>
+          )}
         </div>
 
         {/* Method toggle */}
@@ -1588,16 +1801,16 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
         {/* iPad signature pad */}
         {method==='ipad'&&(
           <div>
-            <SectionLabel>Patient signature</SectionLabel>
+            <SectionLabel>{minor?'Guardian signature':'Patient signature'}</SectionLabel>
             <div style={{position:'relative',border:'1.5px dashed #C8D4CF',borderRadius:10,background:'#FCFEFD',overflow:'hidden'}}>
               <canvas ref={canvasRef} width={500} height={150}
                 onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onMouseLeave={endDraw}
                 onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw}
                 style={{width:'100%',height:150,touchAction:'none',cursor:'crosshair',display:'block'}}/>
-              {!hasInk&&<div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none',fontSize:13,fontWeight:600,color:'#B7C9C2'}}>Ask the patient to sign here with the stylus</div>}
+              {!hasInk&&<div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none',fontSize:13,fontWeight:600,color:'#B7C9C2'}}>{minor?'Ask the guardian to sign here with the stylus':'Ask the patient to sign here with the stylus'}</div>}
             </div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
-              <span style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0'}}>{patient?.nameEn} · {dateStr}</span>
+              <span style={{fontSize:11.5,fontWeight:600,color:'#8AA8A0'}}>{minor?(guardianName||'Guardian'):patient?.nameEn} · {dateStr}</span>
               <button onClick={clearInk} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'#5A7870',background:'none',border:'none',cursor:'pointer'}}><Eraser size={13}/>Clear</button>
             </div>
           </div>
@@ -1624,7 +1837,7 @@ function ConsentModal({ isAr, appointment, patient, onClose, onSign }) {
             )}
             <label style={{display:'flex',alignItems:'flex-start',gap:9,cursor:'pointer'}}>
               <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} style={{width:16,height:16,marginTop:1,accentColor:CLINIC_CONFIG.primaryColor}}/>
-              <span style={{fontSize:12,fontWeight:600,color:'#3D5850',lineHeight:1.45}}>The patient agrees that this typed signature is the legal equivalent of their handwritten signature (e-signature consent).</span>
+              <span style={{fontSize:12,fontWeight:600,color:'#3D5850',lineHeight:1.45}}>{minor?'The guardian agrees that this typed signature is the legal equivalent of their handwritten signature (e-signature consent), signed on behalf of the patient.':'The patient agrees that this typed signature is the legal equivalent of their handwritten signature (e-signature consent).'}</span>
             </label>
           </div>
         )}

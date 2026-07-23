@@ -67,7 +67,9 @@ export function findConsent(qid, treatment) {
 }
 
 export function addConsent(rec) {
-  const full = { id: 'cs-' + (++seq), capturedBy: 'Reception', signedAt: rec.date || '', ...rec };
+  // signerType: 'patient' (default) | 'guardian' — minors' consent is signed by
+  // the parent/legal guardian (signerRelation carries the relationship).
+  const full = { id: 'cs-' + (++seq), capturedBy: 'Reception', signedAt: rec.date || '', signerType: 'patient', ...rec };
   // de-dupe an existing consent for the same patient + treatment
   consents = consents.filter(c =>
     !(c.qid === full.qid && normalizeTreatment(c.treatment) === normalizeTreatment(full.treatment)));

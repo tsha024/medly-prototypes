@@ -10,7 +10,8 @@ import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './
 import { useTreatments, insurerPricing } from './treatmentStore';
 import { setChargesForQid } from './chargeStore';
 import { useClinicConfig } from './clinicConfigStore';
-import PatientFile, { buildDocuments } from './PatientFile';
+import { isMinorPatient, dentitionStage } from './patientStore';
+import PatientFile, { buildDocuments, MinorBadge } from './PatientFile';
 
 const CLINIC_CONFIG = {
   name:'Yasmeen Clinic', nameAr:'عيادة الياسمين', city:'Doha, Qatar',
@@ -227,6 +228,16 @@ export const ALL_PATIENTS = [
     payments:[
       { date:'2026-06-07', invoiceNo:'INV-26072', description:'Routine check + X-rays', amount:300, method:'Insurance', insurerPaid:240, patientPaid:60, status:'pending' },
     ] },
+  // Pediatric patient — same QID/file number as the Reception store's child record,
+  // so guardian consent captured at reception lights up this portal's banner.
+  { id:'p17', qid:'31712345601', nameEn:'Ghanim Al-Kuwari',    nameAr:'غانم الكواري', age:9, sex:'M', dob:'2017-02-11', nationality:'Qatari', marital:'—', phone:'', email:'', address:'Al Waab, Doha', insurer:'QLM', insNo:'QLM-447821', fileNo:'YC-2025-0501', registered:'2025-09-14', bloodType:'O+', allergies:[], conditions:['Asthma (mild)'], lastVisit:'2026-05-24',
+    guardianName:'Aisha Al-Kuwari', guardianRelation:'Mother', guardianPhone:'+974 5512 4488', guardianQid:'28934567812',
+    encounters:[
+      { date:'2026-05-24', doctor:'Dr. Layla Al-Mahmoud', kind:'dental', treatment:'Routine check + fluoride', tooth:'', note:'Mixed dentition, caries risk moderate.', fee:300 },
+    ],
+    payments:[
+      { date:'2026-05-24', invoiceNo:'INV-25720', description:'Routine check + fluoride', amount:300, method:'Insurance', insurerPaid:300, patientPaid:0, status:'paid' },
+    ] },
 ];
 
 // Patient documents (medical history, consent forms, radiographs) are built by
@@ -237,6 +248,14 @@ ALL_PATIENTS.forEach(p=>{ p.documents = buildDocuments(p); });
 // Map appointment patientId -> QID (the shared key with the Reception portal)
 const QID_BY_PID = {};
 ALL_PATIENTS.forEach(p=>{ QID_BY_PID[p.id] = p.qid; });
+
+// Resolve the full patient record behind a schedule row, shaped like the
+// hardcoded PATIENT const so the banner/encounter/Rx panels work unchanged.
+function patientForAppt(apt) {
+  const p = apt && ALL_PATIENTS.find(x => x.id === apt.patientId);
+  if (!p) return PATIENT;
+  return { ...p, policy: p.insNo, medications: p.medications || [], careTeam: PATIENT.careTeam };
+}
 
 // A treatment is consented if Reception captured a matching consent (shared
 // store, by QID + treatment); otherwise fall back to the seeded status.
@@ -262,6 +281,7 @@ const MY_SCHEDULE = [
   { id:'s14', date:'2026-06-24', time:'11:00', dur:30, patientId:'p6', patientName:'Nora Al-Thani',       procedure:'Cleaning + fluoride',             status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2025-0387' },
   { id:'s15', date:'2026-06-24', time:'13:00', dur:45, patientId:'p1', patientName:'Aisha Al-Kuwari',     procedure:'Bitewing X-rays',                 status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2024-0142' },
   { id:'s16', date:'2026-06-24', time:'15:00', dur:30, patientId:'p7', patientName:'Ali Hassan Al-Marri', procedure:'Emergency — broken crown #36',    status:'done',        consent:'signed',  kind:'dental', fileNo:'YC-2022-0056' },
+  { id:'s17', date:'2026-06-26', time:'11:45', dur:30, patientId:'p17', patientName:'Ghanim Al-Kuwari',   procedure:'Filling — tooth #85',             status:'booked',      consent:'missing', kind:'dental', fileNo:'YC-2025-0501', chiefComplaint:'Toothache lower-right when chewing, started 3 days ago. Mother present.' },
 ];
 
 const PROCEDURE_REPORT = [
@@ -317,6 +337,9 @@ export default function DoctorPortalPrototype() {
   const openEncounter = apt => { if (apt?.kind) setMode(apt.kind); setActiveApt(apt||null); setView('encounter'); setViewingEnc(null); };
   const openPatient   = pt  => { setSelectedPatient(pt); setView('patientFile'); };
   const goHome        = ()  => { setView('home'); setViewingEnc(null); };
+  // The encounter follows whichever appointment was opened — child appointments
+  // resolve to the child's record (badge, guardian, dentition, Rx advisory).
+  const activePatient = activeApt ? patientForAppt(activeApt) : PATIENT;
 
   return (
     <div style={{...T, minHeight:'100vh', background:CANVAS, color:'#111814'}}>
@@ -376,11 +399,11 @@ export default function DoctorPortalPrototype() {
       {view === 'home' && <DoctorLanding onOpenEncounter={openEncounter} onOpenPatient={openPatient}/>}
       {view === 'encounter' && (
         <>
-          <PatientBanner patient={PATIENT} appointment={{...TODAYS_APT[mode], ...(activeApt||{})}} mode={mode}/>
+          <PatientBanner patient={activePatient} appointment={{...TODAYS_APT[mode], ...(activeApt||{})}} mode={mode}/>
           {viewingEnc?(
             <PastEncounterView enc={viewingEnc} onBack={()=>setViewingEnc(null)}/>
           ):(
-            <EncounterPanel mode={mode} isDental={isDental} onView={setViewingEnc} appointment={activeApt}/>
+            <EncounterPanel mode={mode} isDental={isDental} onView={setViewingEnc} appointment={activeApt} patient={activePatient}/>
           )}
         </>
       )}
@@ -548,7 +571,7 @@ function PatientSearchTab({ onOpenPatient }) {
                 style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:i<shown.length-1?'1px solid #EEF2F0':'none',cursor:'pointer'}}>
                 <div style={{width:38,height:38,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{initials(pt.nameEn)}</div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13.5,fontWeight:700,color:'#111814'}}>{pt.nameEn}</div>
+                  <div style={{fontSize:13.5,fontWeight:700,color:'#111814',display:'flex',alignItems:'center',gap:7}}>{pt.nameEn}{isMinorPatient(pt)&&<MinorBadge/>}</div>
                   <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>
                     <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{pt.qid}</span>
                     <span style={{margin:'0 6px'}}>&#xB7;</span>{pt.age}y {pt.sex}
@@ -698,13 +721,13 @@ function RangeReportTab() {
 }
 
 // ─── Encounter Panel — 3-tab layout replacing the old 3-column grid ─────────────
-function EncounterPanel({ mode, isDental, onView, appointment }) {
+function EncounterPanel({ mode, isDental, onView, appointment, patient = PATIENT }) {
   const [tab, setTab] = useState('soap');
   const apt = TODAYS_APT[mode];
   useConsents();
   // Consent reflects the appointment the doctor actually opened — patient + treatment
   // matched against the shared store (consent captured at reception/nurse).
-  const cQid     = appointment ? QID_BY_PID[appointment.patientId] : PATIENT.qid;
+  const cQid     = patient.qid;
   const cProc    = appointment ? appointment.procedure : apt.procedure;
   const consent  = consentState(cQid, cProc, appointment ? appointment.consent : apt.consent);
   const cRec     = findConsent(cQid, cProc);
@@ -740,6 +763,7 @@ function EncounterPanel({ mode, isDental, onView, appointment }) {
           <ShieldCheck size={15} color="#0A6040" style={{flexShrink:0}}/>
           <span style={{fontSize:12.5,fontWeight:700,color:'#0A6040'}}>Consent signed &amp; uploaded for {cProc}</span>
           {cRec&&<span style={{fontSize:11.5,fontWeight:600,color:'#3D6B5E'}}>&#xB7; {cRec.method} &#xB7; {cRec.capturedBy||'Reception'} &#xB7; {cRec.date}</span>}
+          {cRec?.signerType==='guardian'&&<span style={{fontSize:11.5,fontWeight:700,color:'#0A6040'}}>&#xB7; Signed by {cRec.signedName}{cRec.signerRelation?` (${cRec.signerRelation})`:''} on behalf of the patient</span>}
         </div>
       )}
       {/* Tab bar */}
@@ -766,15 +790,15 @@ function EncounterPanel({ mode, isDental, onView, appointment }) {
         ))}
       </div>
 
-      {tab === 'history'   && <HistoryTab history={ENCOUNTER_HISTORY} mode={mode} onView={onView} />}
+      {tab === 'history'   && <HistoryTab history={patient.id==='p1' ? ENCOUNTER_HISTORY : (patient.encounters||[]).map(e => ({ id:e.date+e.treatment, date:e.date, doctor:e.doctor, specialty:'', procedure:e.treatment+(e.tooth?` #${e.tooth}`:''), notes:e.note||'', kind:e.kind||'dental', rxDone:[{item:e.treatment}], rxMeds:[], plan:[] }))} mode={mode} onView={onView} patient={patient} />}
       {tab === 'soap'      && (isDental ? <DentalEncounter apt={apt} /> : <AestheticSoapTab apt={apt} />)}
-      {tab === 'treatment' && <TreatmentTab mode={mode} apt={apt} isDental={isDental} />}
+      {tab === 'treatment' && <TreatmentTab mode={mode} apt={apt} isDental={isDental} patient={patient} />}
     </div>
   );
 }
 
 // ─── History Tab ───────────────────────────────────────────────────────────────
-function HistoryTab({ history, mode, onView }) {
+function HistoryTab({ history, mode, onView, patient = PATIENT }) {
   const [filter, setFilter] = useState('all');
   const [expanded, setExpanded] = useState(null);
   const filtered = filter === 'all' ? history : history.filter(e => e.kind === filter);
@@ -786,7 +810,8 @@ function HistoryTab({ history, mode, onView }) {
           <div style={{ fontSize: 14, fontWeight: 700 }}>Current medications</div>
         </div>
         <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {PATIENT.medications.map(m => (
+          {(patient.medications||[]).length===0&&<span style={{ fontSize: 13, fontWeight: 600, color: '#8AA8A0' }}>No current medications</span>}
+          {(patient.medications||[]).map(m => (
             <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Pill size={13} color="#4E6860" style={{ flexShrink: 0 }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: '#2A3830' }}>{m}</span>
@@ -864,35 +889,49 @@ function AestheticSoapTab({ apt }) {
 }
 
 // ─── Treatment Tab — odontogram/injection map + Rx + actions ──────────────────
-function TreatmentTab({ mode, apt, isDental }) {
+function TreatmentTab({ mode, apt, isDental, patient = PATIENT }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Insurance banner */}
       <div style={{ padding: '11px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 9 }}>
         <Shield size={15} color="#1D4ED8" style={{ flexShrink: 0, marginTop: 1 }} />
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#1E40AF' }}>{mode === 'dental' ? 'QLM — Dental covered' : 'QLM — Aesthetic excluded'}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#1E40AF' }}>{mode === 'dental' ? `${patient.insurer} — Dental covered` : `${patient.insurer} — Aesthetic excluded`}</div>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#3B5FA0', marginTop: 2 }}>{mode === 'dental' ? 'Pre-auth approved. Co-pay QAR 60.' : 'Cosmetic procedure — patient pays direct.'}</div>
           {mode === 'dental' && <div style={{ fontSize: 12, color: '#6080B0', marginTop: 2, fontWeight: 600 }}>Auth #QLM-PA-118822</div>}
         </div>
       </div>
 
       {/* Odontogram / injection map */}
-      {isDental ? <DentalTreatmentCard /> : <AestheticMapCard />}
+      {isDental ? <DentalTreatmentCard key={patient.id} patient={patient} /> : <AestheticMapCard />}
 
       {/* Rx Done + Rx Med + Plan + Finish */}
-      <ActionsColumn mode={mode} apt={apt} />
+      <ActionsColumn mode={mode} apt={apt} patient={patient} />
     </div>
   );
 }
 
 // ─── Dental treatment card (odontogram only) ───────────────────────────────────
-function DentalTreatmentCard() {
-  const [findings, setFindings] = useState({
+// Demo findings per dentition stage so the chart opens with something noted.
+const DEFAULT_FINDINGS = {
+  permanent: {
     16: { note: 'Deep distal caries — recommend composite filling.' },
     36: { note: 'Existing composite, margins intact.' },
-  });
-  const [selectedTooth, setSelectedTooth] = useState(16);
+  },
+  mixed: {
+    85: { note: 'Distal caries on lower-right primary molar — plan filling.' },
+    46: { note: 'Newly erupted first molar — deep fissures, plan sealant.' },
+  },
+  primary: {
+    55: { note: 'Occlusal caries — monitor / restore.' },
+  },
+};
+const STAGE_LABEL = { permanent: '', mixed: 'Mixed dentition', primary: 'Primary dentition' };
+
+function DentalTreatmentCard({ patient = PATIENT }) {
+  const stage = dentitionStage(patient);
+  const [findings, setFindings] = useState(() => ({ ...DEFAULT_FINDINGS[stage] }));
+  const [selectedTooth, setSelectedTooth] = useState(() => Number(Object.keys(DEFAULT_FINDINGS[stage])[0]) || 16);
   const setToothNote = (num, note) => {
     setFindings(prev => {
       const next = { ...prev };
@@ -907,12 +946,14 @@ function DentalTreatmentCard() {
       <div style={cardHd}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>Odontogram</div>
-          <div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>FDI notation · Click a tooth to add a note</div>
+          <div style={{ fontSize: 12, color: '#3D5850', marginTop: 2, fontWeight: 600 }}>
+            FDI notation{STAGE_LABEL[stage]?` · ${STAGE_LABEL[stage]} (age ${patient.age})`:''} · Click a tooth to add a note
+          </div>
         </div>
         {noted>0&&<span style={{ fontSize: 11.5, fontWeight: 700, color: '#0C6B5A' }}>{noted} {noted===1?'tooth noted':'teeth noted'}</span>}
       </div>
       <div style={{ padding: '18px 20px' }}>
-        <Odontogram findings={findings} selected={selectedTooth} onSelect={setSelectedTooth} />
+        <Odontogram findings={findings} selected={selectedTooth} onSelect={setSelectedTooth} stage={stage} />
         <ToothNoteEditor
           num={selectedTooth}
           note={findings[selectedTooth]?.note || ''}
@@ -1042,17 +1083,20 @@ function AestheticMapCard() {
 // ─── Patient Banner ───────────────────────────────────────────────────────────
 function PatientBanner({ patient, appointment, mode }) {
   const [showId, setShowId] = useState(false);
-  const team = patient.careTeam[mode];
+  const team = patient.careTeam?.[mode] || PATIENT.careTeam[mode];
+  const initials = patient.nameEn.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const minor = isMinorPatient(patient);
   return (
     <div style={{background:'#fff',borderBottom:'1px solid #DCE4E0'}}>
       <div style={{padding:'12px 20px',display:'flex',alignItems:'flex-start',gap:20,flexWrap:'wrap'}}>
         {/* Identity */}
         <div style={{display:'flex',alignItems:'flex-start',gap:12,minWidth:280}}>
-          <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>AK</div>
+          <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#E3EEEA,#CFE3DC)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#0C6B5A',flexShrink:0}}>{initials}</div>
           <div>
             <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
               <span style={{fontSize:15,fontWeight:800,color:'#111814'}}>{patient.nameEn}</span>
               <span style={{fontSize:13,color:'#3D5850',fontWeight:600,direction:'rtl'}}>{patient.nameAr}</span>
+              {minor&&<MinorBadge age={patient.age}/>}
             </div>
             <div style={{fontSize:12,color:'#5A7870',marginTop:2,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',fontWeight:600}}>
               <span className="mono">{patient.qid}</span>
@@ -1062,13 +1106,17 @@ function PatientBanner({ patient, appointment, mode }) {
                 <FileText size={10}/>{showId?'Hide ID':'View ID'}
               </button>
             </div>
-            <div style={{fontSize:12,color:'#5A7870',marginTop:2,fontWeight:600}}>{patient.phone} · <span style={{color:'#0A6040'}}>{patient.insurer} {patient.policy}</span></div>
+            <div style={{fontSize:12,color:'#5A7870',marginTop:2,fontWeight:600}}>{patient.phone||'—'} · <span style={{color:'#0A6040'}}>{patient.insurer} {patient.policy}</span></div>
+            {minor&&patient.guardianName&&(
+              <div style={{fontSize:12,fontWeight:700,color:'#9F1239',marginTop:2}}>Guardian: {patient.guardianName} ({patient.guardianRelation||'Guardian'}) · {patient.guardianPhone||'—'}</div>
+            )}
           </div>
         </div>
 
         {/* Allergies */}
         <div style={{borderLeft:'1px solid #EEF2F0',paddingLeft:18,minWidth:160}}>
           <div style={{...SEC,marginBottom:5,color:'#C04030'}}>Allergies</div>
+          {patient.allergies.length===0&&<span style={{fontSize:12.5,fontWeight:600,color:'#8AA8A0'}}>None known</span>}
           {patient.allergies.map(a=>(
             <div key={a} style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
               <AlertTriangle size={12} color="#DC4F38"/>
@@ -1080,6 +1128,7 @@ function PatientBanner({ patient, appointment, mode }) {
         {/* Conditions */}
         <div style={{borderLeft:'1px solid #EEF2F0',paddingLeft:18,minWidth:180}}>
           <div style={{...SEC,marginBottom:5}}>Conditions</div>
+          {patient.conditions.length===0&&<span style={{fontSize:12.5,fontWeight:600,color:'#8AA8A0'}}>None</span>}
           {patient.conditions.map(c=><div key={c} style={{fontSize:12.5,fontWeight:600,color:'#2A3830',marginBottom:3}}>· {c}</div>)}
         </div>
 
@@ -1114,7 +1163,7 @@ function PatientBanner({ patient, appointment, mode }) {
           ))}
           <div style={{flex:1,display:'flex',flexDirection:'column',gap:4}}>
             <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#2E4840',marginBottom:4}}>ID on file</div>
-            {[['Document type','Qatar ID (QID)'],['QID number',patient.qid],['Full name',patient.nameEn],['Date of birth','1989-03-14'],['Nationality','Qatari'],['Expiry','2029-06-30']].map(([l,v])=>(
+            {[['Document type','Qatar ID (QID)'],['QID number',patient.qid],['Full name',patient.nameEn],['Date of birth',patient.dob||'—'],['Nationality',patient.nationality||'Qatari'],['Expiry','2029-06-30']].map(([l,v])=>(
               <div key={l} style={{display:'flex',gap:12,fontSize:12.5}}>
                 <span style={{color:'#5A7870',fontWeight:600,width:110,flexShrink:0}}>{l}</span>
                 <span style={{fontWeight:600,color:'#111814',fontFamily:l==='QID number'?"'IBM Plex Mono',monospace":'inherit'}}>{v}</span>
@@ -1150,8 +1199,15 @@ function SoapField({ letter, label, value, onChange }) {
 }
 
 // ─── Odontogram — recreated from the original prototype ──────────────────────
-// Single tooth path repeated for all 32 teeth. Lower arch flipped vertically.
-// FDI numbering. Teeth with a clinical note are highlighted.
+// Single tooth path repeated per arch. Lower arch flipped vertically.
+// FDI numbering — permanent 11–48, primary (deciduous) 51–85. Dentition follows
+// the patient's age: <6 primary, 6–12 mixed (arch toggle), 13+ permanent.
+const PERM_UPPER = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
+const PERM_LOWER = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+const PRIM_UPPER = [55,54,53,52,51,61,62,63,64,65];
+const PRIM_LOWER = [85,84,83,82,81,71,72,73,74,75];
+const FDI_PERMANENT = [...PERM_UPPER, ...PERM_LOWER];
+const FDI_PRIMARY   = [...PRIM_UPPER, ...PRIM_LOWER];
 
 function ToothNoteEditor({ num, note, onSet }) {
   const quadrant = (() => {
@@ -1159,6 +1215,10 @@ function ToothNoteEditor({ num, note, onSet }) {
     if (num >= 21 && num <= 28) return 'Upper left';
     if (num >= 31 && num <= 38) return 'Lower left';
     if (num >= 41 && num <= 48) return 'Lower right';
+    if (num >= 51 && num <= 55) return 'Upper right (primary)';
+    if (num >= 61 && num <= 65) return 'Upper left (primary)';
+    if (num >= 71 && num <= 75) return 'Lower left (primary)';
+    if (num >= 81 && num <= 85) return 'Lower right (primary)';
     return '';
   })();
   return (
@@ -1211,25 +1271,38 @@ function LegendDot({ color, label, border }) {
   );
 }
 
-function Odontogram({ findings = {}, selected, onSelect = () => {} }) {
-  const upper = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
-  const lower = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+function Odontogram({ findings = {}, selected, onSelect = () => {}, stage = 'permanent' }) {
+  // Mixed dentition (6–12y): both sets are present — the doctor toggles between arches.
+  const [arch, setArch] = useState(stage === 'mixed' ? 'primary' : null);
+  const showPrimary = stage === 'primary' || (stage === 'mixed' && arch === 'primary');
+  const upper = showPrimary ? PRIM_UPPER : PERM_UPPER;
+  const lower = showPrimary ? PRIM_LOWER : PERM_LOWER;
   const fillFor = num => (findings[num] && findings[num].note) ? '#BFE0D6' : '#FFFFFF';
   return (
     <div style={{background:'#F8FAF9',borderRadius:8,padding:'12px 14px'}}>
+      {stage==='mixed'&&(
+        <div style={{display:'flex',justifyContent:'center',marginBottom:8}}>
+          <div style={{display:'flex',borderRadius:7,overflow:'hidden',border:'1px solid #DCE4E0'}}>
+            {[['primary','Primary (51–85)'],['permanent','Permanent (11–48)']].map(([k,lbl])=>(
+              <button key={k} onClick={()=>setArch(k)} style={{padding:'4px 12px',fontSize:11.5,fontWeight:arch===k?700:600,border:'none',background:arch===k?CLINIC_CONFIG.primaryColor:'#fff',color:arch===k?'#fff':'#4A6860',cursor:'pointer'}}>{lbl}</button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
         <div style={{fontSize:9,color:'#9CA3AF',fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,letterSpacing:'.06em'}}>UPPER</div>
         <div style={{display:'flex',gap:2}}>
           {upper.map((t,i)=>(
-            <Tooth key={t} num={t} findings={findings[t]} selected={selected===t} onSelect={onSelect} fill={fillFor(t)} divider={i===7}/>
+            <Tooth key={t} num={t} findings={findings[t]} selected={selected===t} onSelect={onSelect} fill={fillFor(t)} divider={i===upper.length/2}/>
           ))}
         </div>
         <div style={{display:'flex',gap:2}}>
           {lower.map((t,i)=>(
-            <Tooth key={t} num={t} findings={findings[t]} selected={selected===t} onSelect={onSelect} fill={fillFor(t)} divider={i===7} flipped/>
+            <Tooth key={t} num={t} findings={findings[t]} selected={selected===t} onSelect={onSelect} fill={fillFor(t)} divider={i===lower.length/2} flipped/>
           ))}
         </div>
         <div style={{fontSize:9,color:'#9CA3AF',fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,letterSpacing:'.06em'}}>LOWER</div>
+        {showPrimary&&<div style={{fontSize:10.5,color:'#9F1239',fontWeight:700,marginTop:2}}>Primary dentition — FDI 51–85</div>}
       </div>
       {/* Legend */}
       <div style={{display:'flex',alignItems:'center',gap:14,marginTop:10,paddingTop:8,borderTop:'1px solid #DCE4E0',flexWrap:'wrap'}}>
@@ -1260,7 +1333,7 @@ function DentalEncounter({ apt }) {
 }
 
 // ─── Actions Column ───────────────────────────────────────────────────────────
-function ActionsColumn({ mode, apt }) {
+function ActionsColumn({ mode, apt, patient = PATIENT }) {
   const [tab, setTab] = useState('rxdone');
   const [receptionNote, setReceptionNote] = useState('');
   const [noteSaved, setNoteSaved] = useState(false);
@@ -1293,8 +1366,8 @@ function ActionsColumn({ mode, apt }) {
           ))}
         </div>
         <div style={{padding:'14px 16px'}}>
-          {tab==='rxmed'  && <RxMedPanel mode={mode}/>}
-          {tab==='rxdone' && <RxDonePanel mode={mode} apt={apt}/>}
+          {tab==='rxmed'  && <RxMedPanel mode={mode} patient={patient}/>}
+          {tab==='rxdone' && <RxDonePanel mode={mode} apt={apt} patient={patient}/>}
           {tab==='plan'   && <PlanPanel mode={mode}/>}
           {tab==='finish' && <FinishPanel mode={mode}/>}
         </div>
@@ -1321,21 +1394,42 @@ function ActionsColumn({ mode, apt }) {
 }
 
 // ─── Rx Med Panel ─────────────────────────────────────────────────────────────
-function RxMedPanel({ mode }) {
+function RxMedPanel({ mode, patient = PATIENT }) {
   const [rxList, setRxList] = useState([]);
   const [showCustom, setShowCustom] = useState(false);
   const [custom, setCustom] = useState({name:'',sig:''});
-  const add = drug => { if(drug.name.startsWith('Amoxicillin')){ if(!confirm('ALLERGY: Patient allergic to Penicillin. Continue?')) return; } setRxList(p=>[...p,{...drug,id:Date.now()}]); };
+  const [weight, setWeight] = useState('');
+  const minor = isMinorPatient(patient);
+  // Allergy cross-check against the patient's actual allergy list
+  const penicillinAllergic = (patient.allergies||[]).some(a=>/penicillin/i.test(a));
+  const flagged = d => d.name.startsWith('Amoxicillin') && penicillinAllergic;
+  const add = drug => { if(drug.name.startsWith('Amoxicillin') && penicillinAllergic){ if(!confirm('ALLERGY: Patient allergic to Penicillin. Continue?')) return; } setRxList(p=>[...p,{...drug,id:Date.now()}]); };
   const addCustom = () => { if(!custom.name)return; add(custom); setCustom({name:'',sig:''}); setShowCustom(false); };
   return (
     <div>
+      {minor&&(
+        <div style={{padding:'10px 12px',background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:9,marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#92600A',display:'flex',alignItems:'center',gap:5}}>
+            <AlertTriangle size={11}/>Pediatric dosing — patient is {patient.age}y
+          </div>
+          <div style={{fontSize:12,fontWeight:600,color:'#78400A',marginTop:4,lineHeight:1.45}}>
+            Verify every dose is weight-based (mg/kg) against a pediatric formulary before prescribing. Adult sig lines below do not apply.
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginTop:8}}>
+            <span style={{fontSize:11.5,fontWeight:700,color:'#78400A'}}>Weight</span>
+            <input type="number" min={0} value={weight} onChange={e=>setWeight(e.target.value)} placeholder="—" style={{width:70,padding:'4px 8px',fontSize:12.5,background:'#fff',borderColor:'#FDE68A',fontFamily:"'IBM Plex Mono',monospace"}}/>
+            <span style={{fontSize:11.5,fontWeight:700,color:'#78400A'}}>kg</span>
+            {weight&&<span style={{fontSize:11.5,fontWeight:600,color:'#92600A'}}>· dose calculations use {weight} kg</span>}
+          </div>
+        </div>
+      )}
       <div style={SEC}>Quick prescribe</div>
       <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:10}}>
         {DRUG_FAVOURITES.map(d=>(
-          <button key={d.name} onClick={()=>add(d)} style={{textAlign:'left',padding:'8px 10px',borderRadius:8,border:`1px solid ${d.name.startsWith('Amoxicillin')?'#FECACA':'#DCE4E0'}`,background:d.name.startsWith('Amoxicillin')?'#FEF4F2':'#fff',cursor:'pointer',transition:'filter .13s'}}>
+          <button key={d.name} onClick={()=>add(d)} style={{textAlign:'left',padding:'8px 10px',borderRadius:8,border:`1px solid ${flagged(d)?'#FECACA':'#DCE4E0'}`,background:flagged(d)?'#FEF4F2':'#fff',cursor:'pointer',transition:'filter .13s'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontSize:12.5,fontWeight:600,color:'#111814'}}>{d.name}</span>
-              {d.name.startsWith('Amoxicillin')&&<AlertTriangle size={12} color="#DC4F38"/>}
+              {flagged(d)&&<AlertTriangle size={12} color="#DC4F38"/>}
             </div>
             <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:2}}>{d.sig}</div>
           </button>
@@ -1367,8 +1461,8 @@ function RxMedPanel({ mode }) {
 }
 
 // ─── Rx Done Panel ────────────────────────────────────────────────────────────
-function RxDonePanel({ mode, apt }) {
-  const insurer = PATIENT.insurer;
+function RxDonePanel({ mode, apt, patient = PATIENT }) {
+  const insurer = patient.insurer;
   const all = useTreatments();
   const active = all.filter(t => t.active);
   const DEFAULTS = mode==='dental'
@@ -1392,7 +1486,9 @@ function RxDonePanel({ mode, apt }) {
   const specs = [...new Set(active.map(t => t.specialty))];
   const selTx  = active.find(t => t.id === selTxId) || null;
   const selCov = selTx ? insurerPricing(selTx, insurer) : null;
-  const FDI_TEETH = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28,48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+  // Tooth options follow the patient's dentition — mixed shows both sets
+  const stage = dentitionStage(patient);
+  const TOOTH_OPTIONS = stage==='primary' ? FDI_PRIMARY : stage==='mixed' ? [...FDI_PERMANENT, ...FDI_PRIMARY] : FDI_PERMANENT;
   const selDental = selTx && !/aesthetic/i.test(selTx.specialty || '');
   const [tooth, setTooth] = useState('');
 
@@ -1409,6 +1505,9 @@ function RxDonePanel({ mode, apt }) {
 
   const addFromCatalog = () => {
     const t = active.find(x => x.id === selTxId); if(!t) return;
+    // Age-restricted treatments: aesthetic procedures for a minor need an explicit override
+    if (isMinorPatient(patient) && /aesthetic/i.test(t.specialty||'')
+        && !window.confirm(`Age-restricted treatment — ${patient.nameEn} is a minor. Add "${t.name}" anyway?`)) return;
     const dental = !/aesthetic/i.test(t.specialty || '');
     const cov = insurerPricing(t, insurer);
     const base = { id:`r${Date.now()}`, txId:t.id, name:t.name, tooth:(dental?tooth:''), code:t.code||'', specialty:t.specialty, grossPrice:t.grossPrice, cashPrice:t.cashPrice, insurancePrice:cov?cov.insurancePrice:null, copayPct:cov?cov.copayPct:0 };
@@ -1419,10 +1518,10 @@ function RxDonePanel({ mode, apt }) {
   const postToCheckout = () => {
     const recs = items.map(it => it.payMode==='insurance'
       ? (()=>{ const pPays=Math.round(it.editPrice*(it.copayPct||0)/100);
-          return { qid:PATIENT.qid, patientName:PATIENT.nameEn, date:TODAY, treatment:lblOf(it), code:it.code, specialty:it.specialty||'', payMode:'insurance', grossPrice:it.grossPrice||it.editPrice, insurer, insurancePrice:it.editPrice, copayPct:it.copayPct||0, patientPays:pPays, insurerPays:it.editPrice-pPays, postedBy:CURRENT_DOCTOR.name }; })()
+          return { qid:patient.qid, patientName:patient.nameEn, date:TODAY, treatment:lblOf(it), code:it.code, specialty:it.specialty||'', payMode:'insurance', grossPrice:it.grossPrice||it.editPrice, insurer, insurancePrice:it.editPrice, copayPct:it.copayPct||0, patientPays:pPays, insurerPays:it.editPrice-pPays, postedBy:CURRENT_DOCTOR.name }; })()
       : (()=>{ const pPays=Math.round(it.editPrice*(1-discPct/100));
-          return { qid:PATIENT.qid, patientName:PATIENT.nameEn, date:TODAY, treatment:lblOf(it), code:it.code, specialty:it.specialty||'', payMode:'cash', grossPrice:it.grossPrice||it.editPrice, cashPrice:it.editPrice, discount:discPct, patientPays:pPays, insurerPays:0, postedBy:CURRENT_DOCTOR.name }; })());
-    setChargesForQid(PATIENT.qid, recs); setPosted(true);
+          return { qid:patient.qid, patientName:patient.nameEn, date:TODAY, treatment:lblOf(it), code:it.code, specialty:it.specialty||'', payMode:'cash', grossPrice:it.grossPrice||it.editPrice, cashPrice:it.editPrice, discount:discPct, patientPays:pPays, insurerPays:0, postedBy:CURRENT_DOCTOR.name }; })());
+    setChargesForQid(patient.qid, recs); setPosted(true);
   };
 
   return (
@@ -1448,7 +1547,7 @@ function RxDonePanel({ mode, apt }) {
                   <span style={{fontSize:11,fontWeight:700,color:'#5A7870'}}>Tooth #</span>
                   <select value={item.tooth||''} onChange={e=>setItemTooth(item.id,e.target.value)} style={{padding:'2px 6px',fontSize:11,width:'auto'}}>
                     <option value="">—</option>
-                    {FDI_TEETH.map(n=><option key={n} value={n}>{n}</option>)}
+                    {TOOTH_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}
                   </select>
                 </span>
               )}
@@ -1482,7 +1581,7 @@ function RxDonePanel({ mode, apt }) {
               <span style={{fontSize:11.5,fontWeight:700,color:'#3D5850'}}>Tooth #</span>
               <select value={tooth} onChange={e=>setTooth(e.target.value)} style={{flex:1}}>
                 <option value="">Select tooth (FDI)…</option>
-                {FDI_TEETH.map(n=><option key={n} value={n}>#{n}</option>)}
+                {TOOTH_OPTIONS.map(n=><option key={n} value={n}>#{n}</option>)}
               </select>
             </div>
           )}

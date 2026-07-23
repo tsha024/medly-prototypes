@@ -6,6 +6,7 @@ import {
 import { findConsent, consentsForQid, useConsents, normalizeTreatment } from './consentStore';
 import { downloadPatientFilePdf } from './patientFilePdf';
 import { auditLogFor, useAuditLog } from './auditLogStore';
+import { patientAge, isMinorPatient } from './patientStore';
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Unified Patient File
@@ -31,18 +32,17 @@ const cardHd = { padding:'13px 18px 11px', borderBottom:'1px solid #EEF2F0', dis
 const fmtDate      = d => d ? new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
 const fmtDateShort = d => d ? new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : '—';
 
-function ageFromDob(dob) {
-  if (!dob) return null;
-  const d = new Date(dob+'T12:00:00'); if (isNaN(d)) return null;
-  const t = new Date();
-  let a = t.getFullYear() - d.getFullYear();
-  const m = t.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
-  return a;
-}
-
 function guessKind(text) {
   return /botox|filler|hydrafacial|peel|laser|aesthetic|dermal/i.test(text||'') ? 'aesthetic' : 'dental';
+}
+
+// ─── Pediatric badge — the one shared CHILD marker used by every portal ────────
+export function MinorBadge({ age }) {
+  return (
+    <span style={{fontSize:9.5,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#FFE4E6',color:'#9F1239',flexShrink:0,whiteSpace:'nowrap'}}>
+      CHILD{age!=null?` · ${age}y`:''}
+    </span>
+  );
 }
 
 // ─── Document builder (medical history, consent forms, radiographs) ────────────
@@ -79,7 +79,8 @@ function normalizePatient(p) {
       }));
   return {
     ...p,
-    age:        p.age != null ? p.age : ageFromDob(p.dob),
+    age:        p.age != null ? p.age : patientAge(p.dob),
+    isMinor:    isMinorPatient(p),
     sex:        p.sex || '—',
     bloodType:  p.bloodType || '—',
     nationality:p.nationality || (p.isInternational ? (p.countryOfResidence || 'International') : '—'),
@@ -128,6 +129,7 @@ export default function PatientFile({
   const recConsents = consentsForQid(norm.qid).map(cc => ({
     id:cc.id, type:'consent', name:'Consent — '+cc.treatment, treatment:cc.treatment, date:cc.date,
     fileType:'PDF', sizeKB:90, uploadedBy:(cc.capturedBy||'Reception'), signed:true, signMethod:cc.method, source:'reception',
+    signedName:cc.signedName, signerType:cc.signerType, signerRelation:cc.signerRelation,
   }));
   const recTreat    = new Set(recConsents.map(cc => normalizeTreatment(cc.treatment)));
   const seededDocs  = patient.documents || buildDocuments(norm);
@@ -191,6 +193,7 @@ export default function PatientFile({
             <span style={{fontSize:17,fontWeight:800,color:'#111814',letterSpacing:'-.3px'}}>{norm.nameEn}</span>
             {norm.nameAr&&<span style={{fontSize:14,fontWeight:600,color:'#5A7870',fontFamily:"'Noto Sans Arabic',sans-serif"}}>{norm.nameAr}</span>}
             {norm.isInternational&&<span style={{fontSize:9.5,fontWeight:700,padding:'2px 7px',borderRadius:8,background:'#EFF6FF',color:'#1E40AF'}}>INT&apos;L</span>}
+            {norm.isMinor&&<MinorBadge age={norm.age}/>}
           </div>
           <div style={{fontSize:12.5,fontWeight:600,color:'#5A7870',marginTop:4,display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
             <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{idLabel}</span>
@@ -208,6 +211,11 @@ export default function PatientFile({
           {norm.conditions.length>0&&(
             <div style={{fontSize:12,fontWeight:600,color:'#5A7870',marginTop:5}}>Conditions: {norm.conditions.join(' · ')}</div>
           )}
+          {norm.isMinor&&norm.guardianName&&(
+            <div style={{fontSize:12,fontWeight:600,color:'#9F1239',marginTop:5}}>
+              Guardian: {norm.guardianName} ({norm.guardianRelation||'Guardian'}) · {norm.guardianPhone||'—'}
+            </div>
+          )}
         </div>
         <div style={{textAlign:'right',flexShrink:0}}>
           <div style={{fontSize:24,fontWeight:800,color:'#111814',letterSpacing:'-0.5px'}}>{encs.length}</div>
@@ -222,7 +230,7 @@ export default function PatientFile({
           <div>
             <div style={{fontSize:12.5,fontWeight:700,color:'#78400A'}}>Patient record incomplete</div>
             <div style={{fontSize:12,fontWeight:600,color:'#92600A',marginTop:2}}>
-              {[!norm.qid&&'Qatar ID',!norm.dob&&'Date of birth'].filter(Boolean).join(' · ')} missing — please complete on arrival.
+              {[!norm.qid&&'Qatar ID',!norm.dob&&'Date of birth (pediatric checks inactive)'].filter(Boolean).join(' · ')} missing — please complete on arrival.
             </div>
           </div>
         </div>
@@ -407,6 +415,9 @@ export default function PatientFile({
                       <span>&#xB7;</span><span>{fmtDateShort(d.date)}</span>
                       <span>&#xB7;</span><span>{d.uploadedBy}</span>
                       {d.source==='reception'&&<span style={{padding:'1px 7px',borderRadius:10,background:'#EEF6FF',color:'#1D4ED8',fontWeight:700}}>via Reception</span>}
+                      {d.type==='consent'&&d.signerType==='guardian'&&(
+                        <span style={{color:'#9F1239'}}>&#xB7; Signed by {d.signedName}{d.signerRelation?` (${d.signerRelation})`:''} on behalf of patient</span>
+                      )}
                     </div>
                   </div>
                   {d.type==='consent'&&(d.signed?(
@@ -500,6 +511,20 @@ export default function PatientFile({
               <Row label="Registered" value={fmtDate(norm.registered)} mono/>
             </div>
           </div>
+          {norm.isMinor&&(
+            <div style={{...card,gridColumn:'1 / -1'}}>
+              <div style={cardHd}>
+                <div style={{fontSize:14,fontWeight:700}}>Parent / Guardian</div>
+                <MinorBadge age={norm.age}/>
+              </div>
+              <div style={{padding:'4px 18px 12px'}}>
+                <Row label="Guardian name" value={norm.guardianName||'—'}/>
+                <Row label="Relationship" value={norm.guardianRelation||'—'}/>
+                <Row label="Guardian phone" value={norm.guardianPhone||'—'} mono/>
+                <Row label="Guardian QID" value={norm.guardianQid||'—'} mono/>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

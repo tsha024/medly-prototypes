@@ -183,7 +183,7 @@ export async function downloadPatientFilePdf({ patient, encounters = [], payment
   doc.text(patient.nameEn, MARGIN, y);
   y += 6;
   doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTED);
-  const idLine = [patient.isInternational ? (patient.idNumber || 'Passport pending') : (patient.qid || 'QID pending'), patient.fileNo, patient.age != null ? `${patient.age}y ${patient.sex || ''}`.trim() : null, patient.insurer].filter(Boolean).join('   ·   ');
+  const idLine = [patient.isInternational ? (patient.idNumber || 'Passport pending') : (patient.qid || 'QID pending'), patient.fileNo, patient.age != null ? `${patient.age}y ${patient.sex || ''}`.trim() : null, patient.isMinor ? 'MINOR' : null, patient.insurer].filter(Boolean).join('   ·   ');
   doc.text(idLine, MARGIN, y);
   y += 6;
 
@@ -208,6 +208,11 @@ export async function downloadPatientFilePdf({ patient, encounters = [], payment
     ['Phone', patient.phone], ['Email', patient.email],
     ['Address', patient.address], ['Insurer', patient.insurer],
     ['Insurance no.', patient.insNo || patient.policy], ['Registered', patient.registered || patient.lastVisit],
+    // Guardian block — present on minors' files (guardian signs consent, receives messages)
+    ...(patient.guardianName ? [
+      ['Guardian', `${patient.guardianName}${patient.guardianRelation ? ` (${patient.guardianRelation})` : ''}`],
+      ['Guardian phone', patient.guardianPhone],
+    ] : []),
   ];
   doc.setFontSize(9);
   const colW = (PAGE_W - MARGIN * 2) / 2;
